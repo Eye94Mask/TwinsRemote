@@ -161,7 +161,7 @@ impl FfmpegEncoder {
                         5 => {
                             if let (Some(sps), Some(pps)) = (&sps, &pps) {
                                 if let Err(e) = Self::send_stap_a(
-                                    &webrtc_clone.track,
+                                    &webrtc_clone.video_track,
                                     sps,
                                     pps,
                                     &mut seq,
@@ -172,7 +172,7 @@ impl FfmpegEncoder {
                             }
 
                             if let Err(e) = Self::send_h264_rtp(
-                                &webrtc_clone.track,
+                                &webrtc_clone.video_track,
                                 &nal,
                                 &mut seq,
                                 timestamp
@@ -190,7 +190,7 @@ impl FfmpegEncoder {
                         // ----------
                         1 => {
                             if let Err(e) = Self::send_h264_rtp(
-                                &webrtc_clone.track,
+                                &webrtc_clone.video_track,
                                 &nal,
                                 &mut seq,
                                 timestamp

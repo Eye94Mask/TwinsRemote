@@ -18,6 +18,7 @@ use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::rtp_transceiver::rtp_codec::{RTCRtpCodecParameters, RTCRtpCodecCapability};
 use webrtc::track::track_local::track_local_static_rtp::TrackLocalStaticRTP;
+use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocalWriter;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
@@ -25,7 +26,8 @@ use crate::consts::{FPS_MILLIS, MTU};
 
 #[derive(Clone)]
 pub struct WebRtcSender {
-    pub track: Arc<TrackLocalStaticRTP>,
+    pub video_track: Arc<TrackLocalStaticRTP>,
+    pub audio_track: Arc<TrackLocalStaticSample>,
     pub peer: Arc<webrtc::peer_connection::RTCPeerConnection>
 }
 
@@ -65,7 +67,7 @@ impl WebRtcSender {
         };
         let peer = Arc::new(api.new_peer_connection(config).await?);
 
-        let track = Arc::new(TrackLocalStaticRTP::new(
+        let video_track = Arc::new(TrackLocalStaticRTP::new(
             RTCRtpCodecCapability {
                 mime_type: "video/H264".to_string(),
                 clock_rate: 90000,
@@ -76,8 +78,20 @@ impl WebRtcSender {
             "video".to_string(),
             "webrtc-rs".to_string()
         ));
+        peer.add_track(video_track.clone()).await?;
 
-        peer.add_track(track.clone()).await?;
+        let audio_track = Arc::new(TrackLocalStaticSample::new(
+            RTCRtpCodecCapability {
+                mime_type: "audio/opus".to_string(),
+                clock_rate: 48000,
+                channels: 2,
+                sdp_fmtp_line: "".to_string(),
+                rtcp_feedback: vec![]
+            },
+            "audio".to_string(),
+            "webrtc-rs".to_string()
+        ));
+        peer.add_track(audio_track.clone()).await?;
 
         // -------------------------------
         // DataChannel
@@ -94,7 +108,7 @@ impl WebRtcSender {
         //     })
         // }));
 
-        Ok(Self { track, peer })
+        Ok(Self { video_track, audio_track, peer })
     }
 
     pub async fn generate_offer(&self) -> Result<()> {

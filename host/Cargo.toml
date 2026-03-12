@@ -12,6 +12,8 @@ serde_json = "1"
 
 windows = { version="0.56", features=[
     "Win32_Foundation",
+    "Win32_Media_Audio",
+    "Win32_System_Com",
     "Win32_Graphics_Direct3D",
     "Win32_Graphics_Direct3D11",
     "Win32_Graphics_Dxgi",
@@ -19,3 +21,5 @@ windows = { version="0.56", features=[
 ] }
 bytes = "1"
 anyhow = "1"
+opus = "0.3.1"
+cpal = "0.17.3"

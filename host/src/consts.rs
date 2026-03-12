@@ -5,7 +5,8 @@ pub const LOOP_MILLIS: u64 = 33;    // For WebRTC
 pub const FPS: u64 = 60;
 pub const FRAME_DURATION_MS: u64 = 1000 / FPS;
 
-pub const MTU: usize = 900;
+pub const MTU: usize = 1200;
+pub const AUDIO_FRAME: usize = 960 * 2;
 
 pub const VIRTUAL_DESKTOP_COORD: i32 = 65535;
 
