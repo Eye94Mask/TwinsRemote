@@ -21,8 +21,6 @@ async function connect() {
         iceServers: []
     });
 
-    dc = pc.createDataChannel("input");
-
     pc.getStats().then(r => {
         r.forEach(report => {
             if (report.type === "inbound.rtp" && report.kind === "video") {
@@ -42,6 +40,10 @@ async function connect() {
         dc = e.channel;
 
         dc.onopen = () => {
+            // ストリーミング映像の拡大
+            const video = document.getElementById("video");
+            video.classList.add("streaming");
+
             console.log("DataChannel open");
             startGamepadLoop();
         }
@@ -54,8 +56,8 @@ async function connect() {
         }
     }
 
-    dc.onclose = () => console.log("dc close");
-    dc.onerror = e => console.log("dc error", e);
+    // dc.onclose = () => console.log("dc close");
+    // dc.onerror = e => console.log("dc error", e);
 
     const offer = JSON.parse(document.getElementById("offer").value);
     await pc.setRemoteDescription(offer);
@@ -128,6 +130,7 @@ function startGamepadLoop() {
         };
 
         if (dc && dc.readyState === "open") {
+            console.log(state);
             dc.send(JSON.stringify(state))
         }
     }, 16);
@@ -156,4 +159,4 @@ function encodeButtons(gamepad) {
     if (gamepad.buttons[15].pressed) b |= 1 << 3;    // RIGHT
 
     return b;
-}
+}   

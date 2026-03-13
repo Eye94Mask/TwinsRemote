@@ -3,6 +3,7 @@
 
 <head>
     <meta charset="utf-8">
+    <link rel="stylesheet" href="../style/style.css">
     <title>Remote Play Client</title>
 </head>
 
@@ -10,23 +11,23 @@
     <h2>Remote Play Client</h2>
     <textarea id="offer" placeholder="Paste Offer here"></textarea>
     <br>
-    <button onclick="startGamepadLoop()">Connect</button>
+    <button onclick="connect()">Connect</button>
 
     <h3>Answer</h3>
     <textarea id="answer" placeholder="Copy Answer back to Host"></textarea>
     <br>
-<!-- 
+
     <textarea id="host" placeholder="Paste Host ICE here"></textarea>
     <br>
     <button onclick="onHostIce()">ICE</button>
 
     <h3>Stats</h3>
     <textarea onclick="showStats()"> Get Video Stats</textarea>
-    <pre id="stats"></pre> -->
+    <pre id="stats"></pre>
 
     <video id="video" autoplay playsinline></video>
 
-    <script src="../js/client.js"></script>
+    <script src="../ts/client.js"></script>
 </body>
 
 </html>
