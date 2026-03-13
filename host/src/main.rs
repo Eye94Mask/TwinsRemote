@@ -3,9 +3,10 @@ mod ffmpeg;
 mod webrtc_sender;
 mod audio_capture;
 mod audio_encoder;
+mod controller;
 mod consts;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 
@@ -15,6 +16,8 @@ use bytes::Bytes;
 
 use rustls::crypto::ring::default_provider;
 
+use webrtc::data_channel::data_channel_message::DataChannelMessage;
+use webrtc::data_channel::RTCDataChannel;
 use webrtc::media::Sample;
 
 use dxgi_capture::DxgiCapture;
@@ -22,6 +25,7 @@ use ffmpeg::FfmpegEncoder;
 use webrtc_sender::WebRtcSender;
 use audio_capture::AudioCapture;
 use audio_encoder::AudioEncoder;
+use controller::{Controller, GamepadState};
 use crate::consts::{FPS_MILLIS, AUDIO_FRAME};
 
 #[tokio::main]
@@ -36,6 +40,8 @@ async fn main() -> Result<()> {
     
     let webrtc = Arc::new(WebRtcSender::new().await?);
     let webrtc_clone = webrtc.clone();
+
+    let controller = Arc::new(Mutex::new(Controller::new()?));
     
     encoder.send_nal(webrtc_clone).await?;
     let audio_track = webrtc.audio_track.clone();
@@ -91,6 +97,27 @@ async fn main() -> Result<()> {
             }
         }
     });
+
+    // -------------------------------
+    // DataChannel
+    // -------------------------------
+    let controller_clone = controller.clone();
+    let dc = webrtc.peer.create_data_channel("input", None).await?;
+
+    println!("DataChannel label: {}", dc.label());
+
+    dc.on_message(Box::new(move |msg: DataChannelMessage| {
+        println!("Received message: {:?}", msg);
+        if let Ok(text) = std::str::from_utf8(&msg.data) {
+            if let Ok(state) = serde_json::from_str::<GamepadState>(text) {
+                if let Ok(mut ctrl) = controller_clone.lock() {
+                    ctrl.update(state);
+                }
+            }
+        }
+
+        Box::pin(async {})
+    }));
 
     webrtc.peer.on_ice_connection_state_change(Box::new(|s| {
         println!("ICE: {:?}", s);

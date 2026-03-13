@@ -126,7 +126,7 @@ impl FfmpegEncoder {
                     }
 
                     let nal_type = nal[0] & 0x1F;
-                    println!("NAL type: {}", nal_type);
+                    // println!("NAL type: {}", nal_type);
 
                     match nal_type {
                         12 => {

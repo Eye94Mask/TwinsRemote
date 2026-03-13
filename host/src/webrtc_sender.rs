@@ -10,6 +10,7 @@ use bytes::Bytes;
 use webrtc::api::APIBuilder;
 use webrtc::api::media_engine::MediaEngine;
 use webrtc::api::interceptor_registry::register_default_interceptors;
+use webrtc::data_channel::data_channel_message::DataChannelMessage;
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::interceptor::registry::Registry;
 use webrtc::media::Sample;
@@ -92,21 +93,6 @@ impl WebRtcSender {
             "webrtc-rs".to_string()
         ));
         peer.add_track(audio_track.clone()).await?;
-
-        // -------------------------------
-        // DataChannel
-        // -------------------------------
-        let dc = peer.create_data_channel("input", None).await?;
-        // let remote_clone = remote.clone();
-
-        // dc.on_message(Box::new(move |msg: DataChannelMessage| {
-        //     let remote_clone = remote_clone.clone();
-        //     Box::pin(async move {
-        //         if let Ok(mut r) = remote_clone.lock() {
-        //             r.handle(msg.data.as_ref());
-        //         }
-        //     })
-        // }));
 
         Ok(Self { video_track, audio_track, peer })
     }
