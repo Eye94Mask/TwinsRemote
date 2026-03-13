@@ -23,17 +23,14 @@ impl FfmpegEncoder {
         let mut child = Command::new("ffmpeg")
             .args([
                 "-loglevel", "error",
-
-                "-fflags", "nobuffer",
-                "-flags", "low_delay",
                 
                 // input raw frames
                 "-f", "rawvideo",
-                // "-vf", "scale_npp=2560:1440",
                 "-pix_fmt", "bgra",
                 "-video_size", &format!("{}x{}", width, height),
                 "-framerate", &FPS.to_string(),
                 "-i", "-",
+                "-vf", "scale=1920:1080",
 
                 // NVENC encoder
                 "-c:v", "h264_nvenc",
@@ -42,22 +39,17 @@ impl FfmpegEncoder {
                 // low latency flags
                 "-preset", "p1",
                 "-rc", "cbr_ld_hq",
-                "-b:v", "15M",
-                "-maxrate", "15M",
-                "-bufsize", "30M",
-                "-g", "60",
+                "-b:v", "20M",
+                "-maxrate", "20M",
+                "-bufsize", "5M",
+                "-g", "120",
                 "-bf", "0",
                 "-tune", "ll",
-                // "-delay", "0",
+                "-forced-idr", "1",
+                "-zerolatency", "1",
                 "-rc-lookahead", "0",
-                // "-surfaces", "2",
-                // "-spatial-aq", "0",
-                // "-temporal-aq", "0",
-                // "-zerolatency", "1",
-                // "-no-scenecut", "1",
-                // "-preset", "p1",
-                // "-g", "60",
-                // "-keyint_min", "30",
+                "-spatial-aq", "0",
+                "-temporal-aq", "0",
 
                 // output raw h264 stream
                 "-f", "h264",

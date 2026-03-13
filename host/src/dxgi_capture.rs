@@ -75,7 +75,7 @@ impl DxgiCapture {
             let mut frame_info = DXGI_OUTDUPL_FRAME_INFO::default();
             let mut resource = None;
 
-            match self.duplication.AcquireNextFrame(16, &mut frame_info, &mut resource) {
+            match self.duplication.AcquireNextFrame(0, &mut frame_info, &mut resource) {
                 Ok(_) => {}
                 Err(e) => {
                     if e.code() == DXGI_ERROR_WAIT_TIMEOUT {

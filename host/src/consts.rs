@@ -13,6 +13,9 @@ pub const VIRTUAL_DESKTOP_COORD: i32 = 65535;
 pub const MY_MONITOR_WIDTH:  u32 = 3840;
 pub const MY_MONITOR_HEIGHT: u32 = 2160;
 
+pub const FULL_HD_WIDTH:     u32 = 1920;
+pub const FULL_HD_HEIGHT:    u32 = 1080;
+
 // -------------------------------
 // Input Types
 // -------------------------------
