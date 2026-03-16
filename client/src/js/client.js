@@ -34,9 +34,12 @@ async function connect() {
         console.log("Track received");
         const video = document.getElementById("video");
         video.srcObject = event.streams[0];
+        video.playbackRate = 1.0;
+        video.latencyHint = "interactive";
     }
 
     pc.ondatachannel = (e) => {
+        pc.getReceivers()[0].playoutDelayHint = 0.02;
         dc = e.channel;
 
         dc.onopen = () => {

@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
     default_provider().install_default().expect("install rustls crypto provider");
     println!("Starting Remote Play Host");
     
-    let mut video_capture = DxgiCapture::new()?;
+    let video_capture = DxgiCapture::new()?;
     let (width, height) = video_capture.resolution();
 
     let mut encoder = FfmpegEncoder::new(width, height)?;
@@ -50,19 +50,48 @@ async fn main() -> Result<()> {
     // ---------------
     // VIDEO
     // ---------------
-    tokio::spawn(async move {
+    let latest_frame: Arc<Mutex<Option<Vec<u8>>>> = Arc::new(Mutex::new(None));
+    let capture_slot = latest_frame.clone();
+    let encode_slot = latest_frame.clone();
+
+    // ---------------
+    // Capture Thread
+    // ---------------
+    std::thread::spawn(move || {
+        let mut video_capture = video_capture;
+
         loop {
             match video_capture.capture_frame() {
                 Ok(Some(frame)) => {
-                    if encoder.encode(&frame).await.is_err() {
-                        eprintln!("encoder stdin closed");
-                        break;
-                    }
+                    let mut slot = capture_slot.lock().unwrap();
+                    *slot = Some(frame);
                 }
+
                 Ok(None) => {}
+
                 Err(e) => {
-                    eprintln!("capture error: {:?}", e);
+                    eprintln!("Capture error {:?}", e);
                 }
+            }
+        }
+    });
+
+    // ---------------
+    // Encode Thread
+    // ---------------
+    tokio::spawn(async move {
+        loop {
+            let frame = {
+                let mut slot = encode_slot.lock().unwrap();
+                slot.take()
+            };
+            if let Some(frame) = frame {
+                if encoder.encode(&frame).await.is_err() {
+                    eprintln!("encoder closed");
+                    break;
+                }
+            } else {
+                tokio::time::sleep(Duration::from_millis(1)).await;
             }
         }
     });
@@ -102,12 +131,11 @@ async fn main() -> Result<()> {
     // -------------------------------
     // DataChannel
     // -------------------------------
-    let controller_clone = controller.clone();
     let dc = webrtc.peer.create_data_channel("input", None).await?;
 
     println!("DataChannel label: {}", dc.label());
 
-    let mut init = RTCDataChannelInit::default();
+    let init = RTCDataChannelInit::default();
     dc.on_message(Box::new(move |msg: DataChannelMessage| {
         let data = &msg.data;
 

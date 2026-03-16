@@ -72,6 +72,8 @@ impl DxgiCapture {
     
     pub fn capture_frame(&mut self) -> Result<Option<Vec<u8>>> {
         unsafe {
+            std::thread::yield_now();
+            
             let mut frame_info = DXGI_OUTDUPL_FRAME_INFO::default();
             let mut resource = None;
 

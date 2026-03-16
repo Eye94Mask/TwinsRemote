@@ -34,7 +34,7 @@ impl FfmpegEncoder {
 
                 // NVENC encoder
                 "-c:v", "h264_nvenc",
-                // "-bsf:v", "h264_mp4toannexb",
+                "-bsf:v", "h264_mp4toannexb",
 
                 // low latency flags
                 "-preset", "p1",
@@ -45,6 +45,7 @@ impl FfmpegEncoder {
                 "-g", "120",
                 "-bf", "0",
                 "-tune", "ll",
+                "-delay", "0",
                 "-forced-idr", "1",
                 "-zerolatency", "1",
                 "-rc-lookahead", "0",
@@ -84,6 +85,7 @@ impl FfmpegEncoder {
 
     pub async fn encode(&mut self, frame: &[u8]) -> std::io::Result<()> {
         self.stdin.write_all(frame).await?;
+        self.stdin.flush().await?;
         Ok(())
     }
 
