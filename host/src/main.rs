@@ -18,6 +18,7 @@ use rustls::crypto::ring::default_provider;
 
 use webrtc::data_channel::data_channel_message::DataChannelMessage;
 use webrtc::data_channel::RTCDataChannel;
+use webrtc::data_channel::data_channel_init::RTCDataChannelInit;
 use webrtc::media::Sample;
 
 use dxgi_capture::DxgiCapture;
@@ -106,14 +107,35 @@ async fn main() -> Result<()> {
 
     println!("DataChannel label: {}", dc.label());
 
+    let mut init = RTCDataChannelInit::default();
     dc.on_message(Box::new(move |msg: DataChannelMessage| {
-        println!("Received message: {:?}", msg);
-        if let Ok(text) = std::str::from_utf8(&msg.data) {
-            if let Ok(state) = serde_json::from_str::<GamepadState>(text) {
-                if let Ok(mut ctrl) = controller_clone.lock() {
-                    ctrl.update(state);
-                }
-            }
+        let data = &msg.data;
+
+        if data.len() < 12 {
+            return Box::pin(async {});
+        }
+        let buttons = u16::from_le_bytes([data[0], data[1]]);
+
+        let lt = data[2];
+        let rt = data[3];
+
+        let lx = i16::from_le_bytes([data[4], data[5]]);
+        let ly = i16::from_le_bytes([data[6], data[7]]);
+
+        let rx = i16::from_le_bytes([data[8], data[9]]);
+        let ry = i16::from_le_bytes([data[10], data[11]]);
+
+        if let Ok(mut ctrl) = controller.lock() {
+            let report = GamepadState {
+                buttons,
+                lt,
+                rt,
+                lx,
+                ly,
+                rx,
+                ry
+            };
+            let _ = ctrl.update(report);
         }
 
         Box::pin(async {})

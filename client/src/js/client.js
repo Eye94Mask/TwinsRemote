@@ -112,28 +112,35 @@ function startGamepadLoop() {
 
     console.log("startGamepadLoop started");
 
-    setInterval(() => {
-        const gamepads = navigator.getGamepads();
-        if (!gamepads) return;
+    function loop() {
+        const gamepad = navigator.getGamepads()[gamepadIndex];
+        if (!gamepad) {
+            requestAnimationFrame(startGamepadLoop)
+            return;
+        }
 
-        const gamepad = gamepads[gamepadIndex];
-        if (!gamepad) return;
+        const buttons = encodeButtons(gamepad);
 
-        const state = {
-            buttons: encodeButtons(gamepad),
-            lt: Math.floor(gamepad.buttons[6].value * 255),
-            rt: Math.floor(gamepad.buttons[7].value * 255),
-            lx: Math.floor(gamepad.axes[0] * 32767),
-            ly: Math.floor(gamepad.axes[1] * -32767),
-            rx: Math.floor(gamepad.axes[2] * 32767),
-            ry: Math.floor(gamepad.axes[3] * -32767)
-        };
+        const buf = new ArrayBuffer(12);
+        const view = new DataView(buf);
+
+        // Binary
+        view.setUint16(0, buttons, true);
+        view.setUint8(2, Math.floor(gamepad.buttons[6].value * 255));
+        view.setUint8(3, Math.floor(gamepad.buttons[7].value * 255));
+        view.setInt16(4, Math.floor(gamepad.axes[0] * 32767), true);
+        view.setInt16(6, Math.floor(gamepad.axes[1] * -32767), true);
+        view.setInt16(8, Math.floor(gamepad.axes[2] * 32767), true);
+        view.setInt16(10, Math.floor(gamepad.axes[3] * -32767), true);
 
         if (dc && dc.readyState === "open") {
-            console.log(state);
-            dc.send(JSON.stringify(state))
+            dc.send(buf)
         }
-    }, 16);
+
+        requestAnimationFrame(loop);
+    }
+
+    requestAnimationFrame(loop);
 }
 
 function encodeButtons(gamepad) {
