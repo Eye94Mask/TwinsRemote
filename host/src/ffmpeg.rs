@@ -40,10 +40,10 @@ impl FfmpegEncoder {
                 // low latency flags
                 "-preset", "p1",
                 "-rc", "cbr_ld_hq",
-                "-b:v", "6M",
-                "-maxrate", "6M",
+                "-b:v", "4M",
+                "-maxrate", "4M",
                 "-rtbufsize", "512k",
-                "-r", "60",
+                "-r", "45",
                 "-g", "30",
                 "-bf", "0",
                 "-tune", "ll",

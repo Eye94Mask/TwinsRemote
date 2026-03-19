@@ -16,7 +16,7 @@ impl AudioEncoder {
     }
 
     pub fn encode(&mut self, pcm: &[i16]) -> Vec<u8> {
-        let mut buf = vec![0u8; 4000];
+        let mut buf = vec![0u8; 4096];
 
         let size = self.encoder.encode(pcm, &mut buf).unwrap();
         buf.truncate(size);

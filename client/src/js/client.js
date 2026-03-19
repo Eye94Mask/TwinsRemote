@@ -49,6 +49,8 @@ async function connect() {
     pc.ondatachannel = (e) => {
         pc.getReceivers()[0].playoutDelayHint = 0;
         dc = e.channel;
+        dc.ordered = false;
+        dc.maxRetransmits = 0;
 
         dc.onopen = () => {
             // ストリーミング映像の拡大
