@@ -1,4 +1,5 @@
 use std::io::{Read, Write, Result};
+use std::time::Instant;
 use std::sync::Arc;
 use std::process::Stdio;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, AsyncBufReadExt, BufReader};
@@ -31,7 +32,7 @@ impl FfmpegEncoder {
                 "-framerate", &FPS.to_string(),
                 "-i", "-",
                 "-an",
-                "-vf", "scale=1920:1080",
+                "-vf", "scale=1280:720",
 
                 // NVENC encoder
                 "-c:v", "h264_nvenc",
@@ -104,12 +105,13 @@ impl FfmpegEncoder {
             let mut buffer = Vec::<u8>::new();
             let mut seq: u16 = 0;
             let mut timestamp: u32 = 0;
+            let start = Instant::now();
 
             let mut sps: Option<Vec<u8>> = None;
             let mut pps: Option<Vec<u8>> = None;
 
             loop {
-                let mut temp = [0u8; 4096];
+                let mut temp = [0u8; 65536];
 
                 let size = match stdout.read(&mut temp).await {
                     Ok(s) => s,
@@ -182,7 +184,8 @@ impl FfmpegEncoder {
                                 println!("rtp error {}", e);
                             };
 
-                            timestamp = timestamp.wrapping_add(90000 / FPS as u32);
+                            // timestamp = timestamp.wrapping_add(90000 / FPS as u32);
+                            timestamp = (start.elapsed().as_secs_f64() * 90000.0) as u32;
 
                             continue;
                         }
@@ -200,7 +203,8 @@ impl FfmpegEncoder {
                                 println!("rtp error {}", e);
                             };
 
-                            timestamp = timestamp.wrapping_add(90000 / FPS as u32);
+                            // timestamp = timestamp.wrapping_add(90000 / FPS as u32);
+                            timestamp = (start.elapsed().as_secs_f64() * 90000.0) as u32;
 
                             continue;
                         }

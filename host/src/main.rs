@@ -91,7 +91,7 @@ async fn main() -> Result<()> {
                     break;
                 }
             } else {
-                tokio::time::sleep(Duration::from_millis(1)).await;
+                tokio::time::sleep(Duration::from_millis(FPS_MILLIS)).await;
             }
         }
     });
