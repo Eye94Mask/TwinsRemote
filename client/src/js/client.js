@@ -25,7 +25,8 @@ async function connect() {
                 username: "test",
                 credential: "password"
             }
-        ]
+        ],
+        iceTransportPolicy: "all"
     });
 
     pc.getStats().then(r => {
