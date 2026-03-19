@@ -99,7 +99,9 @@ async fn main() -> Result<()> {
     // ---------------
     // AUDIO THREAD
     // ---------------
-    tokio::task::spawn_blocking(move || {
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<Sample>(3);
+    let tx_clone = tx.clone();
+    std::thread::spawn(move || {
         let mut audio_capture = AudioCapture::new().unwrap();
         let mut audio_encoder = AudioEncoder::new();
 
@@ -118,13 +120,18 @@ async fn main() -> Result<()> {
                         duration: Duration::from_millis(20),
                         ..Default::default()
                     };
-                    let audio_track_clone = audio_track.clone();
 
-                    tokio::spawn(async move {
-                        tokio::time::sleep(Duration::from_millis(40)).await;
-                        let _ = audio_track_clone.write_sample(&sample).await;
-                    });
+                    if tx_clone.blocking_send(sample).is_err() { break; }
                 }
+            }
+        }
+    });
+
+    let audio_track_clone = audio_track.clone();
+    tokio::spawn(async move {
+        while let Some(sample) = rx.recv().await {
+            if audio_track_clone.write_sample(&sample).await.is_err() {
+                // drop frame
             }
         }
     });

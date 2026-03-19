@@ -47,7 +47,7 @@ async function connect() {
     }
 
     pc.ondatachannel = (e) => {
-        pc.getReceivers()[0].playoutDelayHint = 0.02;
+        pc.getReceivers()[0].playoutDelayHint = 0;
         dc = e.channel;
 
         dc.onopen = () => {
