@@ -18,7 +18,14 @@ Connectボタン押下時の挙動
 */
 async function connect() {
     pc = new RTCPeerConnection({
-        iceServers: []
+        iceServers: [
+            { urls: "stun:stun.l.google.com:19302" },
+            {
+                urls: "turn:43.207.155.19:3478",
+                username: "test",
+                credential: "password"
+            }
+        ]
     });
 
     pc.getStats().then(r => {
