@@ -120,7 +120,8 @@ async fn main() -> Result<()> {
                     };
                     let audio_track_clone = audio_track.clone();
 
-                    tokio::runtime::Handle::current().block_on(async move {
+                    tokio::spawn(async move {
+                        tokio::time::sleep(Duration::from_millis(40)).await;
                         let _ = audio_track_clone.write_sample(&sample).await;
                     });
                 }

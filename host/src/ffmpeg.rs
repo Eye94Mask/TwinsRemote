@@ -30,6 +30,7 @@ impl FfmpegEncoder {
                 "-video_size", &format!("{}x{}", width, height),
                 "-framerate", &FPS.to_string(),
                 "-i", "-",
+                "-an",
                 "-vf", "scale=1920:1080",
 
                 // NVENC encoder
@@ -39,18 +40,25 @@ impl FfmpegEncoder {
                 // low latency flags
                 "-preset", "p1",
                 "-rc", "cbr_ld_hq",
-                "-b:v", "20M",
-                "-maxrate", "20M",
-                "-bufsize", "5M",
-                "-g", "120",
+                "-b:v", "6M",
+                "-maxrate", "6M",
+                "-rtbufsize", "512k",
+                "-r", "60",
+                "-g", "30",
                 "-bf", "0",
                 "-tune", "ll",
                 "-delay", "0",
                 "-forced-idr", "1",
+                "-no-scenecut", "1",
                 "-zerolatency", "1",
                 "-rc-lookahead", "0",
                 "-spatial-aq", "0",
                 "-temporal-aq", "0",
+                "-fflags", "nobuffer",
+                "-flush_packets", "1",
+                "-flags", "low_delay",
+                // "-vsync", "0",
+                "-max_delay", "0",
 
                 // output raw h264 stream
                 "-f", "h264",
@@ -101,7 +109,7 @@ impl FfmpegEncoder {
             let mut pps: Option<Vec<u8>> = None;
 
             loop {
-                let mut temp = [0u8; 65536];
+                let mut temp = [0u8; 4096];
 
                 let size = match stdout.read(&mut temp).await {
                     Ok(s) => s,
