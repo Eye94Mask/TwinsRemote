@@ -32,7 +32,7 @@ impl FfmpegEncoder {
                 "-framerate", &FPS.to_string(),
                 "-i", "-",
                 "-an",
-                "-vf", "scale=1280:720",
+                "-vf", "scale=1920:1080",
 
                 // NVENC encoder
                 "-c:v", "h264_nvenc",
@@ -45,7 +45,7 @@ impl FfmpegEncoder {
                 "-maxrate", "4M",
                 "-rtbufsize", "512k",
                 "-r", "45",
-                "-g", "30",
+                "-g", "60",
                 "-bf", "0",
                 "-tune", "ll",
                 "-delay", "0",

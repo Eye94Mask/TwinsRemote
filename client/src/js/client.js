@@ -39,15 +39,34 @@ async function connect() {
     });
 
     pc.ontrack = (event) => {
+        // jitter bufferの抑制
+        const receiver = pc.getReceivers().find(r => r.track.kind === "video");
+        if (receiver) {
+            receiver.playoutDelayHint = 0;
+        }
+
         console.log("Track received");
         const video = document.getElementById("video");
         video.srcObject = event.streams[0];
         video.playbackRate = 1.0;
         video.latencyHint = "interactive";
+
+        // 映像の遅延監視
+        video.requestVideoFrameCallback(function cb(now, metadata) {
+            const delay = now - metadata.expectedDisplayTime;
+            console.log("video delay(ms):", delay.toFixed(2));
+
+            if (delay > 100) {
+                video.playbackRate = 1.05;
+            } else {
+                video.playbackRate = 1.0;
+            }
+
+            video.requestVideoFrameCallback(cb);
+        });
     }
 
     pc.ondatachannel = (e) => {
-        pc.getReceivers()[0].playoutDelayHint = 0;
         dc = e.channel;
         dc.ordered = false;
         dc.maxRetransmits = 0;
