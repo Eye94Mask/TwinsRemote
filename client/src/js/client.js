@@ -21,12 +21,16 @@ async function connect() {
         iceServers: [
             { urls: "stun:stun.l.google.com:19302" },
             {
-                urls: "turn:43.207.155.19:3478",
+                urls: [
+                    "turn:43.207.155.19:3478?transport=udp",
+                    "turn:43.207.155.19:3478?transport=tcp"
+                ],
                 username: "test",
-                credential: "password"
+                credential: "password",
+                credentialType: "password"
             }
         ],
-        iceTransportPolicy: "all"
+        iceTransportPolicy: "relay"
     });
 
     pc.getStats().then(r => {
@@ -82,13 +86,18 @@ async function connect() {
     }
 
     pc.onicecandidate = e => {
+        console.log(e.candidate);
         if (e.candidate) {
             console.log("CLIENT ICE CANDIDATE:");
             console.log(JSON.stringify(e.candidate));
         }
     }
+    pc.oniceconnectionstatechange = e => {
+        console.log("ICE CANDIDATE STATUS CHANGED");
+        console.log(e);
+    }
 
-    // dc.onclose = () => console.log("dc close");
+    // dc.onclos () => console.log("dc close");
     // dc.onerror = e => console.log("dc error", e);
 
     const offer = JSON.parse(document.getElementById("offer").value);
@@ -96,6 +105,13 @@ async function connect() {
 
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
+
+    // await new Promise(resolve => {
+    //     if (pc.iceGatheringState === "complete") return resolve();
+    //     pc.onicegatheringstatechange = () => {
+    //         if (pc.iceGatheringState === "complete") resolve();
+    //     };
+    // });
 
     document.getElementById("answer").value = JSON.stringify(pc.localDescription);
 }
@@ -119,26 +135,26 @@ async function addHostCandidate() {
     console.log("Host Ice candidate added");
 }
 
-// 遅延・ジッタ確認
-async function showStats() {
-    const stats = await pc.getStats();
-    let output = "";
+// // 遅延・ジッタ確認
+// async function showStats() {
+//     const stats = await pc.getStats();
+//     let output = "";
 
-    stats.forEach(report => {
-        if (report.type === "inbound-rtp" && report.kind === "video") {
-            output += "=== Video Inbound RTP ===\n";
-            output += "Frames Decoded: " + report.framesDecoded + "\n";
-            output += "Packets Lost: " + report.packetsLosst + "\n";
-            output += "Jitter: " + report.jitter + "\n";
-            output += "JitterBufferDelay: " + report.jitterBufferDelay + "\n";
-            output += "Total Decode Time: " + report.totalDecodeTime + "\n";
-            output += "\n";
-        }
-    });
+//     stats.forEach(report => {
+//         if (report.type === "inbound-rtp" && report.kind === "video") {
+//             output += "=== Video Inbound RTP ===\n";
+//             output += "Frames Decoded: " + report.framesDecoded + "\n";
+//             output += "Packets Lost: " + report.packetsLosst + "\n";
+//             output += "Jitter: " + report.jitter + "\n";
+//             output += "JitterBufferDelay: " + report.jitterBufferDelay + "\n";
+//             output += "Total Decode Time: " + report.totalDecodeTime + "\n";
+//             output += "\n";
+//         }
+//     });
 
-    document.getElementById("stats").textContent = output;
-    console.log(output);
-}
+//     document.getElementById("stats").textContent = output;
+//     console.log(output);
+// }
 
 function startGamepadLoop() {
 

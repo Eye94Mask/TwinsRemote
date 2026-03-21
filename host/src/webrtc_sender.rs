@@ -16,6 +16,8 @@ use webrtc::interceptor::registry::Registry;
 use webrtc::media::Sample;
 use webrtc::rtp::{packet::Packet, header::Header};
 use webrtc::ice_transport::ice_server::RTCIceServer;
+use webrtc::ice_transport::ice_credential_type::RTCIceCredentialType;
+use webrtc::peer_connection::policy::ice_transport_policy::RTCIceTransportPolicy;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::rtp_transceiver::rtp_codec::{RTCRtpCodecParameters, RTCRtpCodecCapability};
 use webrtc::track::track_local::track_local_static_rtp::TrackLocalStaticRTP;
@@ -62,8 +64,18 @@ impl WebRtcSender {
                 RTCIceServer {
                     urls: vec!["stun:stun.l.google.com:19302".to_string()],
                     ..Default::default()
+                },
+                RTCIceServer {
+                    urls: vec![
+                        "turn:43.207.155.19:3478?transport=udp".to_string()
+                    ],
+                    username: "test".to_string(),
+                    credential: "password".to_string(),
+                    credential_type: RTCIceCredentialType::Password,
+                    ..Default::default()
                 }
             ],
+            ice_transport_policy: RTCIceTransportPolicy::Relay,
             ..Default::default()
         };
         let peer = Arc::new(api.new_peer_connection(config).await?);

@@ -32,7 +32,7 @@ impl FfmpegEncoder {
                 "-framerate", &FPS.to_string(),
                 "-i", "-",
                 "-an",
-                "-vf", "scale=1920:1080",
+                "-vf", "scale=1280:720",
 
                 // NVENC encoder
                 "-c:v", "h264_nvenc",
