@@ -67,7 +67,7 @@ impl WebRtcSender {
                 },
                 RTCIceServer {
                     urls: vec![
-                        "turn:43.207.155.19:3478?transport=udp".to_string()
+                        "turn:43.207.155.19:3478?transport=udp".to_string(),
                     ],
                     username: "test".to_string(),
                     credential: "password".to_string(),
@@ -75,7 +75,7 @@ impl WebRtcSender {
                     ..Default::default()
                 }
             ],
-            ice_transport_policy: RTCIceTransportPolicy::Relay,
+            ice_transport_policy: RTCIceTransportPolicy::All,
             ..Default::default()
         };
         let peer = Arc::new(api.new_peer_connection(config).await?);

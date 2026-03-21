@@ -4,13 +4,13 @@ let gamepadIndex;
 
 window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
-    console.log(
-        "Gamepad connected at index %d: %s. %d buttons, %d axes.",
-        e.gamepad.index,
-        e.gamepad.id,
-        e.gamepad.buttons.length,
-        e.gamepad.axes.length
-    );
+    // console.log(
+    //     "Gamepad connected at index %d: %s. %d buttons, %d axes.",
+    //     e.gamepad.index,
+    //     e.gamepad.id,
+    //     e.gamepad.buttons.length,
+    //     e.gamepad.axes.length
+    // );
 });
 
 /*
@@ -23,14 +23,15 @@ async function connect() {
             {
                 urls: [
                     "turn:43.207.155.19:3478?transport=udp",
-                    "turn:43.207.155.19:3478?transport=tcp"
+                    "turn:43.207.155.19:3478?transport=tcp",
+                    "turn:43.207.155.19:5349?transport=tcp"
                 ],
                 username: "test",
                 credential: "password",
                 credentialType: "password"
             }
         ],
-        iceTransportPolicy: "relay"
+        iceTransportPolicy: "all"
     });
 
     pc.getStats().then(r => {
@@ -97,21 +98,11 @@ async function connect() {
         console.log(e);
     }
 
-    // dc.onclos () => console.log("dc close");
-    // dc.onerror = e => console.log("dc error", e);
-
     const offer = JSON.parse(document.getElementById("offer").value);
     await pc.setRemoteDescription(offer);
 
-    const answer = await pc.createAnswer();
+    const answer = await pc.createAnswer();;
     await pc.setLocalDescription(answer);
-
-    // await new Promise(resolve => {
-    //     if (pc.iceGatheringState === "complete") return resolve();
-    //     pc.onicegatheringstatechange = () => {
-    //         if (pc.iceGatheringState === "complete") resolve();
-    //     };
-    // });
 
     document.getElementById("answer").value = JSON.stringify(pc.localDescription);
 }
