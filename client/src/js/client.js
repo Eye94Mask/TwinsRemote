@@ -88,6 +88,8 @@ async function connect() {
 
     pc.onicecandidate = e => {
         console.log(e.candidate);
+        const ice = document.getElementById("ice");
+        ice.value = JSON.stringify(e.candidate);
         if (e.candidate) {
             console.log("CLIENT ICE CANDIDATE:");
             console.log(JSON.stringify(e.candidate));
@@ -105,6 +107,16 @@ async function connect() {
     await pc.setLocalDescription(answer);
 
     document.getElementById("answer").value = JSON.stringify(pc.localDescription);
+}
+
+function copyIceCandidate() {
+    const iceCandidate = document.getElementById("ice").value;
+    navigator.clipboard.writeText(iceCandidate);
+}
+
+function copyAnswer() {
+    const answer = document.getElementById("answer").value;
+    navigator.clipboard.writeText(answer);
 }
 
 /*
