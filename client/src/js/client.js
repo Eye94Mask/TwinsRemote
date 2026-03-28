@@ -138,27 +138,6 @@ async function addHostCandidate() {
     console.log("Host Ice candidate added");
 }
 
-// // 遅延・ジッタ確認
-// async function showStats() {
-//     const stats = await pc.getStats();
-//     let output = "";
-
-//     stats.forEach(report => {
-//         if (report.type === "inbound-rtp" && report.kind === "video") {
-//             output += "=== Video Inbound RTP ===\n";
-//             output += "Frames Decoded: " + report.framesDecoded + "\n";
-//             output += "Packets Lost: " + report.packetsLosst + "\n";
-//             output += "Jitter: " + report.jitter + "\n";
-//             output += "JitterBufferDelay: " + report.jitterBufferDelay + "\n";
-//             output += "Total Decode Time: " + report.totalDecodeTime + "\n";
-//             output += "\n";
-//         }
-//     });
-
-//     document.getElementById("stats").textContent = output;
-//     console.log(output);
-// }
-
 function startGamepadLoop() {
 
     console.log("startGamepadLoop started");
