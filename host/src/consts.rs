@@ -1,9 +1,14 @@
+use std::time::Duration;
+
 pub const FPS_MILLIS: u64 = 16;     // 33 = 30fps, 16 = 60fps
 pub const TIMEOUT_MILLIS: u32 = 16;
 pub const LOOP_MILLIS: u64 = 33;    // For WebRTC
 
 pub const FPS: u64 = 60;
 pub const FRAME_DURATION_MS: u64 = 1000 / FPS;
+
+// 60fps
+pub const VIDEO_FRAME_DURATION: Duration = Duration::from_micros(16_667);
 
 pub const MTU: usize = 1200;
 pub const AUDIO_FRAME: usize = 960 * 2;

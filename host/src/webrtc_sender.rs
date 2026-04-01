@@ -29,7 +29,7 @@ use crate::consts::{FPS_MILLIS, MTU};
 
 #[derive(Clone)]
 pub struct WebRtcSender {
-    pub video_track: Arc<TrackLocalStaticRTP>,
+    pub video_track: Arc<TrackLocalStaticSample>,
     pub audio_track: Arc<TrackLocalStaticSample>,
     pub peer: Arc<webrtc::peer_connection::RTCPeerConnection>
 }
@@ -80,18 +80,31 @@ impl WebRtcSender {
         };
         let peer = Arc::new(api.new_peer_connection(config).await?);
 
-        let video_track = Arc::new(TrackLocalStaticRTP::new(
+        let video_track = Arc::new(TrackLocalStaticSample::new(
             RTCRtpCodecCapability {
                 mime_type: "video/H264".to_string(),
                 clock_rate: 90000,
                 channels: 0,
-                sdp_fmtp_line: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f".to_string(),
+                sdp_fmtp_line: "".to_string(),
                 rtcp_feedback: vec![]
             },
             "video".to_string(),
-            "webrtc-rs".to_string()
+            "nvenc".to_string()
         ));
-        peer.add_track(video_track.clone()).await?;
+        let video_sender = peer.add_track(video_track.clone()).await?;
+
+        tokio::spawn(async move {
+            let mut rtcp_buf = vec![0u8; 1500];
+            loop {
+                match video_sender.read(&mut rtcp_buf).await {
+                    Ok((_n, _)) => {}
+                    Err(e) => {
+                        eprintln!("video RTCP read failed: {:?}", e);
+                        break;
+                    }
+                }
+            }
+        });
 
         let audio_track = Arc::new(TrackLocalStaticSample::new(
             RTCRtpCodecCapability {
@@ -126,6 +139,13 @@ impl WebRtcSender {
         
         let answer: RTCSessionDescription = serde_json::from_str(&input)?;
         self.peer.set_remote_description(answer).await?;
+
+        if let Some(local) = self.peer.local_description().await {
+            eprintln!("LOCAL SDP:\n{}", local.sdp);
+        }
+        if let Some(remote) = self.peer.remote_description().await {
+            eprintln!("REMOTE SDP:\n{}", remote.sdp);
+        }
 
         Ok(())
     }

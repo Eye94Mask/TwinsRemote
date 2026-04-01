@@ -1,6 +1,7 @@
 let pc;
 let dc;
 let gamepadIndex;
+let remoteStream = new MediaStream();
 
 window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
@@ -43,33 +44,60 @@ async function connect() {
         });
     });
 
+    const video = document.getElementById("video");
+    video.srcObject = remoteStream;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.muted = true;
+
+    video.onloadedmetadata = () => {
+        console.log("loadedmetadata", video.videoWidth, video.videoHeight);
+    };
+
+    video.onplaying = () => {
+        console.log("video playing");
+    };
+
     pc.ontrack = (event) => {
-        // jitter bufferの抑制
-        const receiver = pc.getReceivers().find(r => r.track.kind === "video");
-        if (receiver) {
-            receiver.playoutDelayHint = 0;
+        console.log("ontrack", event.track.kind, event.streams);
+
+        remoteStream.addTrack(event.track);
+
+        event.track.onunmute = () => {
+            console.log(`${event.track.kind} track unmuted`);
+        };
+
+        event.track.onended = () => {
+            console.log(`${event.track.kind} track ended`);
+        };
+
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+            playPromise
+                .then(() => {
+                    console.log("video.play resolved");
+                })
+                .catch((e) => {
+                    console.error("video.play rejected", e);
+                });
         }
+    };
 
-        console.log("Track received");
-        const video = document.getElementById("video");
-        video.srcObject = event.streams[0];
-        video.playbackRate = 1.0;
-        video.latencyHint = "interactive";
-
-        // 映像の遅延監視
-        video.requestVideoFrameCallback(function cb(now, metadata) {
-            const delay = now - metadata.expectedDisplayTime;
-            console.log("video delay(ms):", delay.toFixed(2));
-
-            if (delay > 100) {
-                video.playbackRate = 1.05;
-            } else {
-                video.playbackRate = 1.0;
-            }
-
-            video.requestVideoFrameCallback(cb);
+    setInterval(() => {
+        console.log({
+            tracks: remoteStream.getTracks().map(t => ({
+                kind: t.kind,
+                enabled: t.enabled,
+                muted: t.muted,
+                readyState: t.readyState
+            })),
+            videoPaused: video.paused,
+            readyState: video.readyState,
+            currentTime: video.currentTime,
+            videoWidth: video.videoWidth,
+            videoHeight: video.videoHeight
         });
-    }
+    }, 1000);
 
     pc.ondatachannel = (e) => {
         dc = e.channel;
@@ -78,8 +106,8 @@ async function connect() {
 
         dc.onopen = () => {
             // ストリーミング映像の拡大
-            const video = document.getElementById("video");
-            video.classList.add("streaming");
+            // const video = document.getElementById("video");
+            // video.classList.add("streaming");
 
             console.log("DataChannel open");
             startGamepadLoop();
@@ -136,6 +164,35 @@ async function addHostCandidate() {
     await pc.addIceCandidate(candidate);
 
     console.log("Host Ice candidate added");
+}
+
+function onEnableAudio() {
+    const video = document.getElementById("video");
+
+    try {
+        video.muted = false;
+        video.volume = 1.0;
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+            playPromise
+                .then(() => {
+                    console.log("video.play resolved");
+                })
+                .catch((e) => {
+                    console.error("video.play rejected", e);
+                });
+        }
+        console.log("audio enabled");
+
+        console.log({
+            muted: video.muted,
+            volume: video.volume,
+            paused: video.paused,
+            readyState: video.readyState
+        });
+    } catch (e) {
+        console.error("failed to enable audio", e);
+    }
 }
 
 function startGamepadLoop() {

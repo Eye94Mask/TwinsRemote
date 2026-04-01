@@ -1,0 +1,1 @@
+cl nvenc_min.cpp /I C:\Video_Codec_SDK\Interface d3d11.lib

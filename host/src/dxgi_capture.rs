@@ -27,7 +27,7 @@ impl DxgiCapture {
     pub fn new() -> Result<Self> {
         unsafe {
             // -------------------------------
-            // Create D3D11 Device
+            // Create D3D11 Devic
             // -------------------------------
             let mut device: Option<ID3D11Device> = None;
             let mut context = None;
