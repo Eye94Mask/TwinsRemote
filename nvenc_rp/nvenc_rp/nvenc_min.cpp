@@ -78,16 +78,13 @@ static bool WriteAllStdout(const void* data, size_t size) {
 		if (written == 0) {
 			return false;
 		}
-
 		p += written;
 		size -= written;
 	}
-
 	return true;
 }
 
 static bool WritePacketToStdout(const uint8_t* data, uint32_t size) {
-	// 4byte little-endian length + AU (For Rust)
 	uint8_t len[4];
 	len[0] = static_cast<uint8_t>(size & 0xFF);
 	len[1] = static_cast<uint8_t>((size >> 8) & 0xFF);
@@ -97,32 +94,27 @@ static bool WritePacketToStdout(const uint8_t* data, uint32_t size) {
 	if (!WriteAllStdout(len, 4)) return false;
 	if (!WriteAllStdout(data, size)) return false;
 	fflush(stdout);
-
 	return true;
 }
 
-// -----------------------------
-// Load NVENC
-// -----------------------------
-
 void LoadNvEnc() {
-    HMODULE h = LoadLibraryA("nvEncodeAPI64.dll");
-    if (!h) throw std::runtime_error("nvEncodeAPI64.dll not found");
+	HMODULE h = LoadLibraryA("nvEncodeAPI64.dll");
+	if (!h) throw std::runtime_error("nvEncodeAPI64.dll not found");
 
 	auto create = (NVENCSTATUS(NVENCAPI*)(NV_ENCODE_API_FUNCTION_LIST*))
 		GetProcAddress(h, "NvEncodeAPICreateInstance");
 
 	if (!create) throw std::runtime_error("NvEncodeAPICreateInstance not found");
 
-    g_nvenc.version = NV_ENCODE_API_FUNCTION_LIST_VER;
+	g_nvenc.version = NV_ENCODE_API_FUNCTION_LIST_VER;
 
 	if (create(&g_nvenc) != NV_ENC_SUCCESS)
 		throw std::runtime_error("NvEncodeAPICreateInstance failed");
 }
 
-// -----------------------------
-// DXGI Duplication Helper
-// -----------------------------
+// ----------------------------------------------------
+// DXGI Duplication
+// ----------------------------------------------------
 struct DuplicationContext {
 	IDXGIOutputDuplication* duplication = nullptr;
 	UINT width = 0;
@@ -138,23 +130,28 @@ static DuplicationContext CreateDuplication(ID3D11Device* device) {
 	IDXGIOutput1* output1 = nullptr;
 
 	try {
-		CheckHr(device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void**>(&dxgiDevice)),
-			"ID3D11Device->QueryInterface(IDXGIDevice)");
+		CheckHr(
+			device->QueryInterface(__uuidof(IDXGIDevice),
+				reinterpret_cast<void**>(&dxgiDevice)),
+			"ID3D11Device->QueryInterface(IDXGIDevice)"
+		);
 
 		CheckHr(dxgiDevice->GetAdapter(&adapter), "IDXGIDevice::GetAdapter");
-
-		// Use adapter 0 output
 		CheckHr(adapter->EnumOutputs(0, &output), "IDXGIAdapter::EnumOutputs(0)");
-		CheckHr(output->QueryInterface(__uuidof(IDXGIOutput1), reinterpret_cast<void**>(&output1)),
-			"IDXGIOutput->QueryInterface(IDXGIOutput1)");
+		CheckHr(
+			output->QueryInterface(__uuidof(IDXGIOutput1),
+				reinterpret_cast<void**>(&output1)),
+			"IDXGIOutput->QueryInterface(IDXGIOutput1)"
+		);
 
-		DXGI_OUTPUT_DESC desc{};
-		output->GetDesc(&desc);
-
-		CheckHr(output1->DuplicateOutput(device, &out.duplication), "IDXGIOutput1::DuplicateOutput");
+		CheckHr(
+			output1->DuplicateOutput(device, &out.duplication),
+			"IDXGIOutput1::DuplicateOutput"
+		);
 
 		DXGI_OUTDUPL_DESC duplDesc{};
 		out.duplication->GetDesc(&duplDesc);
+
 		out.width = duplDesc.ModeDesc.Width;
 		out.height = duplDesc.ModeDesc.Height;
 
@@ -173,14 +170,13 @@ static DuplicationContext CreateDuplication(ID3D11Device* device) {
 			out.duplication->Release();
 			out.duplication = nullptr;
 		}
-
 		throw;
 	}
 }
 
-// -----------------------------
-// NVENC encoder helper
-// -----------------------------
+// ----------------------------------------------------
+// NVENC
+// ----------------------------------------------------
 struct EncoderContext {
 	void* encoder = nullptr;
 	NV_ENC_OUTPUT_PTR bitstreamBuffer = nullptr;
@@ -199,8 +195,10 @@ static EncoderContext CreateEncoder(ID3D11Device* device, uint32_t width, uint32
 	openParams.deviceType = NV_ENC_DEVICE_TYPE_DIRECTX;
 	openParams.apiVersion = NVENCAPI_VERSION;
 
-	CheckNvEnc(g_nvenc.nvEncOpenEncodeSessionEx(&openParams, &ctx.encoder),
-		"nvEncOpenEncodeSessionEx");
+	CheckNvEnc(
+		g_nvenc.nvEncOpenEncodeSessionEx(&openParams, &ctx.encoder),
+		"nvEncOpenEncodeSessionEx"
+	);
 
 	GUID encodeGUID = NV_ENC_CODEC_H264_GUID;
 	GUID presetGUID = NV_ENC_PRESET_P3_GUID;
@@ -225,18 +223,18 @@ static EncoderContext CreateEncoder(ID3D11Device* device, uint32_t width, uint32
 	encodeConfig.version = NV_ENC_CONFIG_VER;
 
 	encodeConfig.profileGUID = NV_ENC_H264_PROFILE_BASELINE_GUID;
-	encodeConfig.gopLength = 60;
+	encodeConfig.gopLength = 30;
 	encodeConfig.frameIntervalP = 1;
+
 	encodeConfig.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR;
 	encodeConfig.rcParams.averageBitRate = 8 * 1000 * 1000;
 	encodeConfig.rcParams.maxBitRate = 10 * 1000 * 1000;
 	encodeConfig.rcParams.vbvBufferSize = 8 * 1000 * 1000;
 	encodeConfig.rcParams.vbvInitialDelay = 8 * 1000 * 1000;
 
-	// Low Latency
 	encodeConfig.encodeCodecConfig.h264Config.repeatSPSPPS = 1;
 	encodeConfig.encodeCodecConfig.h264Config.outputAUD = 0;
-	encodeConfig.encodeCodecConfig.h264Config.idrPeriod = 60;
+	encodeConfig.encodeCodecConfig.h264Config.idrPeriod = 30;
 	encodeConfig.encodeCodecConfig.h264Config.maxNumRefFrames = 1;
 
 	NV_ENC_INITIALIZE_PARAMS initParams{};
@@ -259,20 +257,22 @@ static EncoderContext CreateEncoder(ID3D11Device* device, uint32_t width, uint32
 	initParams.enablePTD = 1;
 	initParams.enableEncodeAsync = 0;
 	initParams.enableOutputInVidmem = 0;
-
-	// Desktop Duplication B8G8R8A8
-	// 色がおかしかったらABGRを試してみる
 	initParams.bufferFormat = NV_ENC_BUFFER_FORMAT_ARGB;
 
-	CheckNvEnc(g_nvenc.nvEncInitializeEncoder(ctx.encoder, &initParams),
-		"nvEncInitializeEncoder");
+	CheckNvEnc(
+		g_nvenc.nvEncInitializeEncoder(ctx.encoder, &initParams),
+		"nvEncInitializeEncoder"
+	);
 
 	NV_ENC_CREATE_BITSTREAM_BUFFER createBs{};
 	createBs.version = NV_ENC_CREATE_BITSTREAM_BUFFER_VER;
-	CheckNvEnc(g_nvenc.nvEncCreateBitstreamBuffer(ctx.encoder, &createBs),
-		"nvEncCreateBitstreamBuffer");
-	ctx.bitstreamBuffer = createBs.bitstreamBuffer;
 
+	CheckNvEnc(
+		g_nvenc.nvEncCreateBitstreamBuffer(ctx.encoder, &createBs),
+		"nvEncCreateBitstreamBuffer"
+	);
+
+	ctx.bitstreamBuffer = createBs.bitstreamBuffer;
 	return ctx;
 }
 
@@ -287,14 +287,28 @@ static void DestroyEncoder(EncoderContext& ctx) {
 	}
 }
 
+// ----------------------------------------------------
+// Scaler + Registered Ring Buffers
+// ----------------------------------------------------
+struct EncodeSlot {
+	ID3D11Texture2D* tex = nullptr;
+	ID3D11VideoProcessorOutputView* outputView = nullptr;
+	NV_ENC_REGISTERED_PTR registered = nullptr;
+};
+
 struct ScaleContext {
-	ID3D11Texture2D* outputTex = nullptr;
+	static constexpr UINT SLOT_COUNT = 3;
+
+	EncodeSlot slots[SLOT_COUNT];
+	UINT slotIndex = 0;
+
 	ID3D11VideoDevice* videoDevice = nullptr;
 	ID3D11VideoContext* videoContext = nullptr;
 	ID3D11VideoProcessorEnumerator* enumerator = nullptr;
 	ID3D11VideoProcessor* processor = nullptr;
-	ID3D11VideoProcessorInputView* inputView = nullptr;
-	ID3D11VideoProcessorOutputView* outputView = nullptr;
+
+	UINT inWidth = 0;
+	UINT inHeight = 0;
 	UINT outWidth = 0;
 	UINT outHeight = 0;
 };
@@ -302,12 +316,15 @@ struct ScaleContext {
 static ScaleContext CreateScaler(
 	ID3D11Device* device,
 	ID3D11DeviceContext* context,
+	void* encoder,
 	UINT inWidth,
 	UINT inHeight,
 	UINT outWidth,
 	UINT outHeight
 ) {
 	ScaleContext sc{};
+	sc.inWidth = inWidth;
+	sc.inHeight = inHeight;
 	sc.outWidth = outWidth;
 	sc.outHeight = outHeight;
 
@@ -322,19 +339,6 @@ static ScaleContext CreateScaler(
 			reinterpret_cast<void**>(&sc.videoContext)),
 		"QueryInterface(ID3D11VideoContext)"
 	);
-
-	D3D11_TEXTURE2D_DESC texDesc{};
-	texDesc.Width = outWidth;
-	texDesc.Height = outHeight;
-	texDesc.MipLevels = 1;
-	texDesc.ArraySize = 1;
-	texDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-	texDesc.SampleDesc.Count = 1;
-	texDesc.Usage = D3D11_USAGE_DEFAULT;
-	texDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-
-	CheckHr(device->CreateTexture2D(&texDesc, nullptr, &sc.outputTex),
-		"CreateTexture2D(scale output)");
 
 	D3D11_VIDEO_PROCESSOR_CONTENT_DESC contentDesc{};
 	contentDesc.InputFrameFormat = D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE;
@@ -354,25 +358,63 @@ static ScaleContext CreateScaler(
 		"CreateVideoProcessor"
 	);
 
-	D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC ovDesc{};
-	ovDesc.ViewDimension = D3D11_VPOV_DIMENSION_TEXTURE2D;
-	ovDesc.Texture2D.MipSlice = 0;
+	for (UINT i = 0; i < ScaleContext::SLOT_COUNT; ++i) {
+		D3D11_TEXTURE2D_DESC texDesc{};
+		texDesc.Width = outWidth;
+		texDesc.Height = outHeight;
+		texDesc.MipLevels = 1;
+		texDesc.ArraySize = 1;
+		texDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+		texDesc.SampleDesc.Count = 1;
+		texDesc.Usage = D3D11_USAGE_DEFAULT;
+		texDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 
-	CheckHr(
-		sc.videoDevice->CreateVideoProcessorOutputView(
-			sc.outputTex, sc.enumerator, &ovDesc, &sc.outputView),
-		"CreateVideoProcessorOutputView"
-	);
+		CheckHr(
+			device->CreateTexture2D(&texDesc, nullptr, &sc.slots[i].tex),
+			"CreateTexture2D(scale slot)"
+		);
+
+		D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC ovDesc{};
+		ovDesc.ViewDimension = D3D11_VPOV_DIMENSION_TEXTURE2D;
+		ovDesc.Texture2D.MipSlice = 0;
+
+		CheckHr(
+			sc.videoDevice->CreateVideoProcessorOutputView(
+				sc.slots[i].tex,
+				sc.enumerator,
+				&ovDesc,
+				&sc.slots[i].outputView
+			),
+			"CreateVideoProcessorOutputView"
+		);
+
+		NV_ENC_REGISTER_RESOURCE reg{};
+		reg.version = NV_ENC_REGISTER_RESOURCE_VER;
+		reg.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX;
+		reg.resourceToRegister = sc.slots[i].tex;
+		reg.width = outWidth;
+		reg.height = outHeight;
+		reg.pitch = 0;
+		reg.bufferFormat = NV_ENC_BUFFER_FORMAT_ARGB;
+		reg.bufferUsage = NV_ENC_INPUT_IMAGE;
+
+		CheckNvEnc(
+			g_nvenc.nvEncRegisterResource(encoder, &reg),
+			"nvEncRegisterResource(slot init)"
+		);
+
+		sc.slots[i].registered = reg.registeredResource;
+	}
 
 	return sc;
 }
 
-static void ScaleTexture(
+static EncodeSlot& ScaleTexture(
 	ScaleContext& sc,
-	ID3D11Texture2D* inputTex,
-	UINT inWidth,
-	UINT inHeight
+	ID3D11Texture2D* inputTex
 ) {
+	EncodeSlot& slot = sc.slots[sc.slotIndex];
+
 	ID3D11VideoProcessorInputView* inputView = nullptr;
 
 	D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC ivDesc{};
@@ -382,11 +424,15 @@ static void ScaleTexture(
 
 	CheckHr(
 		sc.videoDevice->CreateVideoProcessorInputView(
-			inputTex, sc.enumerator, &ivDesc, &inputView),
+			inputTex,
+			sc.enumerator,
+			&ivDesc,
+			&inputView
+		),
 		"CreateVideoProcessorInputView"
 	);
 
-	RECT srcRect{ 0, 0, (LONG)inWidth, (LONG)inHeight };
+	RECT srcRect{ 0, 0, (LONG)sc.inWidth, (LONG)sc.inHeight };
 	RECT dstRect{ 0, 0, (LONG)sc.outWidth, (LONG)sc.outHeight };
 
 	sc.videoContext->VideoProcessorSetStreamSourceRect(sc.processor, 0, TRUE, &srcRect);
@@ -400,7 +446,7 @@ static void ScaleTexture(
 	CheckHr(
 		sc.videoContext->VideoProcessorBlt(
 			sc.processor,
-			sc.outputView,
+			slot.outputView,
 			0,
 			1,
 			&stream
@@ -409,47 +455,42 @@ static void ScaleTexture(
 	);
 
 	inputView->Release();
+
+	sc.slotIndex = (sc.slotIndex + 1) % ScaleContext::SLOT_COUNT;
+	return slot;
 }
 
-static void DestroyScaler(ScaleContext& sc) {
-	SafeRelease(sc.inputView);
-	SafeRelease(sc.outputView);
+static void DestroyScaler(ScaleContext& sc, void* encoder) {
+	for (UINT i = 0; i < ScaleContext::SLOT_COUNT; ++i) {
+		if (sc.slots[i].registered) {
+			g_nvenc.nvEncUnregisterResource(encoder, sc.slots[i].registered);
+			sc.slots[i].registered = nullptr;
+		}
+		SafeRelease(sc.slots[i].outputView);
+		SafeRelease(sc.slots[i].tex);
+	}
+
 	SafeRelease(sc.processor);
 	SafeRelease(sc.enumerator);
 	SafeRelease(sc.videoContext);
 	SafeRelease(sc.videoDevice);
-	SafeRelease(sc.outputTex);
 }
 
-// -----------------------------
-// Pre-frame encode
-// -----------------------------
-static bool EncodeOneTexture(
+static bool EncodeRegisteredTexture(
 	EncoderContext& enc,
-	ID3D11Texture2D* tex,
+	NV_ENC_REGISTERED_PTR registered,
 	uint64_t frameIndex,
 	bool forceIDR
 ) {
-	NV_ENC_REGISTER_RESOURCE reg{};
-	reg.version = NV_ENC_REGISTER_RESOURCE_VER;
-	reg.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX;
-	reg.resourceToRegister = tex;
-	reg.width = enc.width;
-	reg.height = enc.height;
-	reg.pitch = 0;
-	reg.bufferFormat = NV_ENC_BUFFER_FORMAT_ARGB;
-	reg.bufferUsage = NV_ENC_INPUT_IMAGE;
-
-	CheckNvEnc(g_nvenc.nvEncRegisterResource(enc.encoder, &reg),
-		"nvEncRegisterResource");
-
 	NV_ENC_MAP_INPUT_RESOURCE map{};
 	map.version = NV_ENC_MAP_INPUT_RESOURCE_VER;
-	map.registeredResource = reg.registeredResource;
+	map.registeredResource = registered;
 
 	try {
-		CheckNvEnc(g_nvenc.nvEncMapInputResource(enc.encoder, &map),
-			"nvEncMapInputResource");
+		CheckNvEnc(
+			g_nvenc.nvEncMapInputResource(enc.encoder, &map),
+			"nvEncMapInputResource"
+		);
 
 		NV_ENC_PIC_PARAMS pic{};
 		pic.version = NV_ENC_PIC_PARAMS_VER;
@@ -468,7 +509,6 @@ static bool EncodeOneTexture(
 		NVENCSTATUS st = g_nvenc.nvEncEncodePicture(enc.encoder, &pic);
 		if (st == NV_ENC_ERR_NEED_MORE_INPUT) {
 			g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource);
-			g_nvenc.nvEncUnregisterResource(enc.encoder, reg.registeredResource);
 			return false;
 		}
 		CheckNvEnc(st, "nvEncEncodePicture");
@@ -478,8 +518,10 @@ static bool EncodeOneTexture(
 		lock.outputBitstream = enc.bitstreamBuffer;
 		lock.doNotWait = 0;
 
-		CheckNvEnc(g_nvenc.nvEncLockBitstream(enc.encoder, &lock),
-			"nvEncLockBitstream");
+		CheckNvEnc(
+			g_nvenc.nvEncLockBitstream(enc.encoder, &lock),
+			"nvEncLockBitstream"
+		);
 
 		try {
 			if (!WritePacketToStdout(
@@ -487,8 +529,6 @@ static bool EncodeOneTexture(
 				static_cast<uint32_t>(lock.bitstreamSizeInBytes))) {
 				g_nvenc.nvEncUnlockBitstream(enc.encoder, enc.bitstreamBuffer);
 				g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource);
-				g_nvenc.nvEncUnregisterResource(enc.encoder, reg.registeredResource);
-
 				return false;
 			}
 		}
@@ -497,12 +537,15 @@ static bool EncodeOneTexture(
 			throw;
 		}
 
-		CheckNvEnc(g_nvenc.nvEncUnlockBitstream(enc.encoder, enc.bitstreamBuffer),
-			"nvEncUnlockBitstream");
-		CheckNvEnc(g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource),
-			"nvEncUnmapInputResource");
-		CheckNvEnc(g_nvenc.nvEncUnregisterResource(enc.encoder, reg.registeredResource),
-			"nvEncUnregisterResource");
+		CheckNvEnc(
+			g_nvenc.nvEncUnlockBitstream(enc.encoder, enc.bitstreamBuffer),
+			"nvEncUnlockBitstream"
+		);
+
+		CheckNvEnc(
+			g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource),
+			"nvEncUnmapInputResource"
+		);
 
 		return true;
 	}
@@ -510,23 +553,22 @@ static bool EncodeOneTexture(
 		if (map.mappedResource) {
 			g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource);
 		}
-		if (reg.registeredResource) {
-			g_nvenc.nvEncUnregisterResource(enc.encoder, reg.registeredResource);
-		}
-
 		throw;
 	}
 }
 
+// ----------------------------------------------------
+// Main
+// ----------------------------------------------------
 int main() {
-	// stdout -> binary mode
 	_setmode(_fileno(stdout), _O_BINARY);
-	
+
 	ID3D11Device* device = nullptr;
 	ID3D11DeviceContext* context = nullptr;
 
 	DuplicationContext dup{};
 	EncoderContext enc{};
+	ScaleContext scaler{};
 
 	try {
 		D3D_FEATURE_LEVEL flOut = D3D_FEATURE_LEVEL_11_0;
@@ -536,9 +578,6 @@ int main() {
 		};
 
 		UINT flags = 0;
-#ifdef _DEBUG
-		// flags |= D3D11_CREATE_DEVICE_DEBUG;
-#endif
 
 		CheckHr(
 			D3D11CreateDevice(
@@ -562,14 +601,15 @@ int main() {
 		std::cerr << "[INFO] NVENC API Loaded\n";
 
 		dup = CreateDuplication(device);
-		std::cerr << "[INFO] Desktop Duplication created: " << dup.width << "x" << dup.height << "\n";
+		std::cerr << "[INFO] Desktop Duplication created: "
+			<< dup.width << "x" << dup.height << "\n";
 
 		const UINT ENCODE_W = 1920;
 		const UINT ENCODE_H = 1080;
 
-		ScaleContext scaler = CreateScaler(device, context, dup.width, dup.height, ENCODE_W, ENCODE_H);
-
 		enc = CreateEncoder(device, ENCODE_W, ENCODE_H);
+		scaler = CreateScaler(device, context, enc.encoder, dup.width, dup.height, ENCODE_W, ENCODE_H);
+
 		std::cerr << "[INFO] Encoder initialized\n";
 
 		uint64_t frameIndex = 0;
@@ -580,13 +620,11 @@ int main() {
 			ID3D11Texture2D* desktopTex = nullptr;
 
 			DXGI_OUTDUPL_FRAME_INFO frameInfo{};
-			HRESULT hr = dup.duplication->AcquireNextFrame(
-				16,
-				&frameInfo,
-				&desktopResource
-			);
+			HRESULT hr = dup.duplication->AcquireNextFrame(16, &frameInfo, &desktopResource);
 
-			if (hr == DXGI_ERROR_WAIT_TIMEOUT) { continue; }
+			if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+				continue;
+			}
 
 			if (hr == DXGI_ERROR_ACCESS_LOST) {
 				throw std::runtime_error("DXGI duplication lost; Recreate Duplication");
@@ -610,11 +648,10 @@ int main() {
 					throw std::runtime_error("Captured frame size changed; Recreate Duplication/Scaler");
 				}
 
-				// Send DXGI Duplication Texture to NVENC ()
-				ScaleTexture(scaler, desktopTex, dup.width, dup.height);
+				EncodeSlot& slot = ScaleTexture(scaler, desktopTex);
 
 				bool forceIDR = firstFrame || (frameIndex % 30 == 0);
-				EncodeOneTexture(enc, scaler.outputTex, frameIndex, forceIDR);
+				EncodeRegisteredTexture(enc, slot.registered, frameIndex, forceIDR);
 
 				firstFrame = false;
 				++frameIndex;
@@ -631,12 +668,12 @@ int main() {
 				throw;
 			}
 		}
-		DestroyScaler(scaler);
 	}
 	catch (const std::exception& e) {
 		std::cerr << "[ERROR] " << e.what() << "\n";
 	}
 
+	DestroyScaler(scaler, enc.encoder);
 	DestroyEncoder(enc);
 
 	if (dup.duplication) {
