@@ -16,6 +16,10 @@
 
 NV_ENCODE_API_FUNCTION_LIST g_nvenc = {};
 
+struct RecreateSessionException : public std::runtime_error {
+	RecreateSessionException(const char* msg) : std::runtime_error(msg) {}
+};
+
 static const char* NvEncStatusToString(NVENCSTATUS st) {
 	switch (st) {
 	case NV_ENC_SUCCESS: return "NV_ENC_SUCCESS";
@@ -201,7 +205,7 @@ static EncoderContext CreateEncoder(ID3D11Device* device, uint32_t width, uint32
 	);
 
 	GUID encodeGUID = NV_ENC_CODEC_H264_GUID;
-	GUID presetGUID = NV_ENC_PRESET_P3_GUID;
+	GUID presetGUID = NV_ENC_PRESET_P1_GUID;
 	NV_ENC_TUNING_INFO tuningInfo = NV_ENC_TUNING_INFO_LOW_LATENCY;
 
 	NV_ENC_PRESET_CONFIG presetConfig{};
@@ -223,18 +227,22 @@ static EncoderContext CreateEncoder(ID3D11Device* device, uint32_t width, uint32
 	encodeConfig.version = NV_ENC_CONFIG_VER;
 
 	encodeConfig.profileGUID = NV_ENC_H264_PROFILE_BASELINE_GUID;
-	encodeConfig.gopLength = 30;
+	encodeConfig.gopLength = 60;
 	encodeConfig.frameIntervalP = 1;
 
 	encodeConfig.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR;
-	encodeConfig.rcParams.averageBitRate = 8 * 1000 * 1000;
-	encodeConfig.rcParams.maxBitRate = 10 * 1000 * 1000;
-	encodeConfig.rcParams.vbvBufferSize = 8 * 1000 * 1000;
-	encodeConfig.rcParams.vbvInitialDelay = 8 * 1000 * 1000;
+	encodeConfig.rcParams.averageBitRate = 20 * 1000 * 1000;
+	encodeConfig.rcParams.maxBitRate = 25 * 1000 * 1000;
+	encodeConfig.rcParams.vbvBufferSize = 20 * 1000 * 1000;
+	encodeConfig.rcParams.vbvInitialDelay = 20 * 1000 * 1000;
+	encodeConfig.rcParams.enableLookahead = 0;
+	encodeConfig.rcParams.lookaheadDepth = 0;
+	encodeConfig.rcParams.disableIadapt = 1;
+	encodeConfig.rcParams.disableBadapt = 1;
 
 	encodeConfig.encodeCodecConfig.h264Config.repeatSPSPPS = 1;
 	encodeConfig.encodeCodecConfig.h264Config.outputAUD = 0;
-	encodeConfig.encodeCodecConfig.h264Config.idrPeriod = 30;
+	encodeConfig.encodeCodecConfig.h264Config.idrPeriod = 60;
 	encodeConfig.encodeCodecConfig.h264Config.maxNumRefFrames = 1;
 
 	NV_ENC_INITIALIZE_PARAMS initParams{};
@@ -251,7 +259,7 @@ static EncoderContext CreateEncoder(ID3D11Device* device, uint32_t width, uint32
 	initParams.maxEncodeWidth = width;
 	initParams.maxEncodeHeight = height;
 
-	initParams.frameRateNum = 60;
+	initParams.frameRateNum = 30;
 	initParams.frameRateDen = 1;
 
 	initParams.enablePTD = 1;
@@ -476,6 +484,25 @@ static void DestroyScaler(ScaleContext& sc, void* encoder) {
 	SafeRelease(sc.videoDevice);
 }
 
+static void DestroyDuplication(DuplicationContext& dup) {
+	if (dup.duplication) {
+		dup.duplication->Release();
+		dup.duplication = nullptr;
+	}
+	dup.width = 0;
+	dup.height = 0;
+}
+
+static void DestroySession(
+	DuplicationContext& dup,
+	ScaleContext& scaler,
+	EncoderContext& enc
+) {
+	DestroyScaler(scaler, enc.encoder);
+	DestroyEncoder(enc);
+	DestroyDuplication(dup);
+}
+
 static bool EncodeRegisteredTexture(
 	EncoderContext& enc,
 	NV_ENC_REGISTERED_PTR registered,
@@ -557,6 +584,26 @@ static bool EncodeRegisteredTexture(
 	}
 }
 
+static void CreateSession(
+	ID3D11Device* device,
+	ID3D11DeviceContext* context,
+	DuplicationContext& dup,
+	ScaleContext& scaler,
+	EncoderContext& enc,
+	UINT encodeW,
+	UINT encodeH
+) {
+	dup = CreateDuplication(device);
+	std::cerr << "[INFO] Desktop Duplication created: "
+		<< dup.width << "x" << dup.height << "\n";
+
+	enc = CreateEncoder(device, encodeW, encodeH);
+	scaler = CreateScaler(device, context, enc.encoder, dup.width, dup.height, encodeW, encodeH);
+
+	std::cerr << "[INFO] Encoder/scaler initialized: "
+		<< encodeW << "x" << encodeH << "\n";
+}
+
 // ----------------------------------------------------
 // Main
 // ----------------------------------------------------
@@ -600,72 +647,93 @@ int main() {
 		LoadNvEnc();
 		std::cerr << "[INFO] NVENC API Loaded\n";
 
-		dup = CreateDuplication(device);
-		std::cerr << "[INFO] Desktop Duplication created: "
-			<< dup.width << "x" << dup.height << "\n";
-
-		const UINT ENCODE_W = 1920;
-		const UINT ENCODE_H = 1080;
-
-		enc = CreateEncoder(device, ENCODE_W, ENCODE_H);
-		scaler = CreateScaler(device, context, enc.encoder, dup.width, dup.height, ENCODE_W, ENCODE_H);
-
-		std::cerr << "[INFO] Encoder initialized\n";
+		const UINT ENCODE_W = 2560;
+		const UINT ENCODE_H = 1440;
 
 		uint64_t frameIndex = 0;
 		bool firstFrame = true;
 
 		while (true) {
-			IDXGIResource* desktopResource = nullptr;
-			ID3D11Texture2D* desktopTex = nullptr;
-
-			DXGI_OUTDUPL_FRAME_INFO frameInfo{};
-			HRESULT hr = dup.duplication->AcquireNextFrame(16, &frameInfo, &desktopResource);
-
-			if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-				continue;
-			}
-
-			if (hr == DXGI_ERROR_ACCESS_LOST) {
-				throw std::runtime_error("DXGI duplication lost; Recreate Duplication");
-			}
-
-			CheckHr(hr, "AcquireNextFrame");
-
 			try {
-				CheckHr(
-					desktopResource->QueryInterface(
-						__uuidof(ID3D11Texture2D),
-						reinterpret_cast<void**>(&desktopTex)
-					),
-					"IDXGIResource->QueryInterface(ID3D11Texture2D)"
-				);
+				CreateSession(device, context, dup, scaler, enc, ENCODE_W, ENCODE_H);
 
-				D3D11_TEXTURE2D_DESC desc{};
-				desktopTex->GetDesc(&desc);
+				while (true) {
+					IDXGIResource* desktopResource = nullptr;
+					ID3D11Texture2D* desktopTex = nullptr;
+					bool acquiredFrame = false;
 
-				if (desc.Width != dup.width || desc.Height != dup.height) {
-					throw std::runtime_error("Captured frame size changed; Recreate Duplication/Scaler");
+					try {
+						DXGI_OUTDUPL_FRAME_INFO frameInfo{};
+						HRESULT hr = dup.duplication->AcquireNextFrame(16, &frameInfo, &desktopResource);
+
+						if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+							continue;
+						}
+
+						if (hr == DXGI_ERROR_ACCESS_LOST) {
+							throw RecreateSessionException("AcquireNextFrame: ACCESS_LOST");
+						}
+
+						CheckHr(hr, "AcquireNextFrame");
+						acquiredFrame = true;
+
+						CheckHr(
+							desktopResource->QueryInterface(
+								__uuidof(ID3D11Texture2D),
+								reinterpret_cast<void**>(&desktopTex)
+							),
+							"IDXGIResource->QueryInterface(ID3D11Texture2D)"
+						);
+
+						D3D11_TEXTURE2D_DESC desc{};
+						desktopTex->GetDesc(&desc);
+
+						if (desc.Width != dup.width || desc.Height != dup.height) {
+							throw RecreateSessionException("Captured frame size changed");
+						}
+
+						EncodeSlot& slot = ScaleTexture(scaler, desktopTex);
+
+						bool forceIDR = firstFrame || (frameIndex % 30 == 0);
+						if (!EncodeRegisteredTexture(enc, slot.registered, frameIndex, forceIDR)) {
+							throw RecreateSessionException("EncodeRegisteredTexture returned false");
+						}
+
+						firstFrame = false;
+						++frameIndex;
+
+						SafeRelease(desktopTex);
+						SafeRelease(desktopResource);
+
+						hr = dup.duplication->ReleaseFrame();
+						if (hr == DXGI_ERROR_ACCESS_LOST) {
+							throw RecreateSessionException("ReleaseFrame: ACCESS_LOST");
+						}
+						CheckHr(hr, "ReleaseFrame");
+						acquiredFrame = false;
+					}
+					catch (...) {
+						SafeRelease(desktopTex);
+						SafeRelease(desktopResource);
+
+						if (acquiredFrame && dup.duplication) {
+							HRESULT r = dup.duplication->ReleaseFrame();
+							if (FAILED(r) && r != DXGI_ERROR_ACCESS_LOST) {
+								std::cerr << "[WARN] ReleaseFrame during exception failed: 0x"
+									<< std::hex << r << std::dec << "\n";
+							}
+						}
+
+						throw;
+					}
 				}
-
-				EncodeSlot& slot = ScaleTexture(scaler, desktopTex);
-
-				bool forceIDR = firstFrame || (frameIndex % 30 == 0);
-				EncodeRegisteredTexture(enc, slot.registered, frameIndex, forceIDR);
-
-				firstFrame = false;
-				++frameIndex;
-
-				SafeRelease(desktopTex);
-				SafeRelease(desktopResource);
-
-				CheckHr(dup.duplication->ReleaseFrame(), "ReleaseFrame");
 			}
-			catch (...) {
-				SafeRelease(desktopTex);
-				SafeRelease(desktopResource);
-				dup.duplication->ReleaseFrame();
-				throw;
+			catch (const RecreateSessionException& e) {
+				std::cerr << "[WARN] Recreating session: " << e.what() << "\n";
+				DestroySession(dup, scaler, enc);
+				firstFrame = true;
+				Sleep(300);
+				continue;
 			}
 		}
 	}
@@ -673,14 +741,7 @@ int main() {
 		std::cerr << "[ERROR] " << e.what() << "\n";
 	}
 
-	DestroyScaler(scaler, enc.encoder);
-	DestroyEncoder(enc);
-
-	if (dup.duplication) {
-		dup.duplication->Release();
-		dup.duplication = nullptr;
-	}
-
+	DestroySession(dup, scaler, enc);
 	SafeRelease(context);
 	SafeRelease(device);
 
