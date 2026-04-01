@@ -9,16 +9,13 @@
 #include <stdexcept>
 #include <cstdint>
 #include <cstdio>
+#include <string>
 #include "nvEncodeAPI.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 
 NV_ENCODE_API_FUNCTION_LIST g_nvenc = {};
-
-struct RecreateSessionException : public std::runtime_error {
-	RecreateSessionException(const char* msg) : std::runtime_error(msg) {}
-};
 
 static const char* NvEncStatusToString(NVENCSTATUS st) {
 	switch (st) {
@@ -117,6 +114,162 @@ void LoadNvEnc() {
 }
 
 // ----------------------------------------------------
+// Stream Presets
+// ----------------------------------------------------
+enum class StreamPreset {
+	Stable,
+	Balanced,
+	Quality,
+	Mobile
+};
+
+struct StreamConfig {
+	uint32_t width;
+	uint32_t height;
+	uint32_t fps;
+	uint32_t averageBitrate;
+	uint32_t maxBitrate;
+	uint32_t vbvBufferSize;
+	uint32_t vbvInitialDelay;
+	uint32_t gopLength;
+	uint32_t idrPeriod;
+	bool repeatSpsPps;
+	bool outputAud;
+	uint32_t maxRefFrames;
+	GUID profileGuid;
+	GUID presetGuid;
+	NV_ENC_TUNING_INFO tuningInfo;
+	bool enableLookahead;
+	uint32_t lookaheadDepth;
+	bool disableIadapt;
+	bool disableBadapt;
+};
+
+static StreamPreset ParseStreamPreset(int argc, char** argv) {
+	if (argc < 2) {
+		return StreamPreset::Balanced;
+	}
+
+	std::string arg = argv[1];
+	for (auto& c : arg) {
+		c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+	}
+
+	if (arg == "stable")   return StreamPreset::Stable;
+	if (arg == "balanced") return StreamPreset::Balanced;
+	if (arg == "quality")  return StreamPreset::Quality;
+	if (arg == "mobile")   return StreamPreset::Mobile;
+
+	std::cerr << "[WARN] Unknown preset: " << arg
+		<< " (fallback to balanced)\n";
+	return StreamPreset::Balanced;
+}
+
+static const char* StreamPresetToString(StreamPreset preset) {
+	switch (preset) {
+	case StreamPreset::Stable:   return "stable";
+	case StreamPreset::Balanced: return "balanced";
+	case StreamPreset::Quality:  return "quality";
+	case StreamPreset::Mobile:   return "mobile";
+	default:                     return "unknown";
+	}
+}
+
+static StreamConfig GetStreamConfig(StreamPreset preset) {
+	switch (preset) {
+	case StreamPreset::Stable:
+		return StreamConfig{
+			1600, 900,
+			30,
+			20 * 1000 * 1000,
+			25 * 1000 * 1000,
+			20 * 1000 * 1000,
+			20 * 1000 * 1000,
+			60,
+			60,
+			true,
+			false,
+			1,
+			NV_ENC_H264_PROFILE_BASELINE_GUID,
+			NV_ENC_PRESET_P1_GUID,
+			NV_ENC_TUNING_INFO_LOW_LATENCY,
+			false,
+			0,
+			true,
+			true
+		};
+
+	case StreamPreset::Balanced:
+		return StreamConfig{
+			1920, 1080,
+			30,
+			20 * 1000 * 1000,
+			25 * 1000 * 1000,
+			20 * 1000 * 1000,
+			20 * 1000 * 1000,
+			60,
+			60,
+			true,
+			false,
+			1,
+			NV_ENC_H264_PROFILE_BASELINE_GUID,
+			NV_ENC_PRESET_P1_GUID,
+			NV_ENC_TUNING_INFO_LOW_LATENCY,
+			false,
+			0,
+			true,
+			true
+		};
+
+	case StreamPreset::Quality:
+		return StreamConfig{
+			1920, 1080,
+			60,
+			25 * 1000 * 1000,
+			30 * 1000 * 1000,
+			25 * 1000 * 1000,
+			25 * 1000 * 1000,
+			60,
+			60,
+			true,
+			false,
+			1,
+			NV_ENC_H264_PROFILE_BASELINE_GUID,
+			NV_ENC_PRESET_P3_GUID,
+			NV_ENC_TUNING_INFO_LOW_LATENCY,
+			false,
+			0,
+			true,
+			true
+		};
+
+	case StreamPreset::Mobile:
+		return StreamConfig{
+			1280, 720,
+			30,
+			8 * 1000 * 1000,
+			10 * 1000 * 1000,
+			8 * 1000 * 1000,
+			8 * 1000 * 1000,
+			60,
+			60,
+			true,
+			false,
+			1,
+			NV_ENC_H264_PROFILE_BASELINE_GUID,
+			NV_ENC_PRESET_P1_GUID,
+			NV_ENC_TUNING_INFO_LOW_LATENCY,
+			false,
+			0,
+			true,
+			true
+		};
+	}
+
+	return GetStreamConfig(StreamPreset::Balanced);
+}
+
+// ----------------------------------------------------
 // DXGI Duplication
 // ----------------------------------------------------
 struct DuplicationContext {
@@ -188,10 +341,10 @@ struct EncoderContext {
 	uint32_t height = 0;
 };
 
-static EncoderContext CreateEncoder(ID3D11Device* device, uint32_t width, uint32_t height) {
+static EncoderContext CreateEncoder(ID3D11Device* device, const StreamConfig& cfg) {
 	EncoderContext ctx{};
-	ctx.width = width;
-	ctx.height = height;
+	ctx.width = cfg.width;
+	ctx.height = cfg.height;
 
 	NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS openParams{};
 	openParams.version = NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER;
@@ -205,8 +358,6 @@ static EncoderContext CreateEncoder(ID3D11Device* device, uint32_t width, uint32
 	);
 
 	GUID encodeGUID = NV_ENC_CODEC_H264_GUID;
-	GUID presetGUID = NV_ENC_PRESET_P1_GUID;
-	NV_ENC_TUNING_INFO tuningInfo = NV_ENC_TUNING_INFO_LOW_LATENCY;
 
 	NV_ENC_PRESET_CONFIG presetConfig{};
 	presetConfig.version = NV_ENC_PRESET_CONFIG_VER;
@@ -216,8 +367,8 @@ static EncoderContext CreateEncoder(ID3D11Device* device, uint32_t width, uint32
 		g_nvenc.nvEncGetEncodePresetConfigEx(
 			ctx.encoder,
 			encodeGUID,
-			presetGUID,
-			tuningInfo,
+			cfg.presetGuid,
+			cfg.tuningInfo,
 			&presetConfig
 		),
 		"nvEncGetEncodePresetConfigEx"
@@ -226,40 +377,40 @@ static EncoderContext CreateEncoder(ID3D11Device* device, uint32_t width, uint32
 	NV_ENC_CONFIG encodeConfig = presetConfig.presetCfg;
 	encodeConfig.version = NV_ENC_CONFIG_VER;
 
-	encodeConfig.profileGUID = NV_ENC_H264_PROFILE_BASELINE_GUID;
-	encodeConfig.gopLength = 60;
+	encodeConfig.profileGUID = cfg.profileGuid;
+	encodeConfig.gopLength = cfg.gopLength;
 	encodeConfig.frameIntervalP = 1;
 
 	encodeConfig.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR;
-	encodeConfig.rcParams.averageBitRate = 20 * 1000 * 1000;
-	encodeConfig.rcParams.maxBitRate = 25 * 1000 * 1000;
-	encodeConfig.rcParams.vbvBufferSize = 20 * 1000 * 1000;
-	encodeConfig.rcParams.vbvInitialDelay = 20 * 1000 * 1000;
-	encodeConfig.rcParams.enableLookahead = 0;
-	encodeConfig.rcParams.lookaheadDepth = 0;
-	encodeConfig.rcParams.disableIadapt = 1;
-	encodeConfig.rcParams.disableBadapt = 1;
+	encodeConfig.rcParams.averageBitRate = cfg.averageBitrate;
+	encodeConfig.rcParams.maxBitRate = cfg.maxBitrate;
+	encodeConfig.rcParams.vbvBufferSize = cfg.vbvBufferSize;
+	encodeConfig.rcParams.vbvInitialDelay = cfg.vbvInitialDelay;
+	encodeConfig.rcParams.enableLookahead = cfg.enableLookahead ? 1 : 0;
+	encodeConfig.rcParams.lookaheadDepth = cfg.lookaheadDepth;
+	encodeConfig.rcParams.disableIadapt = cfg.disableIadapt ? 1 : 0;
+	encodeConfig.rcParams.disableBadapt = cfg.disableBadapt ? 1 : 0;
 
-	encodeConfig.encodeCodecConfig.h264Config.repeatSPSPPS = 1;
-	encodeConfig.encodeCodecConfig.h264Config.outputAUD = 0;
-	encodeConfig.encodeCodecConfig.h264Config.idrPeriod = 60;
-	encodeConfig.encodeCodecConfig.h264Config.maxNumRefFrames = 1;
+	encodeConfig.encodeCodecConfig.h264Config.repeatSPSPPS = cfg.repeatSpsPps ? 1 : 0;
+	encodeConfig.encodeCodecConfig.h264Config.outputAUD = cfg.outputAud ? 1 : 0;
+	encodeConfig.encodeCodecConfig.h264Config.idrPeriod = cfg.idrPeriod;
+	encodeConfig.encodeCodecConfig.h264Config.maxNumRefFrames = cfg.maxRefFrames;
 
 	NV_ENC_INITIALIZE_PARAMS initParams{};
 	initParams.version = NV_ENC_INITIALIZE_PARAMS_VER;
 	initParams.encodeGUID = encodeGUID;
-	initParams.presetGUID = presetGUID;
-	initParams.tuningInfo = tuningInfo;
+	initParams.presetGUID = cfg.presetGuid;
+	initParams.tuningInfo = cfg.tuningInfo;
 	initParams.encodeConfig = &encodeConfig;
 
-	initParams.encodeWidth = width;
-	initParams.encodeHeight = height;
-	initParams.darWidth = width;
-	initParams.darHeight = height;
-	initParams.maxEncodeWidth = width;
-	initParams.maxEncodeHeight = height;
+	initParams.encodeWidth = cfg.width;
+	initParams.encodeHeight = cfg.height;
+	initParams.darWidth = cfg.width;
+	initParams.darHeight = cfg.height;
+	initParams.maxEncodeWidth = cfg.width;
+	initParams.maxEncodeHeight = cfg.height;
 
-	initParams.frameRateNum = 30;
+	initParams.frameRateNum = cfg.fps;
 	initParams.frameRateDen = 1;
 
 	initParams.enablePTD = 1;
@@ -484,25 +635,6 @@ static void DestroyScaler(ScaleContext& sc, void* encoder) {
 	SafeRelease(sc.videoDevice);
 }
 
-static void DestroyDuplication(DuplicationContext& dup) {
-	if (dup.duplication) {
-		dup.duplication->Release();
-		dup.duplication = nullptr;
-	}
-	dup.width = 0;
-	dup.height = 0;
-}
-
-static void DestroySession(
-	DuplicationContext& dup,
-	ScaleContext& scaler,
-	EncoderContext& enc
-) {
-	DestroyScaler(scaler, enc.encoder);
-	DestroyEncoder(enc);
-	DestroyDuplication(dup);
-}
-
 static bool EncodeRegisteredTexture(
 	EncoderContext& enc,
 	NV_ENC_REGISTERED_PTR registered,
@@ -584,30 +716,56 @@ static bool EncodeRegisteredTexture(
 	}
 }
 
+// ----------------------------------------------------
+// Recreate helpers
+// ----------------------------------------------------
+struct RecreateSessionException : public std::runtime_error {
+	RecreateSessionException(const char* msg) : std::runtime_error(msg) {}
+};
+
+static void DestroyDuplication(DuplicationContext& dup) {
+	if (dup.duplication) {
+		dup.duplication->Release();
+		dup.duplication = nullptr;
+	}
+	dup.width = 0;
+	dup.height = 0;
+}
+
+static void DestroySession(
+	DuplicationContext& dup,
+	ScaleContext& scaler,
+	EncoderContext& enc
+) {
+	DestroyScaler(scaler, enc.encoder);
+	DestroyEncoder(enc);
+	DestroyDuplication(dup);
+}
+
 static void CreateSession(
 	ID3D11Device* device,
 	ID3D11DeviceContext* context,
 	DuplicationContext& dup,
 	ScaleContext& scaler,
 	EncoderContext& enc,
-	UINT encodeW,
-	UINT encodeH
+	const StreamConfig& cfg
 ) {
 	dup = CreateDuplication(device);
 	std::cerr << "[INFO] Desktop Duplication created: "
 		<< dup.width << "x" << dup.height << "\n";
 
-	enc = CreateEncoder(device, encodeW, encodeH);
-	scaler = CreateScaler(device, context, enc.encoder, dup.width, dup.height, encodeW, encodeH);
+	enc = CreateEncoder(device, cfg);
+	scaler = CreateScaler(device, context, enc.encoder, dup.width, dup.height, cfg.width, cfg.height);
 
 	std::cerr << "[INFO] Encoder/scaler initialized: "
-		<< encodeW << "x" << encodeH << "\n";
+		<< cfg.width << "x" << cfg.height
+		<< " @" << cfg.fps << "fps\n";
 }
 
 // ----------------------------------------------------
 // Main
 // ----------------------------------------------------
-int main() {
+int main(int argc, char** argv) {
 	_setmode(_fileno(stdout), _O_BINARY);
 
 	ID3D11Device* device = nullptr;
@@ -647,15 +805,20 @@ int main() {
 		LoadNvEnc();
 		std::cerr << "[INFO] NVENC API Loaded\n";
 
-		const UINT ENCODE_W = 2560;
-		const UINT ENCODE_H = 1440;
+		StreamPreset preset = ParseStreamPreset(argc, argv);
+		StreamConfig cfg = GetStreamConfig(preset);
+
+		std::cerr << "[INFO] Selected preset: " << StreamPresetToString(preset)
+			<< " (" << cfg.width << "x" << cfg.height
+			<< " @" << cfg.fps << "fps, "
+			<< cfg.averageBitrate / 1000000 << "Mbps)\n";
 
 		uint64_t frameIndex = 0;
 		bool firstFrame = true;
 
 		while (true) {
 			try {
-				CreateSession(device, context, dup, scaler, enc, ENCODE_W, ENCODE_H);
+				CreateSession(device, context, dup, scaler, enc, cfg);
 
 				while (true) {
 					IDXGIResource* desktopResource = nullptr;
@@ -694,7 +857,7 @@ int main() {
 
 						EncodeSlot& slot = ScaleTexture(scaler, desktopTex);
 
-						bool forceIDR = firstFrame || (frameIndex % 30 == 0);
+						bool forceIDR = firstFrame || (frameIndex % cfg.idrPeriod == 0);
 						if (!EncodeRegisteredTexture(enc, slot.registered, frameIndex, forceIDR)) {
 							throw RecreateSessionException("EncodeRegisteredTexture returned false");
 						}

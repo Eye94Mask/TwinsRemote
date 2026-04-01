@@ -38,21 +38,19 @@ async fn main() -> Result<()> {
     default_provider().install_default().expect("install rustls crypto provider");
     println!("Starting Remote Play Host");
     
-    // let video_capture = DxgiCapture::new()?;
-    // let (width, height) = video_capture.resolution();
-
-    // let mut encoder = FfmpegEncoder::new(width, height)?;
-    
     let webrtc = Arc::new(WebRtcSender::new().await?);
     let webrtc_clone = webrtc.clone();
 
     let controller = Arc::new(Mutex::new(Controller::new()?));
 
-    // !!!New Constructure Start!!!
-    
-    // encoder.send_nal(webrtc_clone).await?;
+    // balanced: バランス型(普段用)
+    // stable:   安定重視型(重いゲーム)
+    // quality:  画質重視型(軽いゲーム)
+    // mobile:   帯域節約型
+    let preset = "balanced";
 
     let mut child = Command::new("nvenc_min.exe")
+        .arg(preset)
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()
