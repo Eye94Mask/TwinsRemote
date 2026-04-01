@@ -157,7 +157,7 @@ async fn main() -> Result<()> {
     // -------------------------------
     // VIDEO READER THREAD
     // -------------------------------
-    let (tx_video, mut rx_video) = mpsc::channel::<Vec<u8>>(8);
+    let (tx_video, mut rx_video) = mpsc::channel::<Vec<u8>>(16);
 
     std::thread::spawn(move || {
         let mut stdout = stdout;
@@ -189,8 +189,8 @@ async fn main() -> Result<()> {
             
             if let Err(e) = video_track.write_sample(&sample).await {
                 eprintln!("video write_sample failed: {:?}", e);
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                break;
+                tokio::time::sleep(Duration::from_millis(10)).await;
+                continue;
             }
         }
     });

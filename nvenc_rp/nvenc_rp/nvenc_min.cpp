@@ -228,10 +228,10 @@ static EncoderContext CreateEncoder(ID3D11Device* device, uint32_t width, uint32
 	encodeConfig.gopLength = 60;
 	encodeConfig.frameIntervalP = 1;
 	encodeConfig.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR;
-	encodeConfig.rcParams.averageBitRate = 4 * 1000 * 1000;
-	encodeConfig.rcParams.maxBitRate = 4 * 1000 * 1000;
-	encodeConfig.rcParams.vbvBufferSize = 4 * 1000 * 1000;
-	encodeConfig.rcParams.vbvInitialDelay = 4 * 1000 * 1000;
+	encodeConfig.rcParams.averageBitRate = 8 * 1000 * 1000;
+	encodeConfig.rcParams.maxBitRate = 10 * 1000 * 1000;
+	encodeConfig.rcParams.vbvBufferSize = 8 * 1000 * 1000;
+	encodeConfig.rcParams.vbvInitialDelay = 8 * 1000 * 1000;
 
 	// Low Latency
 	encodeConfig.encodeCodecConfig.h264Config.repeatSPSPPS = 1;
@@ -613,7 +613,7 @@ int main() {
 				// Send DXGI Duplication Texture to NVENC ()
 				ScaleTexture(scaler, desktopTex, dup.width, dup.height);
 
-				bool forceIDR = firstFrame || (frameIndex % 60 == 0);
+				bool forceIDR = firstFrame || (frameIndex % 30 == 0);
 				EncodeOneTexture(enc, scaler.outputTex, frameIndex, forceIDR);
 
 				firstFrame = false;
