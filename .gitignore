@@ -9,3 +9,7 @@ Cargo.lock
 *.pdb
 x64/
 .vs
+
+.env
+twins_remote_client/
+twins_remote_client_server/

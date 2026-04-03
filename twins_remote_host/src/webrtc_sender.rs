@@ -26,6 +26,7 @@ use webrtc::track::track_local::TrackLocalWriter;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
 use crate::consts::{FPS_MILLIS, MTU};
+use crate::env::IceConfig;
 
 #[derive(Clone)]
 pub struct WebRtcSender {
@@ -47,7 +48,7 @@ pub struct Answer {
 }
 
 impl WebRtcSender {
-    pub async fn new() -> Result<Self> {
+    pub async fn new(ice: IceConfig) -> Result<Self> {
         let mut m = MediaEngine::default();
         m.register_default_codecs()?;
 
@@ -62,22 +63,21 @@ impl WebRtcSender {
         let config = RTCConfiguration {
             ice_servers: vec![
                 RTCIceServer {
-                    urls: vec!["stun:stun.l.google.com:19302".to_string()],
+                    urls: vec![ice.stun_url],
                     ..Default::default()
                 },
                 RTCIceServer {
-                    urls: vec![
-                        "turn:54.199.209.243:3478?transport=udp".to_string(),
-                    ],
-                    username: "test".to_string(),
-                    credential: "password".to_string(),
+                    urls: vec![ice.turn_url],
+                    username: ice.turn_username,
+                    credential: ice.turn_password,
                     credential_type: RTCIceCredentialType::Password,
                     ..Default::default()
-                }
+                },
             ],
             ice_transport_policy: RTCIceTransportPolicy::Relay,
             ..Default::default()
         };
+
         let peer = Arc::new(api.new_peer_connection(config).await?);
 
         let video_track = Arc::new(TrackLocalStaticSample::new(

@@ -4,7 +4,16 @@ mod audio_capture;
 mod audio_encoder;
 mod controller;
 mod consts;
+mod env;
 
+use axum::{
+    extract::State,
+    response::IntoResponse,
+    routing::get,
+    Json, Router,
+};
+use serde::Serialize;
+use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::process::{Command, Stdio, ChildStdout};
 use std::io::Read;
@@ -13,6 +22,8 @@ use anyhow::Result;
 
 use tokio::time::{sleep, Duration};
 use tokio::sync::mpsc;
+
+use tower_http::services::ServeDir;
 
 use bytes::Bytes;
 
@@ -24,20 +35,23 @@ use webrtc::data_channel::data_channel_init::RTCDataChannelInit;
 use webrtc::media::Sample;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 
-use dxgi_capture::DxgiCapture;
-// use ffmpeg::FfmpegEncoder;
-use webrtc_sender::WebRtcSender;
-use audio_capture::AudioCapture;
-use audio_encoder::AudioEncoder;
-use controller::{Controller, GamepadState};
+use crate::dxgi_capture::DxgiCapture;
+use crate::webrtc_sender::WebRtcSender;
+use crate::audio_capture::AudioCapture;
+use crate::audio_encoder::AudioEncoder;
+use crate::controller::{Controller, GamepadState};
 use crate::consts::{FPS_MILLIS, AUDIO_FRAME, VIDEO_FRAME_DURATION};
+use crate::env::IceConfig;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     default_provider().install_default().expect("install rustls crypto provider");
     println!("Starting Remote Play Host");
     
-    let webrtc = Arc::new(WebRtcSender::new().await?);
+    let ice = IceConfig::load();
+
+    let webrtc = WebRtcSender::new(ice.clone()).await?;
+    
     let webrtc_clone = webrtc.clone();
 
     let controller = Arc::new(Mutex::new(Controller::new()?));
@@ -107,49 +121,44 @@ async fn main() -> Result<()> {
     println!("DataChannel label: {}", dc.label());
 
     let init = RTCDataChannelInit::default();
+    let controller_clone = controller.clone();
     dc.on_message(Box::new(move |msg: DataChannelMessage| {
-        let data = &msg.data;
+        let controller = controller_clone.clone();
 
-        if data.len() < 12 {
-            return Box::pin(async {});
-        }
-        let buttons = u16::from_le_bytes([data[0], data[1]]);
+        Box::pin(async move {
+            let data = &msg.data;
 
-        let lt = data[2];
-        let rt = data[3];
+            if data.len() < 12 {
+                return;
+            }
 
-        let lx = i16::from_le_bytes([data[4], data[5]]);
-        let ly = i16::from_le_bytes([data[6], data[7]]);
+            let buttons = u16::from_le_bytes([data[0], data[1]]);
+            let lt = data[2];
+            let rt = data[3];
+            let lx = i16::from_le_bytes([data[4], data[5]]);
+            let ly = i16::from_le_bytes([data[6], data[7]]);
+            let rx = i16::from_le_bytes([data[8], data[9]]);
+            let ry = i16::from_le_bytes([data[10], data[11]]);
 
-        let rx = i16::from_le_bytes([data[8], data[9]]);
-        let ry = i16::from_le_bytes([data[10], data[11]]);
-
-        if let Ok(mut ctrl) = controller.lock() {
-            let report = GamepadState {
-                buttons,
-                lt,
-                rt,
-                lx,
-                ly,
-                rx,
-                ry
-            };
-            let _ = ctrl.update(report);
-        }
-
-        Box::pin(async {})
+            if let Ok(mut ctrl) = controller.lock() {
+                let report = GamepadState {
+                    buttons,
+                    lt,
+                    rt,
+                    lx,
+                    ly,
+                    rx,
+                    ry,
+                };
+                let _ = ctrl.update(report);
+            }
+        })
     }));
 
     webrtc.peer.on_ice_connection_state_change(Box::new(|s| {
         println!("ICE: {:?}", s);
         Box::pin(async {})
     }));
-
-    let _ = webrtc.get_host_ice_candidate().await;
-    webrtc.generate_offer().await?;
-    let _ = webrtc.peer.gathering_complete_promise().await;
-
-    webrtc.set_answer().await?;
 
     // -------------------------------
     // VIDEO READER THREAD
@@ -191,6 +200,12 @@ async fn main() -> Result<()> {
             }
         }
     });
+
+    webrtc.get_host_ice_candidate().await?;
+    webrtc.generate_offer().await?;
+
+    println!("waiting for answer...");
+    webrtc.set_answer().await?;
 
     loop {
         webrtc.add_client_candidate().await?;
