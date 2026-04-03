@@ -27,7 +27,12 @@
     <button onclick="onHostIce()">ICE</button>
     <br>
 
-    <video id="video" autoplay playsinline muted controls></video>
+    <div id="player">
+        <video id="video" autoplay playsinline muted></video>
+    </div>
+    <br>
+    <button onclick="toggleFullscreen()">Fullscreen</button>
+    <button onclick="onEnableAudio()">Enable Audio</button>
 
     <script src="../js/client.js"></script>
 </body>

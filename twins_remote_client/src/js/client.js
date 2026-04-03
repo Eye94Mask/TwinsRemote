@@ -1,54 +1,69 @@
 let pc;
 let dc;
-let gamepadIndex;
+let gamepadIndex = null;
 let remoteStream = new MediaStream();
+
+let statsIntervalId = null;
+let freezeWatchdogId = null;
+let lastVideoCurrentTime = 0;
+let lastFrameCheckAt = 0;
 
 window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
-    // console.log(
-    //     "Gamepad connected at index %d: %s. %d buttons, %d axes.",
-    //     e.gamepad.index,
-    //     e.gamepad.id,
-    //     e.gamepad.buttons.length,
-    //     e.gamepad.axes.length
-    // );
+    console.log("gamepad connected:", e.gamepad.id, "index=", gamepadIndex);
+});
+
+window.addEventListener("gamepaddisconnected", (e) => {
+    console.log("gamepad disconnected:", e.gamepad.id, "index=", e.gamepad.index);
+    if (gamepadIndex === e.gamepad.index) {
+        gamepadIndex = null;
+    }
+});
+
+window.addEventListener("DOMContentLoaded", () => {
+    const video = document.getElementById("video");
+    video.addEventListener("dblclick", () => {
+        toggleFullscreen();
+    });
 });
 
 /*
 Connectボタン押下時の挙動
 */
 async function connect() {
+    cleanupPeerConnection();
+
     pc = new RTCPeerConnection({
         iceServers: [
             { urls: "stun:stun.l.google.com:19302" },
             {
                 urls: [
-                    "turn:43.207.155.19:3478?transport=udp",
-                    "turn:43.207.155.19:3478?transport=tcp",
-                    "turn:43.207.155.19:5349?transport=tcp"
+                    "turn:54.199.209.243:3478?transport=udp"
                 ],
                 username: "test",
                 credential: "password",
                 credentialType: "password"
             }
         ],
-        iceTransportPolicy: "all"
-    });
+        iceTransportPolicy: "relay",
 
-    pc.getStats().then(r => {
-        r.forEach(report => {
-            if (report.type === "inbound.rtp" && report.kind === "video") {
-                console.log("jitterBufferDelay:", report.jitterBufferDelay);
-                console.log("framesDecoded:", report.framesDecoded);
-            }
-        });
+        // bundle / rtcp mux を明示
+        bundlePolicy: "max-bundle",
+        rtcpMuxPolicy: "require"
     });
 
     const video = document.getElementById("video");
+
+    // video要素の余計な遅延要因を減らす
     video.srcObject = remoteStream;
     video.autoplay = true;
     video.playsInline = true;
     video.muted = true;
+
+    video.controls = false;
+    video.disablePictureInPicture = true;
+    video.style.transform = "translateZ(0)";
+    video.style.backfaceVisibility = "hidden";
 
     video.onloadedmetadata = () => {
         console.log("loadedmetadata", video.videoWidth, video.videoHeight);
@@ -58,10 +73,20 @@ async function connect() {
         console.log("video playing");
     };
 
-    pc.ontrack = (event) => {
+    video.onwaiting = () => {
+        console.warn("video waiting");
+    };
+
+    video.onstalled = () => {
+        console.warn("video stalled");
+    };
+
+    pc.ontrack = async (event) => {
         console.log("ontrack", event.track.kind, event.streams);
 
-        remoteStream.addTrack(event.track);
+        if (!remoteStream.getTracks().some(t => t.id === event.track.id)) {
+            remoteStream.addTrack(event.track);
+        }
 
         event.track.onunmute = () => {
             console.log(`${event.track.kind} track unmuted`);
@@ -71,70 +96,123 @@ async function connect() {
             console.log(`${event.track.kind} track ended`);
         };
 
-        const playPromise = video.play();
-        if (playPromise !== undefined) {
-            playPromise
-                .then(() => {
-                    console.log("video.play resolved");
-                })
-                .catch((e) => {
-                    console.error("video.play rejected", e);
-                });
-        }
-    };
+        // ブラウザ対応があれば低遅延寄りにする
+        if (event.receiver) {
+            try {
+                if ("playoutDelayHint" in event.receiver) {
+                    event.receiver.playoutDelayHint = 0.05; // 50ms目安
+                    console.log("playoutDelayHint set to 0.05");
+                }
 
-    setInterval(() => {
-        console.log({
-            tracks: remoteStream.getTracks().map(t => ({
-                kind: t.kind,
-                enabled: t.enabled,
-                muted: t.muted,
-                readyState: t.readyState
-            })),
-            videoPaused: video.paused,
-            readyState: video.readyState,
-            currentTime: video.currentTime,
-            videoWidth: video.videoWidth,
-            videoHeight: video.videoHeight
-        });
-    }, 1000);
+                // 対応ブラウザのみ
+                if ("jitterBufferTarget" in event.receiver) {
+                    event.receiver.jitterBufferTarget = 50; // ms
+                    console.log("jitterBufferTarget set to 50");
+                }
+            } catch (e) {
+                console.warn("receiver tuning failed", e);
+            }
+        }
+
+        try {
+            await video.play();
+            console.log("video.play resolved");
+        } catch (e) {
+            console.error("video.play rejected", e);
+        }
+
+        startVideoFreezeWatchdog(video);
+    };
 
     pc.ondatachannel = (e) => {
         dc = e.channel;
-        dc.ordered = false;
-        dc.maxRetransmits = 0;
+        console.log("DataChannel received:", dc.label);
 
         dc.onopen = () => {
-            // ストリーミング映像の拡大
-            // const video = document.getElementById("video");
-            // video.classList.add("streaming");
-
             console.log("DataChannel open");
             startGamepadLoop();
-        }
-    }
+        };
 
-    pc.onicecandidate = e => {
-        console.log(e.candidate);
+        dc.onclose = () => {
+            console.log("DataChannel closed");
+        };
+
+        dc.onerror = (err) => {
+            console.error("DataChannel error", err);
+        };
+    };
+
+    pc.onicecandidate = (e) => {
+        console.log("local candidate:", e.candidate);
         const ice = document.getElementById("ice");
-        ice.value = JSON.stringify(e.candidate);
         if (e.candidate) {
+            ice.value = JSON.stringify(e.candidate);
             console.log("CLIENT ICE CANDIDATE:");
             console.log(JSON.stringify(e.candidate));
         }
-    }
-    pc.oniceconnectionstatechange = e => {
-        console.log("ICE CANDIDATE STATUS CHANGED");
-        console.log(e);
-    }
+    };
+
+    pc.onicecandidateerror = (e) => {
+        console.error("ICE candidate error", e);
+    };
+
+    pc.oniceconnectionstatechange = () => {
+        console.log("iceConnectionState =", pc.iceConnectionState);
+    };
+
+    pc.onconnectionstatechange = () => {
+        console.log("connectionState =", pc.connectionState);
+    };
+
+    pc.onicegatheringstatechange = () => {
+        console.log("iceGatheringState =", pc.iceGatheringState);
+    };
+
+    pc.onsignalingstatechange = () => {
+        console.log("signalingState =", pc.signalingState);
+    };
 
     const offer = JSON.parse(document.getElementById("offer").value);
     await pc.setRemoteDescription(offer);
 
-    const answer = await pc.createAnswer();;
+    const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
     document.getElementById("answer").value = JSON.stringify(pc.localDescription);
+
+    startStatsMonitor();
+}
+
+function cleanupPeerConnection() {
+    if (statsIntervalId) {
+        clearInterval(statsIntervalId);
+        statsIntervalId = null;
+    }
+
+    if (freezeWatchdogId) {
+        clearInterval(freezeWatchdogId);
+        freezeWatchdogId = null;
+    }
+
+    if (remoteStream) {
+        for (const track of remoteStream.getTracks()) {
+            remoteStream.removeTrack(track);
+        }
+    }
+
+    if (dc) {
+        try {
+            dc.close();
+        } catch (_) { }
+        dc = null;
+    }
+
+    if (pc) {
+        try {
+            pc.close();
+        } catch (_) { }
+        pc = null;
+    }
 }
 
 function copyIceCandidate() {
@@ -151,19 +229,22 @@ function copyAnswer() {
 Host ICEの入力
 */
 async function onHostIce() {
-    const host = document.getElementById("host").value;
-    addHostCandidate(host);
+    await addHostCandidate();
 }
 
 // HostのICE候補の受け取り
 async function addHostCandidate() {
     const json = document.getElementById("host").value;
     if (!json) return;
+    if (!pc) {
+        console.warn("pc is not ready");
+        return;
+    }
 
     const candidate = new RTCIceCandidate(JSON.parse(json));
     await pc.addIceCandidate(candidate);
 
-    console.log("Host Ice candidate added");
+    console.log("Host ICE candidate added");
 }
 
 function onEnableAudio() {
@@ -172,6 +253,7 @@ function onEnableAudio() {
     try {
         video.muted = false;
         video.volume = 1.0;
+
         const playPromise = video.play();
         if (playPromise !== undefined) {
             playPromise
@@ -182,8 +264,8 @@ function onEnableAudio() {
                     console.error("video.play rejected", e);
                 });
         }
-        console.log("audio enabled");
 
+        console.log("audio enabled");
         console.log({
             muted: video.muted,
             volume: video.volume,
@@ -196,13 +278,24 @@ function onEnableAudio() {
 }
 
 function startGamepadLoop() {
-
     console.log("startGamepadLoop started");
 
     function loop() {
-        const gamepad = navigator.getGamepads()[gamepadIndex];
+        if (!dc || dc.readyState !== "open") {
+            requestAnimationFrame(loop);
+            return;
+        }
+
+        if (gamepadIndex == null) {
+            requestAnimationFrame(loop);
+            return;
+        }
+
+        const gamepads = navigator.getGamepads();
+        const gamepad = gamepads[gamepadIndex];
+
         if (!gamepad) {
-            requestAnimationFrame(startGamepadLoop)
+            requestAnimationFrame(loop);
             return;
         }
 
@@ -220,14 +313,26 @@ function startGamepadLoop() {
         view.setInt16(8, Math.floor(gamepad.axes[2] * 32767), true);
         view.setInt16(10, Math.floor(gamepad.axes[3] * -32767), true);
 
-        if (dc && dc.readyState === "open") {
-            dc.send(buf)
-        }
+        dc.send(buf);
 
         requestAnimationFrame(loop);
     }
 
     requestAnimationFrame(loop);
+}
+
+async function toggleFullscreen() {
+    const player = document.getElementById("player");
+
+    try {
+        if (!document.fullscreenElement) {
+            await player.requestFullscreen();
+        } else {
+            await document.exitFullscreen();
+        }
+    } catch (e) {
+        console.error("fullscreen failed", e);
+    }
 }
 
 function encodeButtons(gamepad) {
@@ -253,4 +358,107 @@ function encodeButtons(gamepad) {
     if (gamepad.buttons[15].pressed) b |= 1 << 3;    // RIGHT
 
     return b;
-}   
+}
+
+function startStatsMonitor() {
+    if (!pc) return;
+
+    if (statsIntervalId) {
+        clearInterval(statsIntervalId);
+    }
+
+    statsIntervalId = setInterval(async () => {
+        if (!pc) return;
+
+        try {
+            const stats = await pc.getStats();
+
+            let selectedCandidatePair = null;
+            let remoteCandidateId = null;
+
+            stats.forEach((report) => {
+                if (report.type === "candidate-pair" && report.state === "succeeded" && report.nominated) {
+                    selectedCandidatePair = report;
+                    remoteCandidateId = report.remoteCandidateId;
+                }
+            });
+
+            let remoteCandidate = null;
+            if (remoteCandidateId) {
+                remoteCandidate = stats.get(remoteCandidateId);
+            }
+
+            stats.forEach((report) => {
+                if (report.type === "inbound-rtp" && report.kind === "video") {
+                    console.log("[video stats]", {
+                        jitter: report.jitter,
+                        framesDecoded: report.framesDecoded,
+                        framesDropped: report.framesDropped,
+                        frameWidth: report.frameWidth,
+                        frameHeight: report.frameHeight,
+                        keyFramesDecoded: report.keyFramesDecoded,
+                        totalDecodeTime: report.totalDecodeTime,
+                        jitterBufferDelay: report.jitterBufferDelay,
+                        jitterBufferEmittedCount: report.jitterBufferEmittedCount,
+                        freezeCount: report.freezeCount,
+                        totalFreezesDuration: report.totalFreezesDuration,
+                        packetsLost: report.packetsLost
+                    });
+                }
+
+                if (report.type === "inbound-rtp" && report.kind === "audio") {
+                    console.log("[audio stats]", {
+                        jitter: report.jitter,
+                        jitterBufferDelay: report.jitterBufferDelay,
+                        packetsLost: report.packetsLost
+                    });
+                }
+            });
+
+            if (selectedCandidatePair) {
+                console.log("[candidate pair]", {
+                    currentRoundTripTime: selectedCandidatePair.currentRoundTripTime,
+                    availableIncomingBitrate: selectedCandidatePair.availableIncomingBitrate,
+                    availableOutgoingBitrate: selectedCandidatePair.availableOutgoingBitrate,
+                    bytesReceived: selectedCandidatePair.bytesReceived,
+                    bytesSent: selectedCandidatePair.bytesSent,
+                    localCandidateId: selectedCandidatePair.localCandidateId,
+                    remoteCandidateId: selectedCandidatePair.remoteCandidateId,
+                    remoteCandidateProtocol: remoteCandidate?.protocol,
+                    remoteCandidateType: remoteCandidate?.candidateType,
+                    remoteCandidateAddress: remoteCandidate?.address,
+                    remoteCandidatePort: remoteCandidate?.port
+                });
+            }
+        } catch (e) {
+            console.error("getStats failed", e);
+        }
+    }, 2000);
+}
+
+function startVideoFreezeWatchdog(video) {
+    if (freezeWatchdogId) {
+        clearInterval(freezeWatchdogId);
+    }
+
+    lastVideoCurrentTime = video.currentTime;
+    lastFrameCheckAt = performance.now();
+
+    freezeWatchdogId = setInterval(() => {
+        const now = performance.now();
+        const dt = now - lastFrameCheckAt;
+        const dVideo = video.currentTime - lastVideoCurrentTime;
+
+        // 2秒以上 currentTime がほぼ進んでいないのに paused ではない
+        if (!video.paused && dt >= 2000 && dVideo < 0.05) {
+            console.warn("possible video freeze detected", {
+                currentTime: video.currentTime,
+                readyState: video.readyState,
+                networkState: video.networkState
+            });
+        }
+
+        lastVideoCurrentTime = video.currentTime;
+        lastFrameCheckAt = now;
+    }, 1000);
+}
