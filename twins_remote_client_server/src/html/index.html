@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="/style.css">
+    <title>Twins Remote Client</title>
+</head>
+
+<body>
+    <h2>Twins Remote Client</h2>
+    <div id="status">未接続</div>
+
+    <div class="controls">
+        <button id="fullscreenBtn">Fullscreen</button>
+        <button id="audioBtn">Enable Audio</button>
+    </div>
+
+    <div id="player">
+        <video id="video" autoplay playsinline muted></video>
+    </div>
+
+    <pre id="log"></pre>
+
+    <div>
+        <textarea id="offer" placeholder="Paste Offer here"></textarea>
+        <br>
+        <button onclick="connect()">Connect</button>
+
+        <h3>Answer</h3>
+        <textarea id="answer" placeholder="Copy Answer back to Host" readonly></textarea>
+        <button onclick="copyAnswer()">Copy Your Answer</button>
+        <br>
+
+        <h3>Your ICE</h3>
+        <textarea id="ice" placeholder="Copy ICE back to Host" readonly></textarea>
+        <button onclick="copyIceCandidate()">Copy Your ICE</button>
+        <br>
+
+        <textarea id="host" placeholder="Paste Host ICE here"></textarea>
+        <button onclick="onHostIce()">ICE</button>
+        <br>
+    </div>
+
+    <script src="/client.js"></script>
+</body>
+
+</html>
