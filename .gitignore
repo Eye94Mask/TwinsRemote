@@ -7,6 +7,5 @@ Cargo.lock
 *.exe
 *.vcxproj*
 *.pdb
-*.slnx
 x64/
 .vs

@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="audio_exclude_capture/audio_exclude_capture.vcxproj" />
+</Solution>

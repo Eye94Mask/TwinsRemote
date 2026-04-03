@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="nvenc_rp/nvenc_rp.vcxproj" Id="1d8296a1-3167-4531-9901-ecd97a968d14" />
+</Solution>
