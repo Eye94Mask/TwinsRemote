@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
     // stable:   安定重視型(重いゲーム)
     // quality:  画質重視型(軽いゲーム)
     // mobile:   帯域節約型
-    let preset = "balanced";
+    let preset = "stable";
 
     let mut child = Command::new("nvenc_min.exe")
         .arg(preset)
