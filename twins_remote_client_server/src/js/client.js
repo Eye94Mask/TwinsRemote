@@ -150,11 +150,11 @@ async function connect() {
             if (event.receiver) {
                 try {
                     if ("playoutDelayHint" in event.receiver) {
-                        event.receiver.playoutDelayHint = 0.02;
+                        event.receiver.playoutDelayHint = 0.10;
                         console.log("video playoutDelayHint set to 0.02");
                     }
                     if ("jitterBufferTarget" in event.receiver) {
-                        event.receiver.jitterBufferTarget = 0;
+                        // event.receiver.jitterBufferTarget = 0;
                         console.log("video jitterBufferTarget set to 0");
                     }
                 } catch (e) {
