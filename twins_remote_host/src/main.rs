@@ -62,7 +62,7 @@ async fn main() -> Result<()> {
     // mobile:   帯域節約型
     let preset = "stable";
 
-    let mut child = Command::new("nvenc_min.exe")
+    let mut child = Command::new("NvEnc.exe")
         .arg(preset)
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
