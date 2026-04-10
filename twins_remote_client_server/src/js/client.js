@@ -1,25 +1,48 @@
 let pc;
 let dc;
+let inputDc = null;
 let gamepadIndex = null;
 
 let remoteAudioStream = new MediaStream();
 
 let statsIntervalId = null;
 let rtcSummaryIntervalId = null;
+let videoStatsMonitorAbort = null;
+let renderStatsIntervalId = null;
 
 let audioEl = null;
+let videoEl = null;
+let renderCanvas = null;
+let renderCtx = null;
 
 // latest-frame rendering
 let videoProcessor = null;
 let videoReader = null;
-let renderCanvas = null;
-let renderCtx = null;
 let renderLoopStarted = false;
+let processorStopped = false;
+
 let latestFrame = null;
+let lastGoodFrame = null;
+
 let receivedFrames = 0;
 let droppedFrames = 0;
 let renderedFrames = 0;
-let processorStopped = false;
+
+let lastFrameArrivedAt = 0;
+let lastRenderedAt = 0;
+
+let videoDecoder = null;
+
+let lastDecodedAt = 0;
+let lastRenderedTs = null;
+
+let lastPacketsLost = 0;
+let lastNackCount = 0;
+let lastFreezeCount = 0;
+let lastPacketsDiscarded = 0;
+
+let forceKeyframeCooldownUntil = 0;
+const FORCE_KEYFRAME_COOLDOWN_MS = 5000;
 
 window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
@@ -34,15 +57,13 @@ window.addEventListener("gamepaddisconnected", (e) => {
 });
 
 window.addEventListener("DOMContentLoaded", () => {
-    const video = document.getElementById("video");
+    const videoEl = document.getElementById("video");
     const fullscreenBtn = document.getElementById("fullscreenBtn");
     const audioBtn = document.getElementById("audioBtn");
     const player = document.getElementById("player");
 
-    // 既存 video は使わないので隠す
-    video.style.display = "none";
+    if (videoEl) { videoEl.style.display = "none"; }
 
-    // canvas を作る
     renderCanvas = document.createElement("canvas");
     renderCanvas.id = "renderCanvas";
     renderCanvas.style.width = "100%";
@@ -77,6 +98,11 @@ window.addEventListener("DOMContentLoaded", () => {
     document.body.appendChild(audioEl);
 });
 
+
+function nowMs() {
+    return performance.now();
+}
+
 function log(...args) {
     console.log(...args);
     const el = document.getElementById("log");
@@ -89,7 +115,51 @@ function log(...args) {
             return String(v);
         }
     }).join(" ") + "\n";
+
     el.scrollTop = el.scrollHeight;
+}
+
+function closeFrameSafe(frame) {
+    if (!frame) return;
+    try {
+        frame.close();
+    } catch (_) {}
+}
+
+function sendForceKeyframe(reason) {
+    const now = nowMs();
+    if (!inputDc || inputDc.readyState !== "open") return;
+    if (now < forceKeyframeCooldownUntil) return;
+
+    forceKeyframeCooldownUntil = now + FORCE_KEYFRAME_COOLDOWN_MS;
+
+    const msg = JSON.stringify({
+        type: "force_keyframe",
+        reason,
+        ts: Date.now(),
+    });
+
+    try {
+        inputDc.send(msg);
+        log("[CLIENT] sent force_keyframe:", reason);
+    } catch (e) {
+        console.log("[CLIENT] force_keyframe send failed", e);
+    }
+}
+
+function replaceFrame(slotName, newFrame) {
+    if (slotName === "latest") {
+        const old = latestFrame;
+        latestFrame = newFrame;
+        closeFrameSafe(old);
+        return;
+    }
+
+    if (slotName === "lastGood") {
+        const old = lastGoodFrame;
+        lastGoodFrame = newFrame;
+        closeFrameSafe(old);
+    }
 }
 
 async function fetchWebRtcConfig() {
@@ -105,11 +175,122 @@ async function fetchWebRtcConfig() {
     return await res.json();
 }
 
+//----------------------------------------------------------------------------------------------------
+// Keep rendering lastGoodFrame if client do not have the latest frame
+//----------------------------------------------------------------------------------------------------
+function startRenderLoop(canvas) {
+    if (renderLoopStarted) return;
+    renderLoopStarted = true;
+
+    function render() {
+        // Give priority to a new frame
+        const frameToDraw = latestFrame || lastGoodFrame;
+
+        if (frameToDraw && renderCanvas && renderCtx) {
+            try {
+                if (
+                    renderCanvas.width  !== frameToDraw.displayWidth ||
+                    renderCanvas.height !== frameToDraw.displayHeight
+                ) {
+                    renderCanvas.width  = frameToDraw.displayWidth;
+                    renderCanvas.height = frameToDraw.displayHeight;
+                }
+
+                renderCtx.drawImage(
+                    frameToDraw,
+                    0,
+                    0,
+                    renderCanvas.width,
+                    renderCanvas.height
+                );
+
+                renderedFrames++;
+                lastRenderedAt = nowMs();
+            } catch (e) {
+                console.error("[RENDER ERROR]", e);
+            }
+
+            if (latestFrame) {
+                closeFrameSafe(latestFrame);
+                latestFrame = null;
+            }
+        }
+
+        const sinceFrameArrived = lastFrameArrivedAt > 0 ? nowMs() - lastFrameArrivedAt : 0;
+        if (lastFrameArrivedAt > 0 && sinceFrameArrived > 1500) {
+            sendForceKeyframe(`frame_stall_${Math.floor(sinceFrameArrived)}ms`);
+        }
+
+        requestAnimationFrame(render);
+    }
+
+    requestAnimationFrame(render);
+}
+
+function startRenderStatsLog() {
+    if (renderStatsIntervalId) clearInterval(renderStatsIntervalId);
+
+    renderStatsIntervalId = setInterval(() => {
+        log("[CLIENT RENDER", {
+            receivedFrames,
+            droppedFrames,
+            renderedFrames,
+            hasLatestFrame: !!latestFrame,
+            hasLastGoodFrame: !!lastGoodFrame
+        });
+
+        receivedFrames = 0;
+        droppedFrames  = 0;
+        renderedFrames = 0;
+    }, 1000);
+}
+
+//--------------------------------------------------
+// WebRTC stats monitoring
+//--------------------------------------------------
+async function monitorVideoStats(videoReceiver, abortSignal) {
+    while (!abortSignal.aborted) {
+        try {
+            const stats = await videoReceiver.getStats();
+
+            for(const report of stats.values()) {
+                if (report.type !== "inbound-rtp" || report.kind !== "video") continue;
+
+                const packetsLost = report.packetsLost ?? 0;
+                const framesDecoded = report.framesDecoded ?? 0;
+                const freezeCount = report.freezeCount ?? 0;
+                const nackCount = report.nackCount ?? 0;
+                const packetsDiscarded = report.packetsDiscarded ?? 0;
+                const jitter = report.jitter ?? 0;
+                const totalAssemblyTime = report.totalAssemblyTime ?? 0;
+
+                log(
+                    `[STATS] lost=${packetsLost} nack=${nackCount} freeze=${freezeCount} discarded=${packetsDiscarded} decoded=${framesDecoded} jitter=${jitter} asm=${totalAssemblyTime}`
+                );
+
+                if (freezeCount > lastFreezeCount) {
+                    sendForceKeyframe(`freeze_${lastFreezeCount}_to_${freezeCount}`);
+                }
+
+                lastPacketsLost = packetsLost;
+                lastNackCount = nackCount;
+                lastFreezeCount = freezeCount;
+                lastPacketsDiscarded = packetsDiscarded;
+            }
+        } catch (e) {
+            if (!abortSignal.aborted) {
+                console.error("[monitorVideoStats error]", e);
+            }
+        }
+
+        await new Promise(r => setTimeout(r, 300));
+    }
+}
+
 async function connect() {
     cleanupPeerConnection();
 
     remoteVideoStream = new MediaStream();
-    remoteAudioStream = new MediaStream();
 
     const config = await fetchWebRtcConfig();
     log("ICE CONFIG:", config);
@@ -127,21 +308,23 @@ async function connect() {
         audioEl.volume = 1.0;
     }
 
-    video.onloadedmetadata = () => {
-        console.log("loadedmetadata", video.videoWidth, video.videoHeight);
-    };
+    if (videoEl) {
+        videoEl.onloadedmetadata = () => {
+            console.log("loadedmetadata", videoEl.videoWidth, videoEl.videoHeight);
+        };
 
-    video.onplaying = () => {
-        console.log("video playing");
-    };
+        videoEl.onplaying = () => {
+            console.log("video playing");
+        }
 
-    video.onwaiting = () => {
-        console.warn("video waiting");
-    };
+        videoEl.onwaiting = () => {
+            console.warn("video waiting");
+        }
 
-    video.onstalled = () => {
-        console.warn("video stalled");
-    };
+        videoEl.onstalled = () => {
+            console.warn("video stalled");
+        }
+    }
 
     pc.ontrack = async (event) => {
         console.log("ontrack", event.track.kind, event.streams);
@@ -153,16 +336,27 @@ async function connect() {
                         event.receiver.playoutDelayHint = 0.10;
                         console.log("video playoutDelayHint set to 0.02");
                     }
-                    if ("jitterBufferTarget" in event.receiver) {
-                        // event.receiver.jitterBufferTarget = 0;
-                        console.log("video jitterBufferTarget set to 0");
-                    }
+                    // if ("jitterBufferTarget" in event.receiver) {
+                    //     event.receiver.jitterBufferTarget = 0;
+                    //     console.log("video jitterBufferTarget set to 0");
+                    // }
                 } catch (e) {
                     console.warn("video receiver tuning failed", e);
                 }
+
+                if (videoStatsMonitorAbort) {
+                    videoStatsMonitorAbort.aborted = true;
+                }
+                videoStatsMonitorAbort = { aborted: false };
+                monitorVideoStats(event.receiver, videoStatsMonitorAbort);
             }
 
             await startVideoTrackProcessor(event.track);
+
+            setTimeout(() => {
+                sendForceKeyframe("initial_start");
+            }, 300);
+
             return;
         }
 
@@ -176,9 +370,9 @@ async function connect() {
                     if ("playoutDelayHint" in event.receiver) {
                         event.receiver.playoutDelayHint = 0.05;
                     }
-                    if ("jitterBufferTarget" in event.receiver) {
-                        event.receiver.jitterBufferTarget = 50;
-                    }
+                    // if ("jitterBufferTarget" in event.receiver) {
+                    //     event.receiver.jitterBufferTarget = 50;
+                    // }
                 } catch (e) {
                     console.warn("audio receiver tuning failed", e);
                 }
@@ -195,6 +389,8 @@ async function connect() {
 
     pc.ondatachannel = (e) => {
         dc = e.channel;
+        inputDc = dc;
+
         console.log("DataChannel received:", dc.label);
 
         dc.onopen = () => {
@@ -208,6 +404,10 @@ async function connect() {
 
         dc.onerror = (err) => {
             console.error("DataChannel error", err);
+        };
+
+        dc.onmessage = (ev) => {
+            console.log("DataChannel message:", ev.data);
         };
     };
 
@@ -251,7 +451,6 @@ async function connect() {
         console.log("signalingState =", pc.signalingState);
     };
 
-    // DataChannelでUnreliableを明示
     pc.createDataChannel("input", {
         ordered: false,
         maxRetransmits: 0
@@ -266,6 +465,8 @@ async function connect() {
     document.getElementById("answer").value = JSON.stringify(pc.localDescription);
 
     startStatsMonitor();
+    startRenderLoop();
+    startRenderStatsLog();
 }
 
 function cleanupPeerConnection() {
@@ -277,6 +478,16 @@ function cleanupPeerConnection() {
     if (rtcSummaryIntervalId) {
         clearInterval(rtcSummaryIntervalId);
         rtcSummaryIntervalId = null;
+    }
+
+    if (renderStatsIntervalId) {
+        clearInterval(renderStatsIntervalId);
+        renderStatsIntervalId = null;
+    }
+
+    if (videoStatsMonitorAbort) {
+        videoStatsMonitorAbort.aborted = true;
+        videoStatsMonitorAbort = null
     }
 
     stopVideoTrackProcessor();
@@ -298,12 +509,30 @@ function cleanupPeerConnection() {
         dc = null;
     }
 
+    inputDc = null;
+
     if (pc) {
         try {
             pc.close();
         } catch (_) {}
         pc = null;
     }
+
+    closeFrameSafe(latestFrame);
+    latestFrame = null;
+
+    closeFrameSafe(lastGoodFrame);
+    lastGoodFrame = null;
+
+    lastFrameArrivedAt = 0;
+    lastRenderedAt = 0;
+
+    lastPacketsLost = 0;
+    lastNackCount = 0;
+    lastFreezeCount = 0;
+    lastPacketsDiscarded = 0;
+
+    forceKeyframeCooldownUntil = 0;
 }
 
 function copyIceCandidate() {
@@ -335,11 +564,11 @@ async function addHostCandidate() {
 }
 
 function onEnableAudio() {
-    const video = document.getElementById("video");
-
     try {
-        video.muted = false;
-        video.volume = 1.0;
+        if (videoEl) {
+            videoEl.muted = false;
+            videoEl.volume = 1.0;
+        }
 
         if (audioEl) {
             audioEl.muted = false;
@@ -347,24 +576,26 @@ function onEnableAudio() {
             audioEl.play().catch((e) => console.warn("audio.play rejected", e));
         }
 
-        const playPromise = video.play();
-        if (playPromise !== undefined) {
-            playPromise
-                .then(() => {
-                    console.log("video.play resolved");
-                })
-                .catch((e) => {
-                    console.error("video.play rejected", e);
-                });
-        }
+        if (videoEl){
+            const playPromise = videoEl.play();
+            if (playPromise !== undefined) {
+                playPromise
+                    .then(() => {
+                        console.log("video.play resolved");
+                    })
+                    .catch((e) => {
+                        console.error("video.play rejected", e);
+                    });
+            }
 
-        console.log("audio enabled");
-        console.log({
-            muted: video.muted,
-            volume: video.volume,
-            paused: video.paused,
-            readyState: video.readyState
-        });
+            console.log("audio enabled");
+            console.log({
+                muted: videoEl.muted,
+                volume: videoEl.volume,
+                paused: videoEl.paused,
+                readyState: videoEl.readyState
+            });
+        }
     } catch (e) {
         console.error("failed to enable audio", e);
     }
@@ -405,7 +636,11 @@ function startGamepadLoop() {
         view.setInt16(8, Math.floor(gamepad.axes[2] * 32767), true);
         view.setInt16(10, Math.floor(gamepad.axes[3] * -32767), true);
 
-        dc.send(buf);
+        try {
+            dc.send(buf);
+        } catch (e) {
+            console.error("gamepad send failed", e);
+        }
 
         requestAnimationFrame(loop);
     }
@@ -612,7 +847,7 @@ async function logRtcSummary(pc) {
         framesDecoded: inboundVideo?.framesDecoded,
         framesPerSecond: inboundVideo?.framesPerSecond,
         freezeCount: inboundVideo?.freezeCount,
-        totalFreezesDuration: inboundVideo?.totalFreezesDuration,
+        totalFreezeDuration: inboundVideo?.totalFreezeDuration,
         jitterBufferDelay: inboundVideo?.jitterBufferDelay,
         jitterBufferEmittedCount: inboundVideo?.jitterBufferEmittedCount
     });
@@ -634,11 +869,6 @@ async function startVideoTrackProcessor(track) {
     videoProcessor = new MediaStreamTrackProcessor({ track });
     videoReader = videoProcessor.readable.getReader();
 
-    if (!renderLoopStarted) {
-        renderLoopStarted = true;
-        requestAnimationFrame(renderLatestFrameLoop);
-    }
-
     console.log("startVideoTrackProcessor");
 
     (async () => {
@@ -648,32 +878,24 @@ async function startVideoTrackProcessor(track) {
                 if (done || !frame) break;
 
                 receivedFrames++;
+                lastFrameArrivedAt = nowMs();
 
-                // 最新1枚だけ保持
                 if (latestFrame) {
-                    latestFrame.close();
                     droppedFrames++;
                 }
-                latestFrame = frame;
+                
+                replaceFrame("latest", frame.clone());
+                replaceFrame("lastGood", frame.clone());
+
+                closeFrameSafe(frame);
             }
         } catch (e) {
             if (!processorStopped) {
                 console.error("videoReader.read failed", e);
+                sendForceKeyframe("video_render_error");
             }
         }
     })();
-
-    setInterval(() => {
-        console.log("[CLIENT RENDER]", {
-            receivedFrames,
-            droppedFrames,
-            renderedFrames,
-            hasLatestFrame: !!latestFrame
-        });
-        receivedFrames = 0;
-        droppedFrames = 0;
-        renderedFrames = 0;
-    }, 1000);
 }
 
 function stopVideoTrackProcessor() {
@@ -683,41 +905,19 @@ function stopVideoTrackProcessor() {
         try {
             videoReader.releaseLock();
         } catch (_) {}
+        
+        try {
+            videoReader.releaseLock();
+        } catch (_) {}
+
         videoReader = null;
     }
 
     videoProcessor = null;
 
-    if (latestFrame) {
-        try {
-            latestFrame.close();
-        } catch (_) {}
-        latestFrame = null;
-    }
-}
+    closeFrameSafe(latestFrame);
+    latestFrame = null;
 
-function renderLatestFrameLoop() {
-    if (latestFrame && renderCanvas && renderCtx) {
-        const frame = latestFrame;
-        latestFrame = null;
-
-        try {
-            if (
-                renderCanvas.width !== frame.displayWidth ||
-                renderCanvas.height !== frame.displayHeight
-            ) {
-                renderCanvas.width = frame.displayWidth;
-                renderCanvas.height = frame.displayHeight;
-            }
-
-            renderCtx.drawImage(frame, 0, 0, renderCanvas.width, renderCanvas.height);
-            renderedFrames++;
-        } catch (e) {
-            console.error("drawImage(frame) failed", e);
-        } finally {
-            frame.close();
-        }
-    }
-
-    requestAnimationFrame(renderLatestFrameLoop);
+    closeFrameSafe(lastGoodFrame);
+    lastGoodFrame = null;
 }

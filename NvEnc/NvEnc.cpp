@@ -9,7 +9,6 @@
 #include <stdexcept>
 #include <cstdint>
 #include <cstdio>
-#include <string>
 #include "nvEncodeAPI.h"
 
 #pragma comment(lib, "d3d11.lib")
@@ -117,10 +116,10 @@ void LoadNvEnc() {
 // Stream Presets
 // ----------------------------------------------------
 enum class StreamPreset {
-	Stable,
-	Balanced,
-	Quality,
-	Mobile
+    Stable,
+    Balanced,
+    Quality,
+    Mobile
 };
 
 struct StreamConfig {
@@ -181,10 +180,10 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
 		return StreamConfig{
 			1600, 900,
 			30,
+			16 * 1000 * 1000,
 			20 * 1000 * 1000,
-			25 * 1000 * 1000,
-			20 * 1000 * 1000,
-			20 * 1000 * 1000,
+			16 * 1000 * 1000,
+			16 * 1000 * 1000,
 			60,
 			60,
 			true,
@@ -203,10 +202,10 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
 		return StreamConfig{
 			1920, 1080,
 			30,
-			20 * 1000 * 1000,
-			25 * 1000 * 1000,
-			20 * 1000 * 1000,
-			20 * 1000 * 1000,
+			8 * 1000 * 1000,
+			16 * 1000 * 1000,
+			8 * 1000 * 1000,
+			8 * 1000 * 1000,
 			60,
 			60,
 			true,
@@ -225,10 +224,10 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
 		return StreamConfig{
 			1920, 1080,
 			60,
-			25 * 1000 * 1000,
-			30 * 1000 * 1000,
-			25 * 1000 * 1000,
-			25 * 1000 * 1000,
+			8 * 1000 * 1000,
+			16 * 1000 * 1000,
+			8 * 1000 * 1000,
+			8 * 1000 * 1000,
 			60,
 			60,
 			true,
@@ -341,10 +340,8 @@ struct EncoderContext {
 	uint32_t height = 0;
 };
 
-static EncoderContext CreateEncoder(ID3D11Device* device, const StreamConfig& cfg) {
+static EncoderContext CreateEncoder(ID3D11Device* device, StreamConfig cfg) {
 	EncoderContext ctx{};
-	ctx.width = cfg.width;
-	ctx.height = cfg.height;
 
 	NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS openParams{};
 	openParams.version = NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER;
@@ -358,6 +355,8 @@ static EncoderContext CreateEncoder(ID3D11Device* device, const StreamConfig& cf
 	);
 
 	GUID encodeGUID = NV_ENC_CODEC_H264_GUID;
+	GUID presetGUID = NV_ENC_PRESET_P3_GUID;
+	NV_ENC_TUNING_INFO tuningInfo = NV_ENC_TUNING_INFO_LOW_LATENCY;
 
 	NV_ENC_PRESET_CONFIG presetConfig{};
 	presetConfig.version = NV_ENC_PRESET_CONFIG_VER;
@@ -367,8 +366,8 @@ static EncoderContext CreateEncoder(ID3D11Device* device, const StreamConfig& cf
 		g_nvenc.nvEncGetEncodePresetConfigEx(
 			ctx.encoder,
 			encodeGUID,
-			cfg.presetGuid,
-			cfg.tuningInfo,
+			presetGUID,
+			tuningInfo,
 			&presetConfig
 		),
 		"nvEncGetEncodePresetConfigEx"
@@ -377,7 +376,7 @@ static EncoderContext CreateEncoder(ID3D11Device* device, const StreamConfig& cf
 	NV_ENC_CONFIG encodeConfig = presetConfig.presetCfg;
 	encodeConfig.version = NV_ENC_CONFIG_VER;
 
-	encodeConfig.profileGUID = cfg.profileGuid;
+	encodeConfig.profileGUID = NV_ENC_H264_PROFILE_BASELINE_GUID;
 	encodeConfig.gopLength = cfg.gopLength;
 	encodeConfig.frameIntervalP = 1;
 
@@ -386,7 +385,7 @@ static EncoderContext CreateEncoder(ID3D11Device* device, const StreamConfig& cf
 	encodeConfig.rcParams.maxBitRate = cfg.maxBitrate;
 	encodeConfig.rcParams.vbvBufferSize = cfg.vbvBufferSize;
 	encodeConfig.rcParams.vbvInitialDelay = cfg.vbvInitialDelay;
-	encodeConfig.rcParams.enableLookahead = cfg.enableLookahead ? 1 : 0;
+    encodeConfig.rcParams.enableLookahead = cfg.enableLookahead ? 1 : 0;
 	encodeConfig.rcParams.lookaheadDepth = cfg.lookaheadDepth;
 	encodeConfig.rcParams.disableIadapt = cfg.disableIadapt ? 1 : 0;
 	encodeConfig.rcParams.disableBadapt = cfg.disableBadapt ? 1 : 0;
@@ -399,7 +398,7 @@ static EncoderContext CreateEncoder(ID3D11Device* device, const StreamConfig& cf
 	NV_ENC_INITIALIZE_PARAMS initParams{};
 	initParams.version = NV_ENC_INITIALIZE_PARAMS_VER;
 	initParams.encodeGUID = encodeGUID;
-	initParams.presetGUID = cfg.presetGuid;
+	initParams.presetGUID = presetGUID;
 	initParams.tuningInfo = cfg.tuningInfo;
 	initParams.encodeConfig = &encodeConfig;
 
@@ -717,52 +716,6 @@ static bool EncodeRegisteredTexture(
 }
 
 // ----------------------------------------------------
-// Recreate helpers
-// ----------------------------------------------------
-struct RecreateSessionException : public std::runtime_error {
-	RecreateSessionException(const char* msg) : std::runtime_error(msg) {}
-};
-
-static void DestroyDuplication(DuplicationContext& dup) {
-	if (dup.duplication) {
-		dup.duplication->Release();
-		dup.duplication = nullptr;
-	}
-	dup.width = 0;
-	dup.height = 0;
-}
-
-static void DestroySession(
-	DuplicationContext& dup,
-	ScaleContext& scaler,
-	EncoderContext& enc
-) {
-	DestroyScaler(scaler, enc.encoder);
-	DestroyEncoder(enc);
-	DestroyDuplication(dup);
-}
-
-static void CreateSession(
-	ID3D11Device* device,
-	ID3D11DeviceContext* context,
-	DuplicationContext& dup,
-	ScaleContext& scaler,
-	EncoderContext& enc,
-	const StreamConfig& cfg
-) {
-	dup = CreateDuplication(device);
-	std::cerr << "[INFO] Desktop Duplication created: "
-		<< dup.width << "x" << dup.height << "\n";
-
-	enc = CreateEncoder(device, cfg);
-	scaler = CreateScaler(device, context, enc.encoder, dup.width, dup.height, cfg.width, cfg.height);
-
-	std::cerr << "[INFO] Encoder/scaler initialized: "
-		<< cfg.width << "x" << cfg.height
-		<< " @" << cfg.fps << "fps\n";
-}
-
-// ----------------------------------------------------
 // Main
 // ----------------------------------------------------
 int main(int argc, char** argv) {
@@ -805,98 +758,72 @@ int main(int argc, char** argv) {
 		LoadNvEnc();
 		std::cerr << "[INFO] NVENC API Loaded\n";
 
-		StreamPreset preset = ParseStreamPreset(argc, argv);
+        StreamPreset preset = ParseStreamPreset(argc, argv);
 		StreamConfig cfg = GetStreamConfig(preset);
 
-		std::cerr << "[INFO] Selected preset: " << StreamPresetToString(preset)
-			<< " (" << cfg.width << "x" << cfg.height
-			<< " @" << cfg.fps << "fps, "
-			<< cfg.averageBitrate / 1000000 << "Mbps)\n";
+		dup = CreateDuplication(device);
+		std::cerr << "[INFO] Desktop Duplication created: "
+			<< dup.width << "x" << dup.height << "\n";
+
+		enc = CreateEncoder(device, cfg);
+		scaler = CreateScaler(device, context, enc.encoder, dup.width, dup.height, cfg.width, cfg.height);
+
+		std::cerr << "[INFO] Encoder initialized\n";
 
 		uint64_t frameIndex = 0;
 		bool firstFrame = true;
 
 		while (true) {
-			try {
-				CreateSession(device, context, dup, scaler, enc, cfg);
+			IDXGIResource* desktopResource = nullptr;
+			ID3D11Texture2D* desktopTex = nullptr;
 
-				while (true) {
-					IDXGIResource* desktopResource = nullptr;
-					ID3D11Texture2D* desktopTex = nullptr;
-					bool acquiredFrame = false;
+			DXGI_OUTDUPL_FRAME_INFO frameInfo{};
+			HRESULT hr = dup.duplication->AcquireNextFrame(16, &frameInfo, &desktopResource);
 
-					try {
-						DXGI_OUTDUPL_FRAME_INFO frameInfo{};
-						HRESULT hr = dup.duplication->AcquireNextFrame(16, &frameInfo, &desktopResource);
-
-						if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-							continue;
-						}
-
-						if (hr == DXGI_ERROR_ACCESS_LOST) {
-							throw RecreateSessionException("AcquireNextFrame: ACCESS_LOST");
-						}
-
-						CheckHr(hr, "AcquireNextFrame");
-						acquiredFrame = true;
-
-						CheckHr(
-							desktopResource->QueryInterface(
-								__uuidof(ID3D11Texture2D),
-								reinterpret_cast<void**>(&desktopTex)
-							),
-							"IDXGIResource->QueryInterface(ID3D11Texture2D)"
-						);
-
-						D3D11_TEXTURE2D_DESC desc{};
-						desktopTex->GetDesc(&desc);
-
-						if (desc.Width != dup.width || desc.Height != dup.height) {
-							throw RecreateSessionException("Captured frame size changed");
-						}
-
-						EncodeSlot& slot = ScaleTexture(scaler, desktopTex);
-
-						bool forceIDR = firstFrame || (frameIndex % cfg.idrPeriod == 0);
-						if (!EncodeRegisteredTexture(enc, slot.registered, frameIndex, forceIDR)) {
-							throw RecreateSessionException("EncodeRegisteredTexture returned false");
-						}
-
-						firstFrame = false;
-						++frameIndex;
-
-						SafeRelease(desktopTex);
-						SafeRelease(desktopResource);
-
-						hr = dup.duplication->ReleaseFrame();
-						if (hr == DXGI_ERROR_ACCESS_LOST) {
-							throw RecreateSessionException("ReleaseFrame: ACCESS_LOST");
-						}
-						CheckHr(hr, "ReleaseFrame");
-						acquiredFrame = false;
-					}
-					catch (...) {
-						SafeRelease(desktopTex);
-						SafeRelease(desktopResource);
-
-						if (acquiredFrame && dup.duplication) {
-							HRESULT r = dup.duplication->ReleaseFrame();
-							if (FAILED(r) && r != DXGI_ERROR_ACCESS_LOST) {
-								std::cerr << "[WARN] ReleaseFrame during exception failed: 0x"
-									<< std::hex << r << std::dec << "\n";
-							}
-						}
-
-						throw;
-					}
-				}
-			}
-			catch (const RecreateSessionException& e) {
-				std::cerr << "[WARN] Recreating session: " << e.what() << "\n";
-				DestroySession(dup, scaler, enc);
-				firstFrame = true;
-				Sleep(300);
+			if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
 				continue;
+			}
+
+			if (hr == DXGI_ERROR_ACCESS_LOST) {
+				throw std::runtime_error("DXGI duplication lost; Recreate Duplication");
+			}
+
+			CheckHr(hr, "AcquireNextFrame");
+
+			try {
+				CheckHr(
+					desktopResource->QueryInterface(
+						__uuidof(ID3D11Texture2D),
+						reinterpret_cast<void**>(&desktopTex)
+					),
+					"IDXGIResource->QueryInterface(ID3D11Texture2D)"
+				);
+
+				D3D11_TEXTURE2D_DESC desc{};
+				desktopTex->GetDesc(&desc);
+
+				if (desc.Width != dup.width || desc.Height != dup.height) {
+					throw std::runtime_error("Captured frame size changed; Recreate Duplication/Scaler");
+				}
+
+				EncodeSlot& slot = ScaleTexture(scaler, desktopTex);
+
+				bool forceIDR = firstFrame || (frameIndex % 30 == 0);
+				EncodeRegisteredTexture(enc, slot.registered, frameIndex, forceIDR);
+
+				firstFrame = false;
+				++frameIndex;
+
+				SafeRelease(desktopTex);
+				SafeRelease(desktopResource);
+
+				CheckHr(dup.duplication->ReleaseFrame(), "ReleaseFrame");
+			}
+			catch (...) {
+				SafeRelease(desktopTex);
+				SafeRelease(desktopResource);
+				dup.duplication->ReleaseFrame();
+				throw;
 			}
 		}
 	}
@@ -904,7 +831,14 @@ int main(int argc, char** argv) {
 		std::cerr << "[ERROR] " << e.what() << "\n";
 	}
 
-	DestroySession(dup, scaler, enc);
+	DestroyScaler(scaler, enc.encoder);
+	DestroyEncoder(enc);
+
+	if (dup.duplication) {
+		dup.duplication->Release();
+		dup.duplication = nullptr;
+	}
+
 	SafeRelease(context);
 	SafeRelease(device);
 

@@ -6,24 +6,16 @@ mod controller;
 mod consts;
 mod env;
 
-use axum::{
-    extract::State,
-    response::IntoResponse,
-    routing::get,
-    Json, Router,
-};
 use serde::Serialize;
-use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}};
 use std::process::{Command, Stdio, ChildStdout};
-use std::io::Read;
+use std::io::{Read, Write};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 
 use tokio::time::{sleep, Duration};
 use tokio::sync::mpsc;
-
-use tower_http::services::ServeDir;
 
 use bytes::Bytes;
 
@@ -51,11 +43,10 @@ async fn main() -> Result<()> {
     let ice = IceConfig::load();
 
     let webrtc = WebRtcSender::new(ice.clone()).await?;
-    
     let webrtc_clone = webrtc.clone();
 
     let controller = Arc::new(Mutex::new(Controller::new()?));
-
+    
     // balanced: バランス型(普段用)
     // stable:   安定重視型(重いゲーム)
     // quality:  画質重視型(軽いゲーム)
@@ -64,18 +55,35 @@ async fn main() -> Result<()> {
 
     let mut child = Command::new("NvEnc.exe")
         .arg(preset)
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()
         .expect("failed to start nvenc");
 
-    let mut stdout = child.stdout.take().unwrap();
+    let mut stdin = child.stdin.take().expect("failed to take nvenc stdin");
+    let mut stdout = child.stdout.take().expect("failed to take nvenc stdout");
 
-    let audio_track = webrtc.audio_track.clone();
+    // Thread for sending comands to NvEnc.exe
+    let (nvenc_cmd_tx, nvenc_cmd_rx) = std::sync::mpsc::channel::<String>();
+    std::thread::spawn(move || {
+        while let Ok(cmd) = nvenc_cmd_rx.recv() {
+            if let Err(e) = stdin.write_all(cmd.as_bytes()) {
+                eprintln!("[HOST] nvenc stdin write failed: {:?}", e);
+                break;
+            }
+            if let Err(e) = stdin.flush() {
+                eprintln!("[HOST] nvenc stdin flush failed: {:?}", e);
+                break;
+            }
+        }
+    });
 
     // ---------------
     // AUDIO THREAD
     // ---------------
+    let audio_track = webrtc.audio_track.clone();
+
     let (tx, mut rx) = tokio::sync::mpsc::channel::<Sample>(3);
     let tx_clone = tx.clone();
     std::thread::spawn(move || {
@@ -117,40 +125,70 @@ async fn main() -> Result<()> {
     // DataChannel
     // -------------------------------
     let dc = webrtc.peer.create_data_channel("input", None).await?;
-
     println!("DataChannel label: {}", dc.label());
 
-    let init = RTCDataChannelInit::default();
     let controller_clone = controller.clone();
+    let nvenc_cmd_tx_clone = nvenc_cmd_tx.clone();
+    let last_force_keyframe_at = Arc::new(AtomicU64::new(0));
+    let last_force_keyframe_at_clone = last_force_keyframe_at.clone();
     dc.on_message(Box::new(move |msg: DataChannelMessage| {
         let controller = controller_clone.clone();
-
+        let nvenc_cmd_tx = nvenc_cmd_tx_clone.clone();
+        let last_force_keyframe_at = last_force_keyframe_at_clone.clone();
+        
         Box::pin(async move {
             let data = &msg.data;
 
-            if data.len() < 12 {
+            // Xbox controller input from Client
+            if data.len() == 12 {
+                let buttons = u16::from_le_bytes([data[0], data[1]]);
+                let lt = data[2];
+                let rt = data[3];
+                let lx = i16::from_le_bytes([data[4], data[5]]);
+                let ly = i16::from_le_bytes([data[6], data[7]]);
+                let rx = i16::from_le_bytes([data[8], data[9]]);
+                let ry = i16::from_le_bytes([data[10], data[11]]);
+
+                if let Ok(mut ctrl) = controller.lock() {
+                    let report = GamepadState {
+                        buttons,
+                        lt,
+                        rt,
+                        lx,
+                        ly,
+                        rx,
+                        ry,
+                    };
+                    let _ = ctrl.update(report);
+                }
+
                 return;
             }
 
-            let buttons = u16::from_le_bytes([data[0], data[1]]);
-            let lt = data[2];
-            let rt = data[3];
-            let lx = i16::from_le_bytes([data[4], data[5]]);
-            let ly = i16::from_le_bytes([data[6], data[7]]);
-            let rx = i16::from_le_bytes([data[8], data[9]]);
-            let ry = i16::from_le_bytes([data[10], data[11]]);
+            // String message from Client
+            if let Ok(text) = std::str::from_utf8(data) {
+                if text.contains("\"type\":\"force_keyframe\"")
+                    || text.contains("\"type\": \"force_keyframe\"")
+                    || text.trim() == "force_keyframe"
+                {
+                    let now = now_millis();
+                    let prev = last_force_keyframe_at.load(Ordering::Relaxed);
 
-            if let Ok(mut ctrl) = controller.lock() {
-                let report = GamepadState {
-                    buttons,
-                    lt,
-                    rt,
-                    lx,
-                    ly,
-                    rx,
-                    ry,
-                };
-                let _ = ctrl.update(report);
+                    // Prevent command mashing
+                    if now.saturating_sub(prev) >= 5000 {
+                        last_force_keyframe_at.store(now, Ordering::Relaxed);
+
+                        if let Err(e) = nvenc_cmd_tx.send("force_idr\n".to_string()) {
+                            eprintln!("[HOST] failed to send force_idr to nvenc: {:?}", e);
+                        } else {
+                            println!("[HOST] force_keyframe requested from client: {}", text);
+                        }
+                    }
+
+                    return;
+                }
+
+                println!("[HOST] text message on input dc: {}", text);
             }
         })
     }));
@@ -159,6 +197,8 @@ async fn main() -> Result<()> {
         println!("ICE: {:?}", s);
         Box::pin(async {})
     }));
+
+    let audio_track = webrtc.audio_track.clone();
 
     // -------------------------------
     // VIDEO READER THREAD
@@ -201,6 +241,11 @@ async fn main() -> Result<()> {
         }
     });
 
+    webrtc.peer.on_ice_connection_state_change(Box::new(|s| {
+        println!("ICE: {:?}", s);
+        Box::pin(async {})
+    }));
+
     webrtc.get_host_ice_candidate().await?;
     webrtc.generate_offer().await?;
 
@@ -211,51 +256,6 @@ async fn main() -> Result<()> {
         webrtc.add_client_candidate().await?;
     }
 
-    Ok(())
-}
-
-fn find_nal_units(buffer: &mut Vec<u8>) -> Vec<Vec<u8>> {
-    let mut nal_units = Vec::new();
-    let mut i = 0;
-
-    while i + 4 < buffer.len() {
-        if &buffer[i..i+4] == [0,0,0,1] {
-            let start = i + 4;
-            i = start;
-
-            while i + 4 < buffer.len() &&
-                &buffer[i..i+4] != [0,0,0,1] {
-                i += 1;
-            }
-
-            nal_units.push(buffer[start..i].to_vec());
-        } else {
-            i += 1;
-        }
-    }
-
-    nal_units
-}
-
-async fn send_frame(
-    track: &std::sync::Arc<TrackLocalStaticSample>,
-    nals: &Vec<Vec<u8>>,
-) -> Result<()> {
-    let mut data = Vec::new();
-
-    for nal in nals {
-        // AnnexB start code
-        data.extend_from_slice(&[0, 0, 0, 1]);
-        data.extend_from_slice(nal);
-    }
-
-    let sample = Sample {
-        data: Bytes::from(data),
-        duration: Duration::from_millis(33),
-        ..Default::default()
-    };
-
-    track.write_sample(&sample).await?;
     Ok(())
 }
 
@@ -328,4 +328,11 @@ fn rebuild_annexb_without_aud(data: &[u8]) -> Vec<u8> {
     }
 
     out
+}
+
+fn now_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
 }
