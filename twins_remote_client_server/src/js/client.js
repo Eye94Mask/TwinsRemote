@@ -127,7 +127,8 @@ function closeFrameSafe(frame) {
 }
 
 function sendForceKeyframe(reason) {
-    const now = nowMs();
+    const now = performance.now();
+
     if (!inputDc || inputDc.readyState !== "open") return;
     if (now < forceKeyframeCooldownUntil) return;
 
@@ -141,9 +142,9 @@ function sendForceKeyframe(reason) {
 
     try {
         inputDc.send(msg);
-        log("[CLIENT] sent force_keyframe:", reason);
+        console.log("[CLIENT] sent force_keyframe:", reason);
     } catch (e) {
-        console.log("[CLIENT] force_keyframe send failed", e);
+        console.warn("[CLIENT] force_keyframe send failed:", e);
     }
 }
 
@@ -203,9 +204,6 @@ function startRenderLoop(canvas) {
                     renderCanvas.width,
                     renderCanvas.height
                 );
-
-                renderedFrames++;
-                lastRenderedAt = nowMs();
             } catch (e) {
                 console.error("[RENDER ERROR]", e);
             }
@@ -253,29 +251,16 @@ async function monitorVideoStats(videoReceiver, abortSignal) {
         try {
             const stats = await videoReceiver.getStats();
 
-            for(const report of stats.values()) {
+            for (const report of stats.values()) {
                 if (report.type !== "inbound-rtp" || report.kind !== "video") continue;
 
-                const packetsLost = report.packetsLost ?? 0;
-                const framesDecoded = report.framesDecoded ?? 0;
                 const freezeCount = report.freezeCount ?? 0;
-                const nackCount = report.nackCount ?? 0;
-                const packetsDiscarded = report.packetsDiscarded ?? 0;
-                const jitter = report.jitter ?? 0;
-                const totalAssemblyTime = report.totalAssemblyTime ?? 0;
-
-                log(
-                    `[STATS] lost=${packetsLost} nack=${nackCount} freeze=${freezeCount} discarded=${packetsDiscarded} decoded=${framesDecoded} jitter=${jitter} asm=${totalAssemblyTime}`
-                );
 
                 if (freezeCount > lastFreezeCount) {
                     sendForceKeyframe(`freeze_${lastFreezeCount}_to_${freezeCount}`);
                 }
 
-                lastPacketsLost = packetsLost;
-                lastNackCount = nackCount;
                 lastFreezeCount = freezeCount;
-                lastPacketsDiscarded = packetsDiscarded;
             }
         } catch (e) {
             if (!abortSignal.aborted) {

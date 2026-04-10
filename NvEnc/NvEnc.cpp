@@ -4,6 +4,9 @@
 #include <io.h>
 #include <fcntl.h>
 
+#include <thread>
+#include <atomic>
+#include <string>
 #include <iostream>
 #include <vector>
 #include <stdexcept>
@@ -112,6 +115,138 @@ void LoadNvEnc() {
 		throw std::runtime_error("NvEncodeAPICreateInstance failed");
 }
 
+// ------------------------------------------------------------
+// Remote Play NVENC Tuning Notes (2026)
+// ------------------------------------------------------------
+//
+// ■ 問題概要
+// ゲーム起動中に映像が停止・カクつく問題が発生。
+// 特に以下の挙動が確認された:
+//   - packetLost 増加後に hasLatestFrame が false 固定
+//   - 一時復帰してもすぐ再停止
+//   - force_idr を送っても安定しない
+//
+// ■ 原因
+// 主因は NVENC のレート制御設定が強すぎたこと。
+// 特に以下の値が大きすぎることで、
+//   - バースト的なビットレート増加
+//   - ネットワーク/クライアント処理の不安定化
+// を引き起こしていた。
+//
+//   NG設定（不安定）:
+//     averageBitRate   = 20 Mbps
+//     maxBitRate       = 20～25 Mbps
+//     vbvBufferSize    = 20 Mbps
+//     vbvInitialDelay  = 20 Mbps
+//
+//   OK設定（安定）:
+//     averageBitRate   = 16 Mbps
+//     maxBitRate       = 20 Mbps
+//     vbvBufferSize    = 16 Mbps
+//     vbvInitialDelay  = 16 Mbps
+//
+// → 結論:
+//   ストリーム停止の主因は「IDR不足」ではなく
+//   「ビットレート/VBV設定の過大」であった。
+//
+//
+//
+// ------------------------------------------------------------
+// ■ 設計方針（重要）
+// ------------------------------------------------------------
+//
+// 1. 安定性はまず bitrate / VBV で確保する
+// ------------------------------------------------------------
+// 本システムでは、ストリームの安定性は
+//   - averageBitRate
+//   - maxBitRate
+//   - vbvBufferSize
+//   - vbvInitialDelay
+// によって決まる。
+//
+// これらを過剰に設定すると、以下が発生:
+//   - 瞬間的なビットレートバースト
+//   - クライアント側のデコード遅延
+//   - jitter buffer の破綻
+//   - 映像停止
+//
+// よって、force_idr よりもまずここを調整すること。
+//
+//
+//
+// 2. force_idr は「回復手段」であり「制御手段ではない」
+// ------------------------------------------------------------
+// force_idr は以下の用途に限定する:
+//
+//   ○ 正しい用途:
+//     - クライアントが完全にデコード不能になった場合
+//     - 長時間フレームが来ない場合（stall）
+//     - 明確な復旧要求
+//
+//   × 誤った用途:
+//     - packetLost のたびに送る
+//     - nackCount 増加ごとに送る
+//     - 遅延補正として使う
+//
+// 過剰な force_idr は以下を引き起こす:
+//   - IDRフレームによるビットレートスパイク
+//   - ネットワーク負荷増加
+//   - さらにパケットロス → 悪循環
+//
+//
+//
+// 3. force_idr の推奨運用
+// ------------------------------------------------------------
+//
+//   - cooldown: 最低 5秒以上
+//   - 発火条件:
+//       * freeze（フレーム停止）
+//       * 1.5秒以上の frame stall
+//   - packetsLost / nackCount では発火しない
+//
+//   - SPS/PPS:
+//       * 通常の周期IDRでは不要
+//       * recovery用IDRのときのみ付与する
+//
+//
+//
+// ------------------------------------------------------------
+// ■ 実装ポリシー
+// ------------------------------------------------------------
+//
+// ・CreateEncoder() はできるだけ単純に保つ
+// ・preset は main 側で分岐し、エンコーダには最小限の値を渡す
+// ・リアルタイム性能を優先（ログ出力は最小限）
+//
+//
+//
+// ------------------------------------------------------------
+// ■ 今後の調整方針
+// ------------------------------------------------------------
+//
+// 調整は必ず「1パラメータずつ」行うこと:
+//
+//   1. bitrate / VBV
+//   2. 解像度
+//   3. fps
+//   4. IDR周期
+//   5. force_idr
+//
+// 一度に複数変更すると原因特定が困難になる。
+//
+//
+//
+// ------------------------------------------------------------
+// ■ まとめ
+// ------------------------------------------------------------
+//
+// このプロジェクトにおいて最も重要なのは:
+//
+//   「force_idrで直すのではなく、
+//    そもそも壊れないストリームを作ること」
+//
+// ------------------------------------------------------------
+
 // ----------------------------------------------------
 // Stream Presets
 // ----------------------------------------------------
@@ -202,10 +337,10 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
 		return StreamConfig{
 			1920, 1080,
 			30,
-			8 * 1000 * 1000,
 			16 * 1000 * 1000,
-			8 * 1000 * 1000,
-			8 * 1000 * 1000,
+			20 * 1000 * 1000,
+			16 * 1000 * 1000,
+			16 * 1000 * 1000,
 			60,
 			60,
 			true,
@@ -224,10 +359,10 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
 		return StreamConfig{
 			1920, 1080,
 			60,
-			8 * 1000 * 1000,
 			16 * 1000 * 1000,
-			8 * 1000 * 1000,
-			8 * 1000 * 1000,
+			20 * 1000 * 1000,
+			16 * 1000 * 1000,
+			16 * 1000 * 1000,
 			60,
 			60,
 			true,
@@ -635,84 +770,89 @@ static void DestroyScaler(ScaleContext& sc, void* encoder) {
 }
 
 static bool EncodeRegisteredTexture(
-	EncoderContext& enc,
-	NV_ENC_REGISTERED_PTR registered,
-	uint64_t frameIndex,
-	bool forceIDR
+    EncoderContext& enc,
+    NV_ENC_REGISTERED_PTR registered,
+    uint64_t frameIndex,
+    bool forceIDR,
+    bool outputSpsPps
 ) {
-	NV_ENC_MAP_INPUT_RESOURCE map{};
-	map.version = NV_ENC_MAP_INPUT_RESOURCE_VER;
-	map.registeredResource = registered;
+    NV_ENC_MAP_INPUT_RESOURCE map{};
+    map.version = NV_ENC_MAP_INPUT_RESOURCE_VER;
+    map.registeredResource = registered;
 
-	try {
-		CheckNvEnc(
-			g_nvenc.nvEncMapInputResource(enc.encoder, &map),
-			"nvEncMapInputResource"
-		);
+    try {
+        CheckNvEnc(
+            g_nvenc.nvEncMapInputResource(enc.encoder, &map),
+            "nvEncMapInputResource"
+        );
 
-		NV_ENC_PIC_PARAMS pic{};
-		pic.version = NV_ENC_PIC_PARAMS_VER;
-		pic.inputBuffer = map.mappedResource;
-		pic.bufferFmt = NV_ENC_BUFFER_FORMAT_ARGB;
-		pic.inputWidth = enc.width;
-		pic.inputHeight = enc.height;
-		pic.outputBitstream = enc.bitstreamBuffer;
-		pic.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
-		pic.inputTimeStamp = frameIndex;
+        NV_ENC_PIC_PARAMS pic{};
+        pic.version = NV_ENC_PIC_PARAMS_VER;
+        pic.inputBuffer = map.mappedResource;
+        pic.bufferFmt = NV_ENC_BUFFER_FORMAT_ARGB;
+        pic.inputWidth = enc.width;
+        pic.inputHeight = enc.height;
+        pic.outputBitstream = enc.bitstreamBuffer;
+        pic.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
+        pic.inputTimeStamp = frameIndex;
 
-		if (forceIDR) {
-			pic.encodePicFlags |= NV_ENC_PIC_FLAG_FORCEIDR;
-		}
+        if (forceIDR) {
+            pic.encodePicFlags |= NV_ENC_PIC_FLAG_FORCEIDR;
+        }
 
-		NVENCSTATUS st = g_nvenc.nvEncEncodePicture(enc.encoder, &pic);
-		if (st == NV_ENC_ERR_NEED_MORE_INPUT) {
-			g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource);
-			return false;
-		}
-		CheckNvEnc(st, "nvEncEncodePicture");
+        if (outputSpsPps) {
+            pic.encodePicFlags |= NV_ENC_PIC_FLAG_OUTPUT_SPSPPS;
+        }
 
-		NV_ENC_LOCK_BITSTREAM lock{};
-		lock.version = NV_ENC_LOCK_BITSTREAM_VER;
-		lock.outputBitstream = enc.bitstreamBuffer;
-		lock.doNotWait = 0;
+        NVENCSTATUS st = g_nvenc.nvEncEncodePicture(enc.encoder, &pic);
+        if (st == NV_ENC_ERR_NEED_MORE_INPUT) {
+            g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource);
+            return false;
+        }
+        CheckNvEnc(st, "nvEncEncodePicture");
 
-		CheckNvEnc(
-			g_nvenc.nvEncLockBitstream(enc.encoder, &lock),
-			"nvEncLockBitstream"
-		);
+        NV_ENC_LOCK_BITSTREAM lock{};
+        lock.version = NV_ENC_LOCK_BITSTREAM_VER;
+        lock.outputBitstream = enc.bitstreamBuffer;
+        lock.doNotWait = 0;
 
-		try {
-			if (!WritePacketToStdout(
-				reinterpret_cast<const uint8_t*>(lock.bitstreamBufferPtr),
-				static_cast<uint32_t>(lock.bitstreamSizeInBytes))) {
-				g_nvenc.nvEncUnlockBitstream(enc.encoder, enc.bitstreamBuffer);
-				g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource);
-				return false;
-			}
-		}
-		catch (...) {
-			g_nvenc.nvEncUnlockBitstream(enc.encoder, enc.bitstreamBuffer);
-			throw;
-		}
+        CheckNvEnc(
+            g_nvenc.nvEncLockBitstream(enc.encoder, &lock),
+            "nvEncLockBitstream"
+        );
 
-		CheckNvEnc(
-			g_nvenc.nvEncUnlockBitstream(enc.encoder, enc.bitstreamBuffer),
-			"nvEncUnlockBitstream"
-		);
+        try {
+            if (!WritePacketToStdout(
+                    reinterpret_cast<const uint8_t*>(lock.bitstreamBufferPtr),
+                    static_cast<uint32_t>(lock.bitstreamSizeInBytes))) {
+                g_nvenc.nvEncUnlockBitstream(enc.encoder, enc.bitstreamBuffer);
+                g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource);
+                return false;
+            }
+        }
+        catch (...) {
+            g_nvenc.nvEncUnlockBitstream(enc.encoder, enc.bitstreamBuffer);
+            throw;
+        }
 
-		CheckNvEnc(
-			g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource),
-			"nvEncUnmapInputResource"
-		);
+        CheckNvEnc(
+            g_nvenc.nvEncUnlockBitstream(enc.encoder, enc.bitstreamBuffer),
+            "nvEncUnlockBitstream"
+        );
 
-		return true;
-	}
-	catch (...) {
-		if (map.mappedResource) {
-			g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource);
-		}
-		throw;
-	}
+        CheckNvEnc(
+            g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource),
+            "nvEncUnmapInputResource"
+        );
+
+        return true;
+    }
+    catch (...) {
+        if (map.mappedResource) {
+            g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource);
+        }
+        throw;
+    }
 }
 
 // ----------------------------------------------------
@@ -720,6 +860,7 @@ static bool EncodeRegisteredTexture(
 // ----------------------------------------------------
 int main(int argc, char** argv) {
 	_setmode(_fileno(stdout), _O_BINARY);
+    _setmode(_fileno(stdin), _O_BINARY);
 
 	ID3D11Device* device = nullptr;
 	ID3D11DeviceContext* context = nullptr;
@@ -727,6 +868,24 @@ int main(int argc, char** argv) {
 	DuplicationContext dup{};
 	EncoderContext enc{};
 	ScaleContext scaler{};
+
+    std::atomic<bool> forceIdrRequested{ false };
+    std::atomic<bool> stopCommandThread{ false };
+
+    std::thread commandThread([&]() {
+        std::string line;
+        while (!stopCommandThread.load()) {
+            if (!std::getline(std::cin, line)) {
+                Sleep(10);
+                continue;
+            }
+
+            if (line == "force_idr") {
+                forceIdrRequested.store(true);
+                std::cerr << "[NVENC] command received: force_idr\n";
+            }
+        }
+    });
 
 	try {
 		D3D_FEATURE_LEVEL flOut = D3D_FEATURE_LEVEL_11_0;
@@ -808,8 +967,22 @@ int main(int argc, char** argv) {
 
 				EncodeSlot& slot = ScaleTexture(scaler, desktopTex);
 
-				bool forceIDR = firstFrame || (frameIndex % 30 == 0);
-				EncodeRegisteredTexture(enc, slot.registered, frameIndex, forceIDR);
+				bool periodicIdr = firstFrame || (frameIndex % 30 == 0);
+                bool requestedIdr = forceIdrRequested.exchange(false);
+
+                // 普段は periodicIdr だけ
+                bool forceIDR = periodicIdr || requestedIdr;
+
+                // SPS/PPS は first frame と requestedIdr のときだけ
+                bool outputSpsPps = firstFrame || requestedIdr;
+
+                EncodeRegisteredTexture(
+                    enc,
+                    slot.registered,
+                    frameIndex,
+                    forceIDR,
+                    outputSpsPps
+                );
 
 				firstFrame = false;
 				++frameIndex;
@@ -833,6 +1006,11 @@ int main(int argc, char** argv) {
 
 	DestroyScaler(scaler, enc.encoder);
 	DestroyEncoder(enc);
+
+    stopCommandThread.store(true);
+    if (commandThread.joinable()) {
+        commandThread.detach();
+    }
 
 	if (dup.duplication) {
 		dup.duplication->Release();
