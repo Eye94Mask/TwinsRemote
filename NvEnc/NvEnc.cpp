@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <cstdint>
 #include <cstdio>
+#include <string>
 #include "nvEncodeAPI.h"
 
 #pragma comment(lib, "d3d11.lib")
@@ -116,10 +117,10 @@ void LoadNvEnc() {
 // Stream Presets
 // ----------------------------------------------------
 enum class StreamPreset {
-    Stable,
-    Balanced,
-    Quality,
-    Mobile
+	Stable,
+	Balanced,
+	Quality,
+	Mobile
 };
 
 struct StreamConfig {
@@ -180,10 +181,10 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
 		return StreamConfig{
 			1280, 720,
 			30,
-			20 * 1000 * 1000,
-			25 * 1000 * 1000,
-			20 * 1000 * 1000,
-			20 * 1000 * 1000,
+			12 * 1000 * 1000,
+			14 * 1000 * 1000,
+			12 * 1000 * 1000,
+			12 * 1000 * 1000,
 			60,
 			60,
 			true,
@@ -202,10 +203,10 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
 		return StreamConfig{
 			1920, 1080,
 			30,
-			20 * 1000 * 1000,
-			25 * 1000 * 1000,
-			20 * 1000 * 1000,
-			20 * 1000 * 1000,
+			8 * 1000 * 1000,
+			10 * 1000 * 1000,
+			8 * 1000 * 1000,
+			8 * 1000 * 1000,
 			60,
 			60,
 			true,
@@ -224,10 +225,10 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
 		return StreamConfig{
 			1920, 1080,
 			60,
-			25 * 1000 * 1000,
-			30 * 1000 * 1000,
-			25 * 1000 * 1000,
-			25 * 1000 * 1000,
+			8 * 1000 * 1000,
+			10 * 1000 * 1000,
+			8 * 1000 * 1000,
+			8 * 1000 * 1000,
 			60,
 			60,
 			true,
@@ -340,10 +341,10 @@ struct EncoderContext {
 	uint32_t height = 0;
 };
 
-static EncoderContext CreateEncoder(ID3D11Device* device, uint32_t width, uint32_t height) {
+static EncoderContext CreateEncoder(ID3D11Device* device, const StreamConfig& cfg) {
 	EncoderContext ctx{};
-	ctx.width = width;
-	ctx.height = height;
+	ctx.width = cfg.width;
+	ctx.height = cfg.height;
 
 	NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS openParams{};
 	openParams.version = NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER;
@@ -357,8 +358,6 @@ static EncoderContext CreateEncoder(ID3D11Device* device, uint32_t width, uint32
 	);
 
 	GUID encodeGUID = NV_ENC_CODEC_H264_GUID;
-	GUID presetGUID = NV_ENC_PRESET_P3_GUID;
-	NV_ENC_TUNING_INFO tuningInfo = NV_ENC_TUNING_INFO_LOW_LATENCY;
 
 	NV_ENC_PRESET_CONFIG presetConfig{};
 	presetConfig.version = NV_ENC_PRESET_CONFIG_VER;
@@ -368,8 +367,8 @@ static EncoderContext CreateEncoder(ID3D11Device* device, uint32_t width, uint32
 		g_nvenc.nvEncGetEncodePresetConfigEx(
 			ctx.encoder,
 			encodeGUID,
-			presetGUID,
-			tuningInfo,
+			cfg.presetGuid,
+			cfg.tuningInfo,
 			&presetConfig
 		),
 		"nvEncGetEncodePresetConfigEx"
@@ -378,36 +377,40 @@ static EncoderContext CreateEncoder(ID3D11Device* device, uint32_t width, uint32
 	NV_ENC_CONFIG encodeConfig = presetConfig.presetCfg;
 	encodeConfig.version = NV_ENC_CONFIG_VER;
 
-	encodeConfig.profileGUID = NV_ENC_H264_PROFILE_BASELINE_GUID;
-	encodeConfig.gopLength = 30;
+	encodeConfig.profileGUID = cfg.profileGuid;
+	encodeConfig.gopLength = cfg.gopLength;
 	encodeConfig.frameIntervalP = 1;
 
 	encodeConfig.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR;
-	encodeConfig.rcParams.averageBitRate = 8 * 1000 * 1000;
-	encodeConfig.rcParams.maxBitRate = 10 * 1000 * 1000;
-	encodeConfig.rcParams.vbvBufferSize = 8 * 1000 * 1000;
-	encodeConfig.rcParams.vbvInitialDelay = 8 * 1000 * 1000;
+	encodeConfig.rcParams.averageBitRate = cfg.averageBitrate;
+	encodeConfig.rcParams.maxBitRate = cfg.maxBitrate;
+	encodeConfig.rcParams.vbvBufferSize = cfg.vbvBufferSize;
+	encodeConfig.rcParams.vbvInitialDelay = cfg.vbvInitialDelay;
+	encodeConfig.rcParams.enableLookahead = cfg.enableLookahead ? 1 : 0;
+	encodeConfig.rcParams.lookaheadDepth = cfg.lookaheadDepth;
+	encodeConfig.rcParams.disableIadapt = cfg.disableIadapt ? 1 : 0;
+	encodeConfig.rcParams.disableBadapt = cfg.disableBadapt ? 1 : 0;
 
-	encodeConfig.encodeCodecConfig.h264Config.repeatSPSPPS = 1;
-	encodeConfig.encodeCodecConfig.h264Config.outputAUD = 0;
-	encodeConfig.encodeCodecConfig.h264Config.idrPeriod = 30;
-	encodeConfig.encodeCodecConfig.h264Config.maxNumRefFrames = 1;
+	encodeConfig.encodeCodecConfig.h264Config.repeatSPSPPS = cfg.repeatSpsPps ? 1 : 0;
+	encodeConfig.encodeCodecConfig.h264Config.outputAUD = cfg.outputAud ? 1 : 0;
+	encodeConfig.encodeCodecConfig.h264Config.idrPeriod = cfg.idrPeriod;
+	encodeConfig.encodeCodecConfig.h264Config.maxNumRefFrames = cfg.maxRefFrames;
 
 	NV_ENC_INITIALIZE_PARAMS initParams{};
 	initParams.version = NV_ENC_INITIALIZE_PARAMS_VER;
 	initParams.encodeGUID = encodeGUID;
-	initParams.presetGUID = presetGUID;
-	initParams.tuningInfo = tuningInfo;
+	initParams.presetGUID = cfg.presetGuid;
+	initParams.tuningInfo = cfg.tuningInfo;
 	initParams.encodeConfig = &encodeConfig;
 
-	initParams.encodeWidth = width;
-	initParams.encodeHeight = height;
-	initParams.darWidth = width;
-	initParams.darHeight = height;
-	initParams.maxEncodeWidth = width;
-	initParams.maxEncodeHeight = height;
+	initParams.encodeWidth = cfg.width;
+	initParams.encodeHeight = cfg.height;
+	initParams.darWidth = cfg.width;
+	initParams.darHeight = cfg.height;
+	initParams.maxEncodeWidth = cfg.width;
+	initParams.maxEncodeHeight = cfg.height;
 
-	initParams.frameRateNum = 60;
+	initParams.frameRateNum = cfg.fps;
 	initParams.frameRateDen = 1;
 
 	initParams.enablePTD = 1;
@@ -565,22 +568,6 @@ static ScaleContext CreateScaler(
 	return sc;
 }
 
-static void DestroyScaler(ScaleContext& sc, void* encoder) {
-	for (UINT i = 0; i < ScaleContext::SLOT_COUNT; ++i) {
-		if (sc.slots[i].registered) {
-			g_nvenc.nvEncUnregisterResource(encoder, sc.slots[i].registered);
-			sc.slots[i].registered = nullptr;
-		}
-		SafeRelease(sc.slots[i].outputView);
-		SafeRelease(sc.slots[i].tex);
-	}
-
-	SafeRelease(sc.processor);
-	SafeRelease(sc.enumerator);
-	SafeRelease(sc.videoContext);
-	SafeRelease(sc.videoDevice);
-}
-
 static EncodeSlot& ScaleTexture(
 	ScaleContext& sc,
 	ID3D11Texture2D* inputTex
@@ -630,6 +617,22 @@ static EncodeSlot& ScaleTexture(
 
 	sc.slotIndex = (sc.slotIndex + 1) % ScaleContext::SLOT_COUNT;
 	return slot;
+}
+
+static void DestroyScaler(ScaleContext& sc, void* encoder) {
+	for (UINT i = 0; i < ScaleContext::SLOT_COUNT; ++i) {
+		if (sc.slots[i].registered) {
+			g_nvenc.nvEncUnregisterResource(encoder, sc.slots[i].registered);
+			sc.slots[i].registered = nullptr;
+		}
+		SafeRelease(sc.slots[i].outputView);
+		SafeRelease(sc.slots[i].tex);
+	}
+
+	SafeRelease(sc.processor);
+	SafeRelease(sc.enumerator);
+	SafeRelease(sc.videoContext);
+	SafeRelease(sc.videoDevice);
 }
 
 static bool EncodeRegisteredTexture(
@@ -714,7 +717,7 @@ static bool EncodeRegisteredTexture(
 }
 
 // ----------------------------------------------------
-// Session recreate helpers
+// Recreate helpers
 // ----------------------------------------------------
 struct RecreateSessionException : public std::runtime_error {
 	RecreateSessionException(const char* msg) : std::runtime_error(msg) {}
@@ -751,10 +754,12 @@ static void CreateSession(
 	std::cerr << "[INFO] Desktop Duplication created: "
 		<< dup.width << "x" << dup.height << "\n";
 
-	enc = CreateEncoder(device, cfg.width, cfg.height);
+	enc = CreateEncoder(device, cfg);
 	scaler = CreateScaler(device, context, enc.encoder, dup.width, dup.height, cfg.width, cfg.height);
 
-	std::cerr << "[INFO] Encoder initialized\n";
+	std::cerr << "[INFO] Encoder/scaler initialized: "
+		<< cfg.width << "x" << cfg.height
+		<< " @" << cfg.fps << "fps\n";
 }
 
 // ----------------------------------------------------
@@ -852,7 +857,7 @@ int main(int argc, char** argv) {
 
 						EncodeSlot& slot = ScaleTexture(scaler, desktopTex);
 
-						bool forceIDR = firstFrame || (frameIndex % 30 == 0);
+						bool forceIDR = firstFrame || (frameIndex % cfg.idrPeriod == 0);
 						if (!EncodeRegisteredTexture(enc, slot.registered, frameIndex, forceIDR)) {
 							throw RecreateSessionException("EncodeRegisteredTexture returned false");
 						}
