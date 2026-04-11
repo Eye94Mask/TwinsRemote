@@ -178,7 +178,7 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
 	switch (preset) {
 	case StreamPreset::Stable:
 		return StreamConfig{
-			1600, 900,
+			1280, 720,
 			30,
 			20 * 1000 * 1000,
 			25 * 1000 * 1000,
