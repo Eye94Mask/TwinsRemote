@@ -72,6 +72,10 @@ static void SafeRelease(T*& p) {
 	}
 }
 
+static uint64_t TickMs() {
+	return GetTickCount64();
+}
+
 static bool WriteAllStdout(const void* data, size_t size) {
 	const uint8_t* p = reinterpret_cast<const uint8_t*>(data);
 	while (size > 0) {
@@ -639,7 +643,8 @@ static bool EncodeRegisteredTexture(
 	EncoderContext& enc,
 	NV_ENC_REGISTERED_PTR registered,
 	uint64_t frameIndex,
-	bool forceIDR
+	bool forceIDR,
+	uint64_t& lastVideoPacketTick
 ) {
 	NV_ENC_MAP_INPUT_RESOURCE map{};
 	map.version = NV_ENC_MAP_INPUT_RESOURCE_VER;
@@ -690,6 +695,9 @@ static bool EncodeRegisteredTexture(
 				g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource);
 				return false;
 			}
+
+			// Update watchdog
+			lastVideoPacketTick = TickMs();
 		}
 		catch (...) {
 			g_nvenc.nvEncUnlockBitstream(enc.encoder, enc.bitstreamBuffer);
@@ -815,10 +823,12 @@ int main(int argc, char** argv) {
 
 		uint64_t frameIndex = 0;
 		bool firstFrame = true;
+		uint64_t lastVideoPacketTick = TickMs();
 
 		while (true) {
 			try {
 				CreateSession(device, context, dup, scaler, enc, cfg);
+				lastVideoPacketTick = TickMs();
 
 				while (true) {
 					IDXGIResource* desktopResource = nullptr;
@@ -858,7 +868,7 @@ int main(int argc, char** argv) {
 						EncodeSlot& slot = ScaleTexture(scaler, desktopTex);
 
 						bool forceIDR = firstFrame || (frameIndex % cfg.idrPeriod == 0);
-						if (!EncodeRegisteredTexture(enc, slot.registered, frameIndex, forceIDR)) {
+						if (!EncodeRegisteredTexture(enc, slot.registered, frameIndex, forceIDR, lastVideoPacketTick)) {
 							throw RecreateSessionException("EncodeRegisteredTexture returned false");
 						}
 
