@@ -349,7 +349,7 @@ async fn main() -> Result<()> {
             input_mode_for_ice.store(2, Ordering::Release);
 
             eprintln!("[HOST] audio command input enabled");
-            eprintln!("[HOST] commands: pid <number> / audio_stop");
+            eprintln!("[HOST] commands: pid <number> / audio_stop / system");
         }
 
         Box::pin(async {})
