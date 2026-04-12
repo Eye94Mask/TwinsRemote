@@ -10,6 +10,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <string>
+#include <thread>
+#include <atomic>
+#include <string>
 #include "nvEncodeAPI.h"
 
 #pragma comment(lib, "d3d11.lib")
@@ -185,10 +188,10 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
 		return StreamConfig{
 			1280, 720,
 			30,
-			12 * 1000 * 1000,
-			14 * 1000 * 1000,
-			12 * 1000 * 1000,
-			12 * 1000 * 1000,
+			8 * 1000 * 1000,
+			10 * 1000 * 1000,
+			8 * 1000 * 1000,
+			8 * 1000 * 1000,
 			60,
 			60,
 			true,
@@ -207,12 +210,12 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
 		return StreamConfig{
 			1920, 1080,
 			30,
-			8 * 1000 * 1000,
-			10 * 1000 * 1000,
-			8 * 1000 * 1000,
-			8 * 1000 * 1000,
-			60,
-			60,
+			5 * 1000 * 1000,
+			6 * 1000 * 1000,
+			2 * 1000 * 1000,
+			1 * 1000 * 1000,
+			180,
+			180,
 			true,
 			false,
 			1,
@@ -644,7 +647,7 @@ static bool EncodeRegisteredTexture(
 	NV_ENC_REGISTERED_PTR registered,
 	uint64_t frameIndex,
 	bool forceIDR,
-	uint64_t& lastVideoPacketTick
+	bool outputSpsPps
 ) {
 	NV_ENC_MAP_INPUT_RESOURCE map{};
 	map.version = NV_ENC_MAP_INPUT_RESOURCE_VER;
@@ -670,7 +673,15 @@ static bool EncodeRegisteredTexture(
 			pic.encodePicFlags |= NV_ENC_PIC_FLAG_FORCEIDR;
 		}
 
+		if (outputSpsPps) {
+			pic.encodePicFlags |= NV_ENC_PIC_FLAG_OUTPUT_SPSPPS;
+		}
+
 		NVENCSTATUS st = g_nvenc.nvEncEncodePicture(enc.encoder, &pic);
+		if (st == NV_ENC_ERR_ENCODER_BUSY) {
+			g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource);
+			return false;
+		}
 		if (st == NV_ENC_ERR_NEED_MORE_INPUT) {
 			g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource);
 			return false;
@@ -695,9 +706,6 @@ static bool EncodeRegisteredTexture(
 				g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource);
 				return false;
 			}
-
-			// Update watchdog
-			lastVideoPacketTick = TickMs();
 		}
 		catch (...) {
 			g_nvenc.nvEncUnlockBitstream(enc.encoder, enc.bitstreamBuffer);
@@ -775,6 +783,7 @@ static void CreateSession(
 // ----------------------------------------------------
 int main(int argc, char** argv) {
 	_setmode(_fileno(stdout), _O_BINARY);
+	_setmode(_fileno(stdin), _O_BINARY);
 
 	ID3D11Device* device = nullptr;
 	ID3D11DeviceContext* context = nullptr;
@@ -782,6 +791,24 @@ int main(int argc, char** argv) {
 	DuplicationContext dup{};
 	EncoderContext enc{};
 	ScaleContext scaler{};
+
+	std::atomic<bool> forceIdrRequested{ false };
+	std::atomic<bool> stopCommandThread{ false };
+
+	std::thread commandThread([&]() {
+		std::string line;
+		while (!stopCommandThread.load()) {
+			if (!std::getline(std::cin, line)) {
+				Sleep(10);
+				continue;
+			}
+
+			if (line == "force_idr") {
+				forceIdrRequested.store(true);
+				std::cerr << "[NVENC] command received: force_idr\n";
+			}
+		}
+	});
 
 	try {
 		D3D_FEATURE_LEVEL flOut = D3D_FEATURE_LEVEL_11_0;
@@ -867,9 +894,23 @@ int main(int argc, char** argv) {
 
 						EncodeSlot& slot = ScaleTexture(scaler, desktopTex);
 
-						bool forceIDR = firstFrame || (frameIndex % cfg.idrPeriod == 0);
-						if (!EncodeRegisteredTexture(enc, slot.registered, frameIndex, forceIDR, lastVideoPacketTick)) {
-							throw RecreateSessionException("EncodeRegisteredTexture returned false");
+						bool periodicIdr = firstFrame || (frameIndex % 120 == 0);
+						bool requestedIdr = forceIdrRequested.exchange(false);
+
+						bool forceIDR = periodicIdr || requestedIdr;
+						bool outputSpsPps = firstFrame || requestedIdr;
+						if (!EncodeRegisteredTexture(enc, slot.registered, frameIndex, forceIDR, outputSpsPps)) {
+							SafeRelease(desktopTex);
+							SafeRelease(desktopResource);
+
+							hr = dup.duplication->ReleaseFrame();
+							if (hr == DXGI_ERROR_ACCESS_LOST) {
+								throw RecreateSessionException("ReleaseFrame: ACCESS_LOST");
+							}
+
+							acquiredFrame = false;
+							++frameIndex;
+							continue;
 						}
 
 						firstFrame = false;
@@ -912,6 +953,11 @@ int main(int argc, char** argv) {
 	}
 	catch (const std::exception& e) {
 		std::cerr << "[ERROR] " << e.what() << "\n";
+	}
+
+	stopCommandThread.store(true);
+	if (commandThread.joinable()) {
+		commandThread.detach();
 	}
 
 	DestroySession(dup, scaler, enc);

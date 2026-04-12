@@ -7,7 +7,7 @@ mod consts;
 mod env;
 
 use serde::Serialize;
-use std::sync::{Arc, Mutex, atomic::{AtomicU64, Ordering}};
+use std::sync::{Arc, Mutex, atomic::{AtomicBool, AtomicU64, Ordering}};
 use std::process::{Command, Stdio, ChildStdout};
 use std::io::{Read, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -51,7 +51,7 @@ async fn main() -> Result<()> {
     // stable:   安定重視型(重いゲーム)
     // quality:  画質重視型(軽いゲーム)
     // mobile:   帯域節約型
-    let preset = "stable";
+    let preset = "balanced";
 
     let mut child = Command::new("NvEnc.exe")
         .arg(preset)
@@ -63,6 +63,10 @@ async fn main() -> Result<()> {
 
     let mut stdin = child.stdin.take().expect("failed to take nvenc stdin");
     let mut stdout = child.stdout.take().expect("failed to take nvenc stdout");
+
+    let last_nvenc_packet_at = Arc::new(AtomicU64::new(now_millis()));
+    let last_video_sample_at = Arc::new(AtomicU64::new(now_millis()));
+    let video_watchdog_fired = Arc::new(AtomicBool::new(false));
 
     // Thread for sending comands to NvEnc.exe
     let (nvenc_cmd_tx, nvenc_cmd_rx) = std::sync::mpsc::channel::<String>();
@@ -204,13 +208,14 @@ async fn main() -> Result<()> {
     // VIDEO READER THREAD
     // -------------------------------
     let (tx_video, mut rx_video) = mpsc::channel::<Vec<u8>>(16);
-
+    let last_nvenc_packet_at_reader = last_nvenc_packet_at.clone();
     std::thread::spawn(move || {
         let mut stdout = stdout;
 
         loop {
             match read_packet(&mut stdout) {
                 Ok(packet) => {
+                    last_nvenc_packet_at_reader.store(now_millis(), Ordering::Relaxed);
                     if tx_video.blocking_send(packet).is_err() {
                         break;
                     }
@@ -224,6 +229,7 @@ async fn main() -> Result<()> {
     });
 
     let video_track = webrtc_clone.video_track.clone();
+    let last_video_sample_at_writer = last_video_sample_at.clone();
     tokio::spawn(async move {
         while let Some(frame) = rx_video.recv().await {
             let filtered = rebuild_annexb_without_aud(&frame);
@@ -232,11 +238,52 @@ async fn main() -> Result<()> {
                 duration: VIDEO_FRAME_DURATION,
                 ..Default::default()
             };
-            
             if let Err(e) = video_track.write_sample(&sample).await {
                 eprintln!("video write_sample failed: {:?}", e);
                 tokio::time::sleep(Duration::from_millis(10)).await;
                 continue;
+            }
+            last_video_sample_at_writer.store(now_millis(), Ordering::Relaxed);
+        }
+    });
+
+    // -------------------------------
+    // WATCHDOG TASK THREAD
+    // -------------------------------
+    let last_nvenc_packet_at_wd = last_nvenc_packet_at.clone();
+    let last_video_sample_at_wd = last_video_sample_at.clone();
+    let video_watchdog_fired_wd = video_watchdog_fired.clone();
+    let nvenc_cmd_tx_wd = nvenc_cmd_tx.clone();
+
+    tokio::spawn(async move {
+        loop {
+            sleep(Duration::from_millis(1000)).await;
+
+            let now = now_millis();
+            let packet_age = now.saturating_sub(last_nvenc_packet_at_wd.load(Ordering::Relaxed));
+            let sample_age = now.saturating_sub(last_video_sample_at_wd.load(Ordering::Relaxed));
+
+            println!(
+                "[VIDEO WATCHDOG] packet_age={}ms sample_age={}ms fired={}",
+                packet_age, sample_age, video_watchdog_fired_wd.load(Ordering::Relaxed)
+            );
+
+            if packet_age > 3000 || sample_age > 3000 && !video_watchdog_fired_wd.swap(true, Ordering::SeqCst) {
+                eprintln!(
+                    "[VIDEO WATCHDOG] STALL DETECTED packet_age={}ms sample_age={}ms",
+                    packet_age, sample_age
+                );
+
+                if let Err(e) = nvenc_cmd_tx_wd.send("force_idr\n".to_string()) {
+                    eprintln!("[VIDEO WATCHDOG] failed to send_force_idr: {:?}", e);
+                } else {
+                    eprintln!("[VIDEO WATCHDOG] force_idr sent");
+                }
+            }
+
+            // 復帰したら再び発火可能に戻す
+            if packet_age < 500 && sample_age < 500 {
+                video_watchdog_fired_wd.store(false, Ordering::SeqCst);
             }
         }
     });

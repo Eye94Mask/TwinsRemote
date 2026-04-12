@@ -54,3 +54,11 @@ button {
     margin: 12px 0;
     font-weight: bold;
 }
+
+#videoCanvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: black;
+    object-fit: contain;
+}
