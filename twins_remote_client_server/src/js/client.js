@@ -1,25 +1,39 @@
 let pc;
 let dc;
+let inputDc = null;
 let gamepadIndex = null;
 
 let remoteAudioStream = new MediaStream();
 
 let statsIntervalId = null;
 let rtcSummaryIntervalId = null;
+let videoStatsMonitorAbort = null;
+let videoWatchdogIntervalId = null;
 
 let audioEl = null;
+let videoEl = null;
+let canvasEl = null;
+let canvasCtx = null;
 
-// latest-frame rendering
+let forceKeyframeCooldownUntil = 0;
+const FORCE_KEYFRAME_COOLDOWN_MS = 5000;
+
+// ---- video processor state ----
 let videoProcessor = null;
 let videoReader = null;
-let renderCanvas = null;
-let renderCtx = null;
-let renderLoopStarted = false;
+let processorAbort = null;
+let renderLoopActive = false;
+
 let latestFrame = null;
+let lastFrameArrivedAt = 0;
+let firstVideoFrameArrived = false;
+
 let receivedFrames = 0;
 let droppedFrames = 0;
 let renderedFrames = 0;
-let processorStopped = false;
+
+const VIDEO_STALL_MS = 700;
+const RENDER_IDLE_WAIT_MS = 8;
 
 window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
@@ -34,48 +48,115 @@ window.addEventListener("gamepaddisconnected", (e) => {
 });
 
 window.addEventListener("DOMContentLoaded", () => {
-    const video = document.getElementById("video");
+    videoEl = document.getElementById("video");
     const fullscreenBtn = document.getElementById("fullscreenBtn");
     const audioBtn = document.getElementById("audioBtn");
-    const player = document.getElementById("player");
 
-    // 既存 video は使わないので隠す
-    video.style.display = "none";
+    if (videoEl) {
+        videoEl.style.display = "none"; // 直接再生は使わない
+        videoEl.playsInline = true;
+        videoEl.autoplay = false;
+        videoEl.muted = true;
+        videoEl.controls = false;
+        videoEl.addEventListener("dblclick", () => {
+            toggleFullscreen();
+        });
+    }
 
-    // canvas を作る
-    renderCanvas = document.createElement("canvas");
-    renderCanvas.id = "renderCanvas";
-    renderCanvas.style.width = "100%";
-    renderCanvas.style.height = "100%";
-    renderCanvas.style.display = "block";
-    renderCanvas.style.background = "black";
-    player.appendChild(renderCanvas);
+    setupCanvas();
 
-    renderCtx = renderCanvas.getContext("2d", {
-        alpha: false,
-        desynchronized: true,
-        willReadFrequently: false
-    });
+    if (fullscreenBtn) {
+        fullscreenBtn.addEventListener("click", () => {
+            toggleFullscreen();
+        });
+    }
 
-    renderCanvas.addEventListener("dblclick", () => {
-        toggleFullscreen();
-    });
-
-    fullscreenBtn.addEventListener("click", () => {
-        toggleFullscreen();
-    });
-
-    audioBtn.addEventListener("click", () => {
-        onEnableAudio();
-    });
+    if (audioBtn) {
+        audioBtn.addEventListener("click", () => {
+            onEnableAudio();
+        });
+    }
 
     audioEl = document.createElement("audio");
     audioEl.autoplay = true;
     audioEl.playsInline = true;
     audioEl.controls = false;
     audioEl.style.display = "none";
+    audioEl.muted = true;
+    audioEl.volume = 1.0;
     document.body.appendChild(audioEl);
+
+    const copyIce = document.getElementById("copyICE");
+    const copyAnswer = document.getElementById("copyAnswer");
+    const iceCandidate = document.getElementById("ice");
+    const answer = document.getElementById("answer");
+
+    if (copyIce && iceCandidate) {
+        copyIce.addEventListener("click", async () => {
+            try {
+                await navigator.clipboard.writeText(iceCandidate.value || "");
+                console.log("ICE copied");
+            } catch (e) {
+                console.warn("failed to copy ICE", e);
+            }
+        });
+    }
+
+    if (copyAnswer && answer) {
+        copyAnswer.addEventListener("click", async () => {
+            try {
+                await navigator.clipboard.writeText(answer.value || "");
+                console.log("Answer copied");
+            } catch (e) {
+                console.warn("failed to copy Answer", e);
+            }
+        });
+    }
 });
+
+function setupCanvas() {
+    const player = document.getElementById("player");
+
+    canvasEl = document.createElement("canvas");
+    canvasEl.id = "videoCanvas";
+    canvasEl.style.display = "block";
+    canvasEl.style.width = "100%";
+    canvasEl.style.height = "100%";
+    canvasEl.style.background = "black";
+    canvasEl.style.objectFit = "contain";
+    canvasEl.tabIndex = 0;
+
+    canvasEl.addEventListener("dblclick", () => {
+        toggleFullscreen();
+    });
+
+    if (player) {
+        player.appendChild(canvasEl);
+    } else {
+        document.body.appendChild(canvasEl);
+    }
+
+    canvasCtx = canvasEl.getContext("2d", {
+        alpha: false,
+        desynchronized: true,
+    });
+
+    clearCanvas();
+}
+
+function clearCanvas() {
+    if (!canvasCtx || !canvasEl) return;
+    canvasCtx.save();
+    canvasCtx.setTransform(1, 0, 0, 1, 0, 0);
+    canvasCtx.clearRect(0, 0, canvasEl.width || 1, canvasEl.height || 1);
+    canvasCtx.fillStyle = "black";
+    canvasCtx.fillRect(0, 0, canvasEl.width || 1, canvasEl.height || 1);
+    canvasCtx.restore();
+}
+
+function nowMs() {
+    return performance.now();
+}
 
 function log(...args) {
     console.log(...args);
@@ -89,7 +170,30 @@ function log(...args) {
             return String(v);
         }
     }).join(" ") + "\n";
+
     el.scrollTop = el.scrollHeight;
+}
+
+function sendForceKeyframe(reason) {
+    const now = performance.now();
+
+    if (!inputDc || inputDc.readyState !== "open") return;
+    if (now < forceKeyframeCooldownUntil) return;
+
+    forceKeyframeCooldownUntil = now + FORCE_KEYFRAME_COOLDOWN_MS;
+
+    const msg = JSON.stringify({
+        type: "force_keyframe",
+        reason,
+        ts: Date.now(),
+    });
+
+    try {
+        inputDc.send(msg);
+        console.log("[CLIENT] sent force_keyframe:", reason);
+    } catch (e) {
+        console.warn("[CLIENT] force_keyframe send failed:", e);
+    }
 }
 
 async function fetchWebRtcConfig() {
@@ -105,11 +209,29 @@ async function fetchWebRtcConfig() {
     return await res.json();
 }
 
+//--------------------------------------------------
+// WebRTC stats monitoring
+//--------------------------------------------------
+async function monitorVideoStats(videoReceiver, abortSignal) {
+    while (!abortSignal.aborted) {
+        try {
+            await videoReceiver.getStats();
+        } catch (e) {
+            if (!abortSignal.aborted) {
+                console.error("[monitorVideoStats error]", e);
+            }
+        }
+
+        await sleep(1000);
+    }
+}
+
+function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+}
+
 async function connect() {
     cleanupPeerConnection();
-
-    remoteVideoStream = new MediaStream();
-    remoteAudioStream = new MediaStream();
 
     const config = await fetchWebRtcConfig();
     log("ICE CONFIG:", config);
@@ -127,42 +249,35 @@ async function connect() {
         audioEl.volume = 1.0;
     }
 
-    video.onloadedmetadata = () => {
-        console.log("loadedmetadata", video.videoWidth, video.videoHeight);
-    };
-
-    video.onplaying = () => {
-        console.log("video playing");
-    };
-
-    video.onwaiting = () => {
-        console.warn("video waiting");
-    };
-
-    video.onstalled = () => {
-        console.warn("video stalled");
-    };
-
     pc.ontrack = async (event) => {
         console.log("ontrack", event.track.kind, event.streams);
 
         if (event.track.kind === "video") {
+            console.log("[VIDEO] track received:", event.track.id);
+
             if (event.receiver) {
                 try {
                     if ("playoutDelayHint" in event.receiver) {
-                        event.receiver.playoutDelayHint = 0.10;
-                        console.log("video playoutDelayHint set to 0.02");
-                    }
-                    if ("jitterBufferTarget" in event.receiver) {
-                        // event.receiver.jitterBufferTarget = 0;
-                        console.log("video jitterBufferTarget set to 0");
+                        event.receiver.playoutDelayHint = 0.0;
                     }
                 } catch (e) {
                     console.warn("video receiver tuning failed", e);
                 }
+
+                if (videoStatsMonitorAbort) {
+                    videoStatsMonitorAbort.aborted = true;
+                }
+
+                videoStatsMonitorAbort = { aborted: false };
+                monitorVideoStats(event.receiver, videoStatsMonitorAbort);
             }
 
             await startVideoTrackProcessor(event.track);
+
+            setTimeout(() => {
+                sendForceKeyframe("initial_start");
+            }, 300);
+
             return;
         }
 
@@ -174,10 +289,7 @@ async function connect() {
             if (event.receiver) {
                 try {
                     if ("playoutDelayHint" in event.receiver) {
-                        event.receiver.playoutDelayHint = 0.05;
-                    }
-                    if ("jitterBufferTarget" in event.receiver) {
-                        event.receiver.jitterBufferTarget = 50;
+                        event.receiver.playoutDelayHint = 0.0;
                     }
                 } catch (e) {
                     console.warn("audio receiver tuning failed", e);
@@ -195,6 +307,8 @@ async function connect() {
 
     pc.ondatachannel = (e) => {
         dc = e.channel;
+        inputDc = dc;
+
         console.log("DataChannel received:", dc.label);
 
         dc.onopen = () => {
@@ -209,12 +323,16 @@ async function connect() {
         dc.onerror = (err) => {
             console.error("DataChannel error", err);
         };
+
+        dc.onmessage = (ev) => {
+            console.log("DataChannel message:", ev.data);
+        };
     };
 
     pc.onicecandidate = (e) => {
         console.log("local candidate:", e.candidate);
         const ice = document.getElementById("ice");
-        if (e.candidate) {
+        if (e.candidate && ice) {
             ice.value = JSON.stringify(e.candidate);
             console.log("CLIENT ICE CANDIDATE:");
             console.log(JSON.stringify(e.candidate));
@@ -251,21 +369,29 @@ async function connect() {
         console.log("signalingState =", pc.signalingState);
     };
 
-    // DataChannelでUnreliableを明示
     pc.createDataChannel("input", {
         ordered: false,
         maxRetransmits: 0
     });
 
-    const offer = JSON.parse(document.getElementById("offer").value);
+    const offerText = document.getElementById("offer")?.value;
+    if (!offerText) {
+        throw new Error("offer is empty");
+    }
+
+    const offer = JSON.parse(offerText);
     await pc.setRemoteDescription(offer);
 
     const answer = await pc.createAnswer();
     await pc.setLocalDescription(answer);
 
-    document.getElementById("answer").value = JSON.stringify(pc.localDescription);
+    const answerEl = document.getElementById("answer");
+    if (answerEl) {
+        answerEl.value = JSON.stringify(pc.localDescription);
+    }
 
     startStatsMonitor();
+    startVideoWatchdog();
 }
 
 function cleanupPeerConnection() {
@@ -277,6 +403,16 @@ function cleanupPeerConnection() {
     if (rtcSummaryIntervalId) {
         clearInterval(rtcSummaryIntervalId);
         rtcSummaryIntervalId = null;
+    }
+
+    if (videoWatchdogIntervalId) {
+        clearInterval(videoWatchdogIntervalId);
+        videoWatchdogIntervalId = null;
+    }
+
+    if (videoStatsMonitorAbort) {
+        videoStatsMonitorAbort.aborted = true;
+        videoStatsMonitorAbort = null;
     }
 
     stopVideoTrackProcessor();
@@ -291,6 +427,10 @@ function cleanupPeerConnection() {
         audioEl.srcObject = null;
     }
 
+    if (videoEl) {
+        videoEl.srcObject = null;
+    }
+
     if (dc) {
         try {
             dc.close();
@@ -298,22 +438,23 @@ function cleanupPeerConnection() {
         dc = null;
     }
 
+    inputDc = null;
+
     if (pc) {
         try {
             pc.close();
         } catch (_) {}
         pc = null;
     }
-}
 
-function copyIceCandidate() {
-    const iceCandidate = document.getElementById("ice").value;
-    navigator.clipboard.writeText(iceCandidate);
-}
+    firstVideoFrameArrived = false;
+    lastFrameArrivedAt = 0;
+    receivedFrames = 0;
+    droppedFrames = 0;
+    renderedFrames = 0;
+    forceKeyframeCooldownUntil = 0;
 
-function copyAnswer() {
-    const answer = document.getElementById("answer").value;
-    navigator.clipboard.writeText(answer);
+    clearCanvas();
 }
 
 async function onHostIce() {
@@ -321,7 +462,7 @@ async function onHostIce() {
 }
 
 async function addHostCandidate() {
-    const json = document.getElementById("host").value;
+    const json = document.getElementById("host")?.value;
     if (!json) return;
     if (!pc) {
         console.warn("pc is not ready");
@@ -335,36 +476,14 @@ async function addHostCandidate() {
 }
 
 function onEnableAudio() {
-    const video = document.getElementById("video");
-
     try {
-        video.muted = false;
-        video.volume = 1.0;
-
         if (audioEl) {
             audioEl.muted = false;
             audioEl.volume = 1.0;
             audioEl.play().catch((e) => console.warn("audio.play rejected", e));
         }
 
-        const playPromise = video.play();
-        if (playPromise !== undefined) {
-            playPromise
-                .then(() => {
-                    console.log("video.play resolved");
-                })
-                .catch((e) => {
-                    console.error("video.play rejected", e);
-                });
-        }
-
         console.log("audio enabled");
-        console.log({
-            muted: video.muted,
-            volume: video.volume,
-            paused: video.paused,
-            readyState: video.readyState
-        });
     } catch (e) {
         console.error("failed to enable audio", e);
     }
@@ -405,7 +524,11 @@ function startGamepadLoop() {
         view.setInt16(8, Math.floor(gamepad.axes[2] * 32767), true);
         view.setInt16(10, Math.floor(gamepad.axes[3] * -32767), true);
 
-        dc.send(buf);
+        try {
+            dc.send(buf);
+        } catch (e) {
+            console.error("gamepad send failed", e);
+        }
 
         requestAnimationFrame(loop);
     }
@@ -414,7 +537,7 @@ function startGamepadLoop() {
 }
 
 async function toggleFullscreen() {
-    const player = document.getElementById("player");
+    const player = document.getElementById("player") || canvasEl;
 
     try {
         if (!document.fullscreenElement) {
@@ -450,6 +573,174 @@ function encodeButtons(gamepad) {
     if (gamepad.buttons[15].pressed) b |= 1 << 3;
 
     return b;
+}
+
+function closeFrameSafe(frame) {
+    if (!frame) return;
+    try {
+        frame.close();
+    } catch (_) {}
+}
+
+function replaceLatestFrame(frame) {
+    if (latestFrame) {
+        closeFrameSafe(latestFrame);
+        droppedFrames++;
+    }
+    latestFrame = frame;
+}
+
+async function startVideoTrackProcessor(track) {
+    stopVideoTrackProcessor();
+
+    if (typeof MediaStreamTrackProcessor === "undefined") {
+        console.warn("MediaStreamTrackProcessor is not available in this browser/context");
+        console.warn("falling back to direct video element playback");
+
+        if (videoEl) {
+            videoEl.style.display = "block";
+            videoEl.srcObject = new MediaStream([track]);
+            await videoEl.play().catch((e) => {
+                console.warn("video.play rejected", e);
+            });
+        }
+        return;
+    }
+
+    if (videoEl) {
+        videoEl.style.display = "none";
+        videoEl.srcObject = null;
+    }
+
+    processorAbort = { aborted: false };
+    videoProcessor = new MediaStreamTrackProcessor({ track });
+    videoReader = videoProcessor.readable.getReader();
+
+    firstVideoFrameArrived = false;
+    lastFrameArrivedAt = 0;
+    receivedFrames = 0;
+    droppedFrames = 0;
+    renderedFrames = 0;
+
+    console.log("[VIDEO] startVideoTrackProcessor");
+
+    startRenderLoop();
+
+    (async () => {
+        try {
+            while (!processorAbort.aborted) {
+                const { value: frame, done } = await videoReader.read();
+                if (done || !frame) break;
+
+                receivedFrames++;
+                firstVideoFrameArrived = true;
+                lastFrameArrivedAt = nowMs();
+
+                replaceLatestFrame(frame);
+            }
+        } catch (e) {
+            if (!processorAbort?.aborted) {
+                console.error("videoReader.read failed", e);
+                sendForceKeyframe("video_reader_error");
+            }
+        } finally {
+            console.log("[VIDEO] processor loop ended");
+        }
+    })();
+}
+
+function stopVideoTrackProcessor() {
+    if (processorAbort) {
+        processorAbort.aborted = true;
+    }
+    processorAbort = null;
+
+    if (videoReader) {
+        try {
+            videoReader.cancel();
+        } catch (_) {}
+        try {
+            videoReader.releaseLock();
+        } catch (_) {}
+        videoReader = null;
+    }
+
+    videoProcessor = null;
+    renderLoopActive = false;
+
+    closeFrameSafe(latestFrame);
+    latestFrame = null;
+}
+
+function resizeCanvasToFrame(frame) {
+    if (!canvasEl) return;
+
+    const w = frame.displayWidth || frame.codedWidth || 1280;
+    const h = frame.displayHeight || frame.codedHeight || 720;
+
+    if (canvasEl.width !== w || canvasEl.height !== h) {
+        canvasEl.width = w;
+        canvasEl.height = h;
+        console.log("[VIDEO] canvas resized:", w, h);
+    }
+}
+
+function drawVideoFrame(frame) {
+    if (!canvasCtx || !canvasEl || !frame) return;
+
+    resizeCanvasToFrame(frame);
+
+    try {
+        canvasCtx.drawImage(frame, 0, 0, canvasEl.width, canvasEl.height);
+        renderedFrames++;
+    } catch (e) {
+        console.error("drawImage failed", e);
+        sendForceKeyframe("video_draw_error");
+    }
+}
+
+function startRenderLoop() {
+    if (renderLoopActive) return;
+    renderLoopActive = true;
+
+    const loop = async () => {
+        while (renderLoopActive) {
+            if (latestFrame) {
+                const frame = latestFrame;
+                latestFrame = null;
+                drawVideoFrame(frame);
+                closeFrameSafe(frame);
+                continue;
+            }
+
+            await sleep(RENDER_IDLE_WAIT_MS);
+        }
+    };
+
+    loop().catch((e) => {
+        renderLoopActive = false;
+        console.error("[VIDEO] render loop failed", e);
+        sendForceKeyframe("render_loop_error");
+    });
+}
+
+function startVideoWatchdog() {
+    if (videoWatchdogIntervalId) {
+        clearInterval(videoWatchdogIntervalId);
+    }
+
+    videoWatchdogIntervalId = setInterval(() => {
+        if (!pc) return;
+        if (pc.connectionState !== "connected" && pc.connectionState !== "connecting") return;
+        if (!firstVideoFrameArrived) return;
+
+        const age = nowMs() - lastFrameArrivedAt;
+
+        if (age > VIDEO_STALL_MS) {
+            console.warn("[VIDEO WATCHDOG] stall detected age=", Math.floor(age), "ms");
+            sendForceKeyframe("video_stall");
+        }
+    }, 250);
 }
 
 function startStatsMonitor() {
@@ -498,7 +789,11 @@ function startStatsMonitor() {
                         jitterBufferEmittedCount: report.jitterBufferEmittedCount,
                         freezeCount: report.freezeCount,
                         totalFreezesDuration: report.totalFreezesDuration,
-                        packetsLost: report.packetsLost
+                        packetsLost: report.packetsLost,
+                        processorReceivedFrames: receivedFrames,
+                        processorDroppedFrames: droppedFrames,
+                        processorRenderedFrames: renderedFrames,
+                        latestFrameAgeMs: firstVideoFrameArrived ? Math.floor(nowMs() - lastFrameArrivedAt) : null,
                     });
                 }
 
@@ -612,112 +907,12 @@ async function logRtcSummary(pc) {
         framesDecoded: inboundVideo?.framesDecoded,
         framesPerSecond: inboundVideo?.framesPerSecond,
         freezeCount: inboundVideo?.freezeCount,
-        totalFreezesDuration: inboundVideo?.totalFreezesDuration,
+        totalFreezeDuration: inboundVideo?.totalFreezeDuration,
         jitterBufferDelay: inboundVideo?.jitterBufferDelay,
-        jitterBufferEmittedCount: inboundVideo?.jitterBufferEmittedCount
+        jitterBufferEmittedCount: inboundVideo?.jitterBufferEmittedCount,
+        processorReceivedFrames: receivedFrames,
+        processorDroppedFrames: droppedFrames,
+        processorRenderedFrames: renderedFrames,
+        latestFrameAgeMs: firstVideoFrameArrived ? Math.floor(nowMs() - lastFrameArrivedAt) : null,
     });
-}
-
-async function startVideoTrackProcessor(track) {
-    stopVideoTrackProcessor();
-
-    if (typeof MediaStreamTrackProcessor === "undefined") {
-        console.warn("MediaStreamTrackProcessor is not available in this browser/context");
-        return;
-    }
-
-    processorStopped = false;
-    receivedFrames = 0;
-    droppedFrames = 0;
-    renderedFrames = 0;
-
-    videoProcessor = new MediaStreamTrackProcessor({ track });
-    videoReader = videoProcessor.readable.getReader();
-
-    if (!renderLoopStarted) {
-        renderLoopStarted = true;
-        requestAnimationFrame(renderLatestFrameLoop);
-    }
-
-    console.log("startVideoTrackProcessor");
-
-    (async () => {
-        try {
-            while (!processorStopped) {
-                const { value: frame, done } = await videoReader.read();
-                if (done || !frame) break;
-
-                receivedFrames++;
-
-                // 最新1枚だけ保持
-                if (latestFrame) {
-                    latestFrame.close();
-                    droppedFrames++;
-                }
-                latestFrame = frame;
-            }
-        } catch (e) {
-            if (!processorStopped) {
-                console.error("videoReader.read failed", e);
-            }
-        }
-    })();
-
-    setInterval(() => {
-        console.log("[CLIENT RENDER]", {
-            receivedFrames,
-            droppedFrames,
-            renderedFrames,
-            hasLatestFrame: !!latestFrame
-        });
-        receivedFrames = 0;
-        droppedFrames = 0;
-        renderedFrames = 0;
-    }, 1000);
-}
-
-function stopVideoTrackProcessor() {
-    processorStopped = true;
-
-    if (videoReader) {
-        try {
-            videoReader.releaseLock();
-        } catch (_) {}
-        videoReader = null;
-    }
-
-    videoProcessor = null;
-
-    if (latestFrame) {
-        try {
-            latestFrame.close();
-        } catch (_) {}
-        latestFrame = null;
-    }
-}
-
-function renderLatestFrameLoop() {
-    if (latestFrame && renderCanvas && renderCtx) {
-        const frame = latestFrame;
-        latestFrame = null;
-
-        try {
-            if (
-                renderCanvas.width !== frame.displayWidth ||
-                renderCanvas.height !== frame.displayHeight
-            ) {
-                renderCanvas.width = frame.displayWidth;
-                renderCanvas.height = frame.displayHeight;
-            }
-
-            renderCtx.drawImage(frame, 0, 0, renderCanvas.width, renderCanvas.height);
-            renderedFrames++;
-        } catch (e) {
-            console.error("drawImage(frame) failed", e);
-        } finally {
-            frame.close();
-        }
-    }
-
-    requestAnimationFrame(renderLatestFrameLoop);
 }
