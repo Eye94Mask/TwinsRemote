@@ -129,6 +129,18 @@ async fn main() -> Result<()> {
                             }
                         }
                     }
+                    AudioCommand::UseSystemMix => {
+                        match spawn_system_mix_helper() {
+                            Ok(h) => {
+                                println!("[AUDIO] system mix helper started.");
+                                Some(h)
+                            }
+                            Err(e) => {
+                                eprintln!("[AUDIO] failed to start system mix helper: {:?}", e);
+                                None
+                            }
+                        }
+                    }
                     AudioCommand::Stop => None,
                 };
             }
@@ -382,6 +394,7 @@ struct AudioHelper {
 
 enum AudioCommand {
     UsePid(u32),
+    UseSystemMix,
     Stop,
 }
 
@@ -427,6 +440,9 @@ fn spawn_stdin_router(
                     } else if line.eq_ignore_ascii_case("audio_stop") {
                         let _ = audio_cmd_tx.send(AudioCommand::Stop);
                         eprintln!("[HOST] requested audio stop");
+                    } else if line.eq_ignore_ascii_case("system") {
+                        let _ = audio_cmd_tx.send(AudioCommand::UseSystemMix);
+                        eprintln!("[HOST] requested audio switch to system mix");
                     } else {
                         eprintln!("[HOST] commands: pid <number> / audio_stop")
                     }
@@ -450,6 +466,21 @@ fn spawn_audio_helper(pid: u32) -> Result<AudioHelper> {
         .take()
         .ok_or_else(|| anyhow!("failed to take helper stdout"))?;
 
+    Ok(AudioHelper { child, stdout })
+}
+
+fn spawn_system_mix_helper() -> Result<AudioHelper> {
+    let mut child = Command::new("SystemMixCapture.exe")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .map_err(|e| anyhow!("failed to spawn SystemMixCapture.exe: {:?}", e))?;
+
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| anyhow!("failed to take helper stdout"))?;
+    
     Ok(AudioHelper { child, stdout })
 }
 
