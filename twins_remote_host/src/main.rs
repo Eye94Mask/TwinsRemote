@@ -1,18 +1,16 @@
 mod dxgi_capture;
 mod webrtc_sender;
-mod audio_capture;
 mod audio_encoder;
 mod controller;
 mod consts;
 mod env;
 
+use anyhow::{anyhow, Result};
 use serde::Serialize;
-use std::sync::{Arc, Mutex, atomic::{AtomicBool, AtomicU64, Ordering}};
-use std::process::{Command, Stdio, ChildStdout};
-use std::io::{Read, Write};
+use std::sync::{Arc, Mutex, atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering}};
+use std::process::{Command, Stdio, ChildStdout, Child};
+use std::io::{BufRead, Read, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
-
-use anyhow::Result;
 
 use tokio::time::{sleep, Duration};
 use tokio::sync::mpsc;
@@ -26,10 +24,12 @@ use webrtc::data_channel::RTCDataChannel;
 use webrtc::data_channel::data_channel_init::RTCDataChannelInit;
 use webrtc::media::Sample;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
+use webrtc::ice_transport::ice_connection_state::RTCIceConnectionState;
+
+use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
 
 use crate::dxgi_capture::DxgiCapture;
 use crate::webrtc_sender::WebRtcSender;
-use crate::audio_capture::AudioCapture;
 use crate::audio_encoder::AudioEncoder;
 use crate::controller::{Controller, GamepadState};
 use crate::consts::{FPS_MILLIS, AUDIO_FRAME, VIDEO_FRAME_DURATION};
@@ -46,6 +46,20 @@ async fn main() -> Result<()> {
     let webrtc_clone = webrtc.clone();
 
     let controller = Arc::new(Mutex::new(Controller::new()?));
+
+    let input_mode = Arc::new(AtomicU32::new(0)); // 0=answer, 1=ice, 2=audio
+
+    let (audio_cmd_tx, audio_cmd_rx) = std::sync::mpsc::channel::<AudioCommand>();
+
+    let (answer_tx, answer_rx) = std::sync::mpsc::channel::<String>();
+    let (ice_tx, ice_rx) = std::sync::mpsc::channel::<String>();
+
+    spawn_stdin_router(
+        input_mode.clone(),
+        answer_tx,
+        ice_tx,
+        audio_cmd_tx.clone()
+    );
     
     // balanced: バランス型(普段用)
     // stable:   安定重視型(重いゲーム)
@@ -90,19 +104,55 @@ async fn main() -> Result<()> {
 
     let (tx, mut rx) = tokio::sync::mpsc::channel::<Sample>(3);
     let tx_clone = tx.clone();
+
     std::thread::spawn(move || {
-        let mut audio_capture = AudioCapture::new().unwrap();
+        let mut helper: Option<AudioHelper> = None;
         let mut audio_encoder = AudioEncoder::new();
 
-        let mut pcm_buffer: Vec<i16> = Vec::new();
-
         loop {
-            if let Some(pcm) = audio_capture.capture() {
-                pcm_buffer.extend_from_slice(&pcm);
+            while let Ok(cmd) = audio_cmd_rx.try_recv() {
+                if let Some(mut old) = helper.take() {
+                    let _ = old.child.kill();
+                    let _ = old.child.wait();
+                }
 
-                while pcm_buffer.len() >= AUDIO_FRAME {
-                    let frame: Vec<i16> = pcm_buffer.drain(..AUDIO_FRAME).collect();
-                    let opus = audio_encoder.encode(&frame);
+                helper = match cmd {
+                    AudioCommand::UsePid(pid) => {
+                        match spawn_audio_helper(pid) {
+                            Ok(h) => {
+                                println!("[AUDIO] helper started for pid={}", pid);
+                                Some(h)
+                            }
+                            Err(e) => {
+                                eprintln!("[AUDIO] failed to start helper: {:?}", e);
+                                None
+                            }
+                        }
+                    }
+                    AudioCommand::UseSystemMix => {
+                        match spawn_system_mix_helper() {
+                            Ok(h) => {
+                                println!("[AUDIO] system mix helper started.");
+                                Some(h)
+                            }
+                            Err(e) => {
+                                eprintln!("[AUDIO] failed to start system mix helper: {:?}", e);
+                                None
+                            }
+                        }
+                    }
+                    AudioCommand::Stop => None,
+                };
+            }
+
+            let Some(h) = helper.as_mut() else {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+                continue;
+            };
+
+            match read_exact_pcm_20ms(&mut h.stdout) {
+                Ok(pcm) => {
+                    let opus = audio_encoder.encode(&pcm);
 
                     let sample = Sample {
                         data: Bytes::from(opus),
@@ -110,7 +160,19 @@ async fn main() -> Result<()> {
                         ..Default::default()
                     };
 
-                    if tx_clone.blocking_send(sample).is_err() { break; }
+                    if tx_clone.blocking_send(sample).is_err() {
+                        return;
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[AUDIO] helper read failed: {:?}", e);
+
+                    if let Some(mut old) = helper.take() {
+                        let _ = old.child.kill();
+                        let _ = old.child.wait();
+                    }
+
+                    std::thread::sleep(std::time::Duration::from_millis(100));
                 }
             }
         }
@@ -124,6 +186,8 @@ async fn main() -> Result<()> {
             }
         }
     });
+    let audio_input_started = Arc::new(AtomicBool::new(false));
+    let audio_input_started_for_ice = audio_input_started.clone();
 
     // -------------------------------
     // DataChannel
@@ -175,31 +239,13 @@ async fn main() -> Result<()> {
                     || text.contains("\"type\": \"force_keyframe\"")
                     || text.trim() == "force_keyframe"
                 {
-                    let now = now_millis();
-                    let prev = last_force_keyframe_at.load(Ordering::Relaxed);
-
-                    // Prevent command mashing
-                    if now.saturating_sub(prev) >= 5000 {
-                        last_force_keyframe_at.store(now, Ordering::Relaxed);
-
-                        if let Err(e) = nvenc_cmd_tx.send("force_idr\n".to_string()) {
-                            eprintln!("[HOST] failed to send force_idr to nvenc: {:?}", e);
-                        } else {
-                            println!("[HOST] force_keyframe requested from client: {}", text);
-                        }
-                    }
-
+                    // ...
                     return;
                 }
 
                 println!("[HOST] text message on input dc: {}", text);
             }
         })
-    }));
-
-    webrtc.peer.on_ice_connection_state_change(Box::new(|s| {
-        println!("ICE: {:?}", s);
-        Box::pin(async {})
     }));
 
     let audio_track = webrtc.audio_track.clone();
@@ -263,21 +309,21 @@ async fn main() -> Result<()> {
             let packet_age = now.saturating_sub(last_nvenc_packet_at_wd.load(Ordering::Relaxed));
             let sample_age = now.saturating_sub(last_video_sample_at_wd.load(Ordering::Relaxed));
 
-            println!(
-                "[VIDEO WATCHDOG] packet_age={}ms sample_age={}ms fired={}",
-                packet_age, sample_age, video_watchdog_fired_wd.load(Ordering::Relaxed)
-            );
+            // println!(
+            //     "[VIDEO WATCHDOG] packet_age={}ms sample_age={}ms fired={}",
+            //     packet_age, sample_age, video_watchdog_fired_wd.load(Ordering::Relaxed)
+            // );
 
             if packet_age > 3000 || sample_age > 3000 && !video_watchdog_fired_wd.swap(true, Ordering::SeqCst) {
-                eprintln!(
-                    "[VIDEO WATCHDOG] STALL DETECTED packet_age={}ms sample_age={}ms",
-                    packet_age, sample_age
-                );
+                // eprintln!(
+                //     "[VIDEO WATCHDOG] STALL DETECTED packet_age={}ms sample_age={}ms",
+                //     packet_age, sample_age
+                // );
 
                 if let Err(e) = nvenc_cmd_tx_wd.send("force_idr\n".to_string()) {
-                    eprintln!("[VIDEO WATCHDOG] failed to send_force_idr: {:?}", e);
+                    // eprintln!("[VIDEO WATCHDOG] failed to send_force_idr: {:?}", e);
                 } else {
-                    eprintln!("[VIDEO WATCHDOG] force_idr sent");
+                    // eprintln!("[VIDEO WATCHDOG] force_idr sent");
                 }
             }
 
@@ -288,8 +334,24 @@ async fn main() -> Result<()> {
         }
     });
 
-    webrtc.peer.on_ice_connection_state_change(Box::new(|s| {
+    let audio_input_started = Arc::new(AtomicBool::new(false));
+    let audio_input_started_for_ice = audio_input_started.clone();
+
+    let ice_connected = Arc::new(AtomicBool::new(false));
+    let ice_connected_for_cb = ice_connected.clone();
+
+    let input_mode_for_ice = input_mode.clone();
+    webrtc.peer.on_ice_connection_state_change(Box::new(move |s| {
         println!("ICE: {:?}", s);
+
+        if s == RTCIceConnectionState::Connected {
+            ice_connected_for_cb.store(true, Ordering::Release);
+            input_mode_for_ice.store(2, Ordering::Release);
+
+            eprintln!("[HOST] audio command input enabled");
+            eprintln!("[HOST] commands: pid <number> / audio_stop / system");
+        }
+
         Box::pin(async {})
     }));
 
@@ -297,13 +359,144 @@ async fn main() -> Result<()> {
     webrtc.generate_offer().await?;
 
     println!("waiting for answer...");
-    webrtc.set_answer().await?;
+    input_mode.store(0, Ordering::Release);
 
-    loop {
-        webrtc.add_client_candidate().await?;
+    let answer_line = answer_rx.recv()
+        .map_err(|e| anyhow!("failed to receive answer from stdin router: {:?}", e))?;
+
+    if answer_line.trim().is_empty() {
+        return Err(anyhow!("answer was empty"));
     }
 
+    webrtc.set_answer_from_json(answer_line.trim()).await?;
+
+    input_mode.store(1, Ordering::Release);
+    while !ice_connected.load(Ordering::Acquire) {
+        let line = ice_rx.recv()
+            .map_err(|e| anyhow!("failed to receive ICE candidate from stdin router: {:?}", e))?;
+
+        if line.trim().is_empty() {
+            continue;
+        }
+
+        webrtc.add_client_candidate_from_json(line.trim()).await?;
+    }
+
+    println!("ICE finished, switching stdin to audio commands");
+
     Ok(())
+}
+
+struct AudioHelper {
+    child: Child,
+    stdout: ChildStdout,
+}
+
+enum AudioCommand {
+    UsePid(u32),
+    UseSystemMix,
+    Stop,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InputMode {
+    WaitAnswer,
+    WaitIce,
+    AudioCommand
+}
+
+fn spawn_stdin_router(
+    input_mode: Arc<AtomicU32>,
+    answer_tx: std::sync::mpsc::Sender<String>,
+    ice_tx: std::sync::mpsc::Sender<String>,
+    audio_cmd_tx: std::sync::mpsc::Sender<AudioCommand>
+) {
+    std::thread::spawn(move || {
+        use std::io::{self, BufRead};
+
+        let stdin = io::stdin();
+        for line in stdin.lock().lines() {
+            let Ok(line) = line else { break };
+            let line = line.trim().to_string();
+
+            match input_mode.load(Ordering::Acquire) {
+                0 => {
+                    let _ = answer_tx.send(line);
+                }
+                1 => {
+                    let _ = ice_tx.send(line);
+                }
+                2 => {
+                    if let Some(rest) = line.strip_prefix("pid ") {
+                        match rest.trim().parse::<u32>() {
+                            Ok(pid) => {
+                                let _ = audio_cmd_tx.send(AudioCommand::UsePid(pid));
+                                eprintln!("[HOST] requested audio switch to pid={}", pid);
+                            }
+                            Err(e) => {
+                                eprintln!("[HOST] invalid pid: {:?} ({})", e, line);
+                            }
+                        }
+                    } else if line.eq_ignore_ascii_case("audio_stop") {
+                        let _ = audio_cmd_tx.send(AudioCommand::Stop);
+                        eprintln!("[HOST] requested audio stop");
+                    } else if line.eq_ignore_ascii_case("system") {
+                        let _ = audio_cmd_tx.send(AudioCommand::UseSystemMix);
+                        eprintln!("[HOST] requested audio switch to system mix");
+                    } else {
+                        eprintln!("[HOST] commands: pid <number> / audio_stop")
+                    }
+                }
+                3_u32..=u32::MAX => {}
+            }
+        }
+    });
+}
+
+fn spawn_audio_helper(pid: u32) -> Result<AudioHelper> {
+    let mut child = Command::new("ProcessAudioCapture.exe")
+        .arg(pid.to_string())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .map_err(|e| anyhow!("failed to spawn ProcessAudioCapture.exe: {:?}", e))?;
+
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| anyhow!("failed to take helper stdout"))?;
+
+    Ok(AudioHelper { child, stdout })
+}
+
+fn spawn_system_mix_helper() -> Result<AudioHelper> {
+    let mut child = Command::new("SystemMixCapture.exe")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .map_err(|e| anyhow!("failed to spawn SystemMixCapture.exe: {:?}", e))?;
+
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| anyhow!("failed to take helper stdout"))?;
+    
+    Ok(AudioHelper { child, stdout })
+}
+
+fn read_exact_pcm_20ms(stdout: &mut ChildStdout) -> std::io::Result<Vec<i16>> {
+    // 48kHz, stereo, 16bit, 20ms:
+    // 48000 * 0.02 = 960 frames
+    // 960 * 2ch * 2bytes = 3840 bytes
+    let mut buf = [0u8; 3840];
+    stdout.read_exact(&mut buf)?;
+
+    let mut pcm = Vec::with_capacity(1920);
+    for chunk in buf.chunks_exact(2) {
+        pcm.push(i16::from_le_bytes([chunk[0], chunk[1]]));
+    }
+
+    Ok(pcm)
 }
 
 fn read_packet<R: Read>(r: &mut R) -> std::io::Result<Vec<u8>> {

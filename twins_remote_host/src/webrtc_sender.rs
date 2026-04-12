@@ -132,12 +132,8 @@ impl WebRtcSender {
         Ok(())
     }
 
-    pub async fn set_answer(&self) -> Result<()> {
-        println!("Paste ANSWER:");
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input)?;
-        
-        let answer: RTCSessionDescription = serde_json::from_str(&input)?;
+    pub async fn set_answer_from_json(&self, input: &str) -> Result<()> {
+        let answer: RTCSessionDescription = serde_json::from_str(input)?;
         self.peer.set_remote_description(answer).await?;
 
         if let Some(local) = self.peer.local_description().await {
@@ -146,7 +142,6 @@ impl WebRtcSender {
         if let Some(remote) = self.peer.remote_description().await {
             eprintln!("REMOTE SDP:\n{}", remote.sdp);
         }
-
         Ok(())
     }
 
@@ -162,17 +157,12 @@ impl WebRtcSender {
         Ok(())
     }
 
-    pub async fn add_client_candidate(&self) -> Result<()> {
-        println!("Paste CLIENT ICE candidate JSON(empty line to skip):");
-
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input)?;
-
+    pub async fn add_client_candidate_from_json(&self, input: &str) -> Result<()> {
         if input.trim().is_empty() {
             return Ok(());
         }
 
-        let candidate: RTCIceCandidateInit = serde_json::from_str(&input)?;
+        let candidate: RTCIceCandidateInit = serde_json::from_str(input)?;
 
         if candidate.candidate.is_empty() {
             println!("ICE gathering finished");

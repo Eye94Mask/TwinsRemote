@@ -9,6 +9,8 @@ Cargo.lock
 *.pdb
 *.txt
 x64/
+packages/
+packages.config
 .vs
 
 .env
