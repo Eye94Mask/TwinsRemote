@@ -1,32 +1,28 @@
 use anyhow::Result;
 use std::sync::Arc;
-use std::io::Read;
-use std::process::ChildStdout;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
-use bytes::Bytes;
+use base64::{engine::general_purpose::STANDARD, Engine as _};
+use hmac::{Hmac, Mac, KeyInit};
+use sha1::Sha1;
 
 use webrtc::api::APIBuilder;
 use webrtc::api::media_engine::MediaEngine;
 use webrtc::api::interceptor_registry::register_default_interceptors;
-use webrtc::data_channel::data_channel_message::DataChannelMessage;
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::interceptor::registry::Registry;
-use webrtc::media::Sample;
-use webrtc::rtp::{packet::Packet, header::Header};
 use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::ice_transport::ice_credential_type::RTCIceCredentialType;
 use webrtc::peer_connection::policy::ice_transport_policy::RTCIceTransportPolicy;
 use webrtc::peer_connection::configuration::RTCConfiguration;
-use webrtc::rtp_transceiver::rtp_codec::{RTCRtpCodecParameters, RTCRtpCodecCapability};
-use webrtc::track::track_local::track_local_static_rtp::TrackLocalStaticRTP;
+use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
-use webrtc::track::track_local::TrackLocalWriter;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
-use crate::consts::{FPS_MILLIS, MTU};
 use crate::env::IceConfig;
+
+type HmacSha1 = Hmac<Sha1>;
 
 #[derive(Clone)]
 pub struct WebRtcSender {
@@ -38,13 +34,36 @@ pub struct WebRtcSender {
 #[derive(Deserialize)]
 pub struct Offer {
     pub sdp: String,
-    pub r#type: String,
+    pub r#type: String
 }
 
 #[derive(Serialize)]
 pub struct Answer {
     pub sdp: String,
-    pub r#type: String,
+    pub r#type: String
+}
+
+fn current_unix_time() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock error")
+        .as_secs()
+}
+
+fn create_turn_credentials(
+    secret: &str,
+    ttl_seconds: u64,
+    user_id: &str,
+) -> anyhow::Result<(String, String)> {
+    let expiry = current_unix_time() + ttl_seconds;
+    let username = format!("{}:{}", expiry, user_id);
+
+    let mut mac = HmacSha1::new_from_slice(secret.as_bytes())?;
+    mac.update(username.as_bytes());
+    let result = mac.finalize().into_bytes();
+    let credential = STANDARD.encode(result);
+
+    Ok((username, credential))
 }
 
 impl WebRtcSender {
@@ -59,7 +78,13 @@ impl WebRtcSender {
             .with_media_engine(m)
             .with_interceptor_registry(registry)
             .build();
-        
+
+        let (turn_username, turn_credential) = create_turn_credentials(
+            &ice.turn_shared_secret,
+            ice.turn_ttl_seconds,
+            &ice.turn_user_id
+        )?;
+
         let config = RTCConfiguration {
             ice_servers: vec![
                 RTCIceServer {
@@ -68,8 +93,8 @@ impl WebRtcSender {
                 },
                 RTCIceServer {
                     urls: vec![ice.turn_url],
-                    username: ice.turn_username,
-                    credential: ice.turn_password,
+                    username: turn_username,
+                    credential: turn_credential,
                     credential_type: RTCIceCredentialType::Password,
                     ..Default::default()
                 },
@@ -119,7 +144,11 @@ impl WebRtcSender {
         ));
         peer.add_track(audio_track.clone()).await?;
 
-        Ok(Self { video_track, audio_track, peer })
+        Ok(Self {
+            video_track,
+            audio_track,
+            peer
+        })
     }
 
     pub async fn generate_offer(&self) -> Result<()> {
@@ -127,7 +156,10 @@ impl WebRtcSender {
         self.peer.set_local_description(offer).await?;
 
         println!("=== OFFER ===");
-        println!("{}", serde_json::to_string_pretty(&self.peer.local_description().await.unwrap())?);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&self.peer.local_description().await.unwrap())?
+        );
 
         Ok(())
     }
@@ -148,7 +180,10 @@ impl WebRtcSender {
     pub async fn get_host_ice_candidate(&self) -> Result<()> {
         self.peer.on_ice_candidate(Box::new(|c| {
             if let Some(c) = c {
-                println!("HOST ICE CANDIDATE: \n{}", serde_json::to_string(&c.to_json().unwrap()).unwrap());
+                println!(
+                    "HOST ICE CANDIDATE: \n{}",
+                    serde_json::to_string(&c.to_json().unwrap()).unwrap()
+                );
             }
 
             Box::pin(async {})

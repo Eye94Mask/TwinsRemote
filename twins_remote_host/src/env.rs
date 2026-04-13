@@ -5,8 +5,9 @@ use std::env;
 pub struct IceConfig {
     pub stun_url: String,
     pub turn_url: String,
-    pub turn_username: String,
-    pub turn_password: String,
+    pub turn_shared_secret: String,
+    pub turn_ttl_seconds: u64,
+    pub turn_user_id: String
 }
 
 impl IceConfig {
@@ -16,8 +17,9 @@ impl IceConfig {
         Self {
             stun_url: env::var("STUN_URL").expect("STUN_URL is not set"),
             turn_url: env::var("TURN_URL").expect("TURN_URL is not set"),
-            turn_username: env::var("TURN_USERNAME").expect("TURN_USERNAME is not set"),
-            turn_password: env::var("TURN_PASSWORD").expect("TURN_PASSWORD is not set"),
+            turn_shared_secret: env::var("TURN_SHARED_SECRET").expect("TURN_SHARED_SECRET is not set"),
+            turn_ttl_seconds: env::var("TURN_TTL_SECONDS").ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(600),
+            turn_user_id: env::var("TURN_USER_ID").unwrap_or_else(|_| "host".to_string())
         }
     }
 }
