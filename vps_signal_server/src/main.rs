@@ -2,18 +2,25 @@ mod env;
 
 use axum::{
     extract::State,
-    http::{HeaderMap, StatusCode},
-    response::{IntoResponse, Response},
+    http::{HeaderMap, HeaderValue, StatusCode},
+    response::{Html, IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use hmac::{Hmac, Mac, KeyInit};
+use rand::{distr::Alphanumeric, RngExt};
 use serde::{Deserialize, Serialize};
 use sha1::Sha1;
-use std::{net::SocketAddr, sync::Arc, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    path::Path,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 use tokio::sync::Mutex;
-use tower_http::services::{ServeDir, ServeFile};
+use tower_http::services::ServeDir;
 
 use crate::env::AppConfig;
 
@@ -23,6 +30,7 @@ type HmacSha1 = Hmac<Sha1>;
 struct AppState {
     config: AppConfig,
     signaling: Arc<Mutex<SignalingStore>>,
+    web_tokens: Arc<Mutex<HashMap<String, u64>>>,
 }
 
 #[derive(Default, Debug)]
@@ -73,6 +81,11 @@ struct PollCandidatesResponse {
     candidates: Vec<IceCandidate>,
 }
 
+#[derive(Debug, Deserialize)]
+struct WebRtcConfigRequest {
+    token: String,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     println!("Starting VPS Signal Server");
@@ -82,18 +95,19 @@ async fn main() -> anyhow::Result<()> {
     let state = Arc::new(AppState {
         config: config.clone(),
         signaling: Arc::new(Mutex::new(SignalingStore::default())),
+        web_tokens: Arc::new(Mutex::new(HashMap::new())),
     });
 
     let app = Router::new()
-        .route("/webrtc-config", get(get_webrtc_config))
+        .route("/", get(get_index))
+        .route("/index.html", get(get_index))
+        .route("/webrtc-config", post(post_webrtc_config))
         .route("/offer", get(get_offer).post(post_offer))
         .route("/answer", get(get_answer).post(post_answer))
         .route("/host-candidate", get(get_host_candidates).post(post_host_candidate))
         .route("/client-candidate", get(get_client_candidates).post(post_client_candidate))
         .route("/reset", post(reset_signaling))
-        .fallback_service(
-            ServeDir::new("web").fallback(ServeFile::new("web/index.html"))
-        )
+        .fallback_service(ServeDir::new("web"))
         .with_state(state);
 
     let addr: SocketAddr = config.host_bind.parse()?;
@@ -113,7 +127,11 @@ fn current_unix_time() -> u64 {
         .as_secs()
 }
 
-fn create_turn_credentials(secret: &str, ttl_seconds: u64, user_id: &str) -> anyhow::Result<(String, String)> {
+fn create_turn_credentials(
+    secret: &str,
+    ttl_seconds: u64,
+    user_id: &str,
+) -> anyhow::Result<(String, String)> {
     let expiry = current_unix_time() + ttl_seconds;
     let username = format!("{}:{}", expiry, user_id);
 
@@ -145,15 +163,95 @@ fn origin_allowed(headers: &HeaderMap, allowed_origin: &Option<String>) -> bool 
     origin_ok || referer_ok
 }
 
-async fn get_webrtc_config(
+fn make_random_token(len: usize) -> String {
+    rand::rng()
+        .sample_iter(&Alphanumeric)
+        .take(len)
+        .map(char::from)
+        .collect()
+}
+
+async fn issue_web_token(state: &Arc<AppState>, ttl_seconds: u64) -> String {
+    let token = make_random_token(48);
+    let expires_at = current_unix_time() + ttl_seconds;
+
+    let mut tokens = state.web_tokens.lock().await;
+    cleanup_expired_tokens(&mut tokens);
+    tokens.insert(token.clone(), expires_at);
+
+    token
+}
+
+fn cleanup_expired_tokens(tokens: &mut HashMap<String, u64>) {
+    let now = current_unix_time();
+    tokens.retain(|_, expires_at| *expires_at > now);
+}
+
+async fn consume_web_token(state: &Arc<AppState>, token: &str) -> bool {
+    let mut tokens = state.web_tokens.lock().await;
+    cleanup_expired_tokens(&mut tokens);
+
+    match tokens.get(token).copied() {
+        Some(expires_at) if expires_at > current_unix_time() => {
+            tokens.remove(token);
+            true
+        }
+        _ => false,
+    }
+}
+
+async fn get_index(State(state): State<Arc<AppState>>) -> Response {
+    let path = Path::new("web/index.html");
+
+    let html = match tokio::fs::read_to_string(path).await {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("failed to read index.html: {e}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "failed to load index.html",
+            )
+                .into_response();
+        }
+    };
+
+    let token = issue_web_token(&state, 300).await;
+
+    let injected = format!(
+        r#"{html}
+<script>
+window.__WEBRTC_CONFIG_TOKEN__ = "{token}";
+</script>
+"#,
+    );
+
+    let mut response = Html(injected).into_response();
+    response.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        HeaderValue::from_static("no-store"),
+    );
+    response
+}
+
+async fn post_webrtc_config(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
+    Json(req): Json<WebRtcConfigRequest>,
 ) -> Response {
     if !origin_allowed(&headers, &state.config.allowed_origin) {
         return (
             StatusCode::FORBIDDEN,
             [("cache-control", "no-store")],
             "forbidden",
+        )
+            .into_response();
+    }
+
+    if !consume_web_token(&state, &req.token).await {
+        return (
+            StatusCode::FORBIDDEN,
+            [("cache-control", "no-store")],
+            "invalid token",
         )
             .into_response();
     }
