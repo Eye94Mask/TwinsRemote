@@ -2,17 +2,22 @@ mod env;
 
 use axum::{
     extract::State,
-    http::StatusCode,
-    response::IntoResponse,
+    http::{HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
+use base64::{engine::general_purpose::STANDARD, Engine as _};
+use hmac::{Hmac, Mac, KeyInit};
 use serde::{Deserialize, Serialize};
-use std::{net::SocketAddr, sync::Arc};
+use sha1::Sha1;
+use std::{net::SocketAddr, sync::Arc, time::{SystemTime, UNIX_EPOCH}};
 use tokio::sync::Mutex;
 use tower_http::services::{ServeDir, ServeFile};
 
 use crate::env::AppConfig;
+
+type HmacSha1 = Hmac<Sha1>;
 
 #[derive(Clone)]
 struct AppState {
@@ -50,6 +55,8 @@ struct IceCandidate {
 struct WebRtcConfigResponse {
     #[serde(rename = "iceServers")]
     ice_servers: Vec<IceServerResponse>,
+    #[serde(rename = "ttlSeconds")]
+    ttl_seconds: u64,
 }
 
 #[derive(Debug, Serialize)]
@@ -99,7 +106,78 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn get_webrtc_config(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+fn current_unix_time() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock error")
+        .as_secs()
+}
+
+fn create_turn_credentials(secret: &str, ttl_seconds: u64, user_id: &str) -> anyhow::Result<(String, String)> {
+    let expiry = current_unix_time() + ttl_seconds;
+    let username = format!("{}:{}", expiry, user_id);
+
+    let mut mac = HmacSha1::new_from_slice(secret.as_bytes())?;
+    mac.update(username.as_bytes());
+    let result = mac.finalize().into_bytes();
+    let credential = STANDARD.encode(result);
+
+    Ok((username, credential))
+}
+
+fn origin_allowed(headers: &HeaderMap, allowed_origin: &Option<String>) -> bool {
+    let Some(allowed) = allowed_origin.as_ref() else {
+        return true;
+    };
+
+    let origin_ok = headers
+        .get("origin")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v == allowed)
+        .unwrap_or(false);
+
+    let referer_ok = headers
+        .get("referer")
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.starts_with(&(allowed.to_string() + "/")))
+        .unwrap_or(false);
+
+    origin_ok || referer_ok
+}
+
+async fn get_webrtc_config(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Response {
+    if !origin_allowed(&headers, &state.config.allowed_origin) {
+        return (
+            StatusCode::FORBIDDEN,
+            [("cache-control", "no-store")],
+            "forbidden",
+        )
+            .into_response();
+    }
+
+    let user_id = "guest";
+    let ttl = state.config.turn_ttl_seconds;
+
+    let (turn_username, turn_credential) = match create_turn_credentials(
+        &state.config.turn_shared_secret,
+        ttl,
+        user_id,
+    ) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("failed to create TURN credentials: {e}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                [("cache-control", "no-store")],
+                "failed to create TURN credentials",
+            )
+                .into_response();
+        }
+    };
+
     let response = WebRtcConfigResponse {
         ice_servers: vec![
             IceServerResponse {
@@ -109,13 +187,22 @@ async fn get_webrtc_config(State(state): State<Arc<AppState>>) -> impl IntoRespo
             },
             IceServerResponse {
                 urls: vec![state.config.turn_url.clone()],
-                username: Some(state.config.turn_username.clone()),
-                credential: Some(state.config.turn_password.clone()),
+                username: Some(turn_username),
+                credential: Some(turn_credential),
             },
         ],
+        ttl_seconds: ttl,
     };
 
-    Json(response)
+    (
+        StatusCode::OK,
+        [
+            ("cache-control", "no-store"),
+            ("pragma", "no-cache"),
+        ],
+        Json(response),
+    )
+        .into_response()
 }
 
 async fn post_offer(
