@@ -68,6 +68,12 @@ struct WebRtcConfigResponse {
 }
 
 #[derive(Debug, Serialize)]
+struct TtlSecondsResponse {
+    #[serde(rename = "ttlSeconds")]
+    ttl_seconds: u64
+}
+
+#[derive(Debug, Serialize)]
 struct IceServerResponse {
     urls: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -106,6 +112,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/answer", get(get_answer).post(post_answer))
         .route("/host-candidate", get(get_host_candidates).post(post_host_candidate))
         .route("/client-candidate", get(get_client_candidates).post(post_client_candidate))
+        .route("/ttl-seconds", get(get_ttl_seconds))
         .route("/reset", post(reset_signaling))
         .fallback_service(ServeDir::new("web"))
         .with_state(state);
@@ -244,10 +251,6 @@ async fn post_webrtc_config(
     headers: HeaderMap,
     Json(req): Json<WebRtcConfigRequest>,
 ) -> Response {
-    println!("ALLOWED_ORIGIN = {:?}", state.config.allowed_origin);
-    println!("Origin  = {:?}", headers.get("origin"));
-    println!("Referer = {:?}", headers.get("referer"));
-
     if !origin_allowed(&headers, &state.config.allowed_origin) {
         return (
             StatusCode::FORBIDDEN,
@@ -386,6 +389,14 @@ async fn get_client_candidates(State(state): State<Arc<AppState>>) -> impl IntoR
     (
         StatusCode::OK,
         Json(PollCandidatesResponse { candidates }),
+    )
+}
+
+async fn get_ttl_seconds(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let response = TtlSecondsResponse { ttl_seconds: state.config.turn_ttl_seconds };
+    (
+        StatusCode::OK,
+        Json(response)
     )
 }
 

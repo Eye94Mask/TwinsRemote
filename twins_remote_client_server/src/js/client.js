@@ -32,6 +32,9 @@ let receivedFrames = 0;
 let droppedFrames = 0;
 let renderedFrames = 0;
 
+let ttlSeconds = 600 * 1000;
+let tokenTimeoutMessage = null;
+
 const VIDEO_STALL_MS = 700;
 const RENDER_IDLE_WAIT_MS = 8;
 
@@ -47,13 +50,16 @@ window.addEventListener("gamepaddisconnected", (e) => {
     }
 });
 
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", async () => {
+    await fetchTtlSeconds();
+    tokenTimeoutMessage = window.setTimeout(tokenTimeout, ttlSeconds)
+
     videoEl = document.getElementById("video");
     const fullscreenBtn = document.getElementById("fullscreenBtn");
     const audioBtn = document.getElementById("audioBtn");
 
     if (videoEl) {
-        videoEl.style.display = "none"; // 直接再生は使わない
+        videoEl.style.display = "none";
         videoEl.playsInline = true;
         videoEl.autoplay = false;
         videoEl.muted = true;
@@ -113,6 +119,14 @@ window.addEventListener("DOMContentLoaded", () => {
         });
     }
 });
+
+function tokenTimeout() {
+    if (!alert('"トークンの有効期限が切れました\nページの再読み込みをします"')) {
+        location.reload();
+    }
+
+    window.clearTimeout(tokenTimeoutMessage);
+}
 
 function setupCanvas() {
     const player = document.getElementById("player");
@@ -218,6 +232,18 @@ async function fetchWebRtcConfig() {
     return await res.json();
 }
 
+async function fetchTtlSeconds() {
+    const res = await fetch("/ttl-seconds");
+
+    // デフォルトの時間でタイマー開始
+    if (!res.ok) {
+        return;
+    }
+
+    const json = await res.json();
+    ttlSeconds = json.ttlSeconds * 1000;
+}
+
 //--------------------------------------------------
 // WebRTC stats monitoring
 //--------------------------------------------------
@@ -240,167 +266,173 @@ function sleep(ms) {
 }
 
 async function connect() {
-    cleanupPeerConnection();
+    try {
+        cleanupPeerConnection();
+        window.clearTimeout(tokenTimeoutMessage);
 
-    const config = await fetchWebRtcConfig();
-    log("ICE CONFIG:", config);
+        const config = await fetchWebRtcConfig();
+        log("ICE CONFIG:", config);
 
-    pc = new RTCPeerConnection({
-        iceServers: config.iceServers,
-        iceTransportPolicy: "relay",
-        bundlePolicy: "max-bundle",
-        rtcpMuxPolicy: "require",
-    });
+        pc = new RTCPeerConnection({
+            iceServers: config.iceServers,
+            iceTransportPolicy: "relay",
+            bundlePolicy: "max-bundle",
+            rtcpMuxPolicy: "require",
+        });
 
-    if (audioEl) {
-        audioEl.srcObject = remoteAudioStream;
-        audioEl.muted = true;
-        audioEl.volume = 1.0;
-    }
+        if (audioEl) {
+            audioEl.srcObject = remoteAudioStream;
+            audioEl.muted = true;
+            audioEl.volume = 1.0;
+        }
 
-    pc.ontrack = async (event) => {
-        console.log("ontrack", event.track.kind, event.streams);
+        pc.ontrack = async (event) => {
+            console.log("ontrack", event.track.kind, event.streams);
 
-        if (event.track.kind === "video") {
-            console.log("[VIDEO] track received:", event.track.id);
+            if (event.track.kind === "video") {
+                console.log("[VIDEO] track received:", event.track.id);
 
-            if (event.receiver) {
-                try {
-                    if ("playoutDelayHint" in event.receiver) {
-                        event.receiver.playoutDelayHint = 0.0;
+                if (event.receiver) {
+                    try {
+                        if ("playoutDelayHint" in event.receiver) {
+                            event.receiver.playoutDelayHint = 0.0;
+                        }
+                    } catch (e) {
+                        console.warn("video receiver tuning failed", e);
                     }
-                } catch (e) {
-                    console.warn("video receiver tuning failed", e);
-                }
 
-                if (videoStatsMonitorAbort) {
-                    videoStatsMonitorAbort.aborted = true;
-                }
-
-                videoStatsMonitorAbort = { aborted: false };
-                monitorVideoStats(event.receiver, videoStatsMonitorAbort);
-            }
-
-            await startVideoTrackProcessor(event.track);
-
-            setTimeout(() => {
-                sendForceKeyframe("initial_start");
-            }, 300);
-
-            return;
-        }
-
-        if (event.track.kind === "audio") {
-            if (!remoteAudioStream.getTracks().some(t => t.id === event.track.id)) {
-                remoteAudioStream.addTrack(event.track);
-            }
-
-            if (event.receiver) {
-                try {
-                    if ("playoutDelayHint" in event.receiver) {
-                        event.receiver.playoutDelayHint = 0.0;
+                    if (videoStatsMonitorAbort) {
+                        videoStatsMonitorAbort.aborted = true;
                     }
-                } catch (e) {
-                    console.warn("audio receiver tuning failed", e);
+
+                    videoStatsMonitorAbort = { aborted: false };
+                    monitorVideoStats(event.receiver, videoStatsMonitorAbort);
+                }
+
+                await startVideoTrackProcessor(event.track);
+
+                setTimeout(() => {
+                    sendForceKeyframe("initial_start");
+                }, 300);
+
+                return;
+            }
+
+            if (event.track.kind === "audio") {
+                if (!remoteAudioStream.getTracks().some(t => t.id === event.track.id)) {
+                    remoteAudioStream.addTrack(event.track);
+                }
+
+                if (event.receiver) {
+                    try {
+                        if ("playoutDelayHint" in event.receiver) {
+                            event.receiver.playoutDelayHint = 0.0;
+                        }
+                    } catch (e) {
+                        console.warn("audio receiver tuning failed", e);
+                    }
+                }
+
+                if (audioEl) {
+                    audioEl.srcObject = remoteAudioStream;
+                    await audioEl.play().catch((e) => {
+                        console.warn("audio.play rejected", e);
+                    });
                 }
             }
+        };
 
-            if (audioEl) {
-                audioEl.srcObject = remoteAudioStream;
-                await audioEl.play().catch((e) => {
-                    console.warn("audio.play rejected", e);
-                });
+        pc.ondatachannel = (e) => {
+            dc = e.channel;
+            inputDc = dc;
+
+            console.log("DataChannel received:", dc.label);
+
+            dc.onopen = () => {
+                console.log("DataChannel open");
+                startGamepadLoop();
+            };
+
+            dc.onclose = () => {
+                console.log("DataChannel closed");
+            };
+
+            dc.onerror = (err) => {
+                console.error("DataChannel error", err);
+            };
+
+            dc.onmessage = (ev) => {
+                console.log("DataChannel message:", ev.data);
+            };
+        };
+
+        pc.onicecandidate = (e) => {
+            console.log("local candidate:", e.candidate);
+            const ice = document.getElementById("ice");
+            if (e.candidate && ice) {
+                ice.value = JSON.stringify(e.candidate);
+                console.log("CLIENT ICE CANDIDATE:");
+                console.log(JSON.stringify(e.candidate));
             }
-        }
-    };
-
-    pc.ondatachannel = (e) => {
-        dc = e.channel;
-        inputDc = dc;
-
-        console.log("DataChannel received:", dc.label);
-
-        dc.onopen = () => {
-            console.log("DataChannel open");
-            startGamepadLoop();
         };
 
-        dc.onclose = () => {
-            console.log("DataChannel closed");
+        pc.onicecandidateerror = (e) => {
+            console.error("ICE candidate error", e);
         };
 
-        dc.onerror = (err) => {
-            console.error("DataChannel error", err);
-        };
+        pc.oniceconnectionstatechange = async () => {
+            console.log("iceConnectionState =", pc.iceConnectionState);
 
-        dc.onmessage = (ev) => {
-            console.log("DataChannel message:", ev.data);
-        };
-    };
+            if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+                if (!rtcSummaryIntervalId) {
+                    rtcSummaryIntervalId = setInterval(() => {
+                        logRtcSummary(pc).catch(console.error);
+                    }, 5000);
+                }
 
-    pc.onicecandidate = (e) => {
-        console.log("local candidate:", e.candidate);
-        const ice = document.getElementById("ice");
-        if (e.candidate && ice) {
-            ice.value = JSON.stringify(e.candidate);
-            console.log("CLIENT ICE CANDIDATE:");
-            console.log(JSON.stringify(e.candidate));
-        }
-    };
-
-    pc.onicecandidateerror = (e) => {
-        console.error("ICE candidate error", e);
-    };
-
-    pc.oniceconnectionstatechange = async () => {
-        console.log("iceConnectionState =", pc.iceConnectionState);
-
-        if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
-            if (!rtcSummaryIntervalId) {
-                rtcSummaryIntervalId = setInterval(() => {
-                    logRtcSummary(pc).catch(console.error);
-                }, 5000);
+                await logSelectedCandidatePair(pc);
             }
+        };
 
-            await logSelectedCandidatePair(pc);
+        pc.onconnectionstatechange = () => {
+            console.log("connectionState =", pc.connectionState);
+        };
+
+        pc.onicegatheringstatechange = () => {
+            console.log("iceGatheringState =", pc.iceGatheringState);
+        };
+
+        pc.onsignalingstatechange = () => {
+            console.log("signalingState =", pc.signalingState);
+        };
+
+        pc.createDataChannel("input", {
+            ordered: false,
+            maxRetransmits: 0
+        });
+
+        const offerText = document.getElementById("offer")?.value;
+        if (!offerText) {
+            throw new Error("offer is empty");
         }
-    };
 
-    pc.onconnectionstatechange = () => {
-        console.log("connectionState =", pc.connectionState);
-    };
+        const offer = JSON.parse(offerText);
+        await pc.setRemoteDescription(offer);
 
-    pc.onicegatheringstatechange = () => {
-        console.log("iceGatheringState =", pc.iceGatheringState);
-    };
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
 
-    pc.onsignalingstatechange = () => {
-        console.log("signalingState =", pc.signalingState);
-    };
+        const answerEl = document.getElementById("answer");
+        if (answerEl) {
+            answerEl.value = JSON.stringify(pc.localDescription);
+        }
 
-    pc.createDataChannel("input", {
-        ordered: false,
-        maxRetransmits: 0
-    });
+        startStatsMonitor();
+        startVideoWatchdog();
 
-    const offerText = document.getElementById("offer")?.value;
-    if (!offerText) {
-        throw new Error("offer is empty");
-    }
-
-    const offer = JSON.parse(offerText);
-    await pc.setRemoteDescription(offer);
-
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-
-    const answerEl = document.getElementById("answer");
-    if (answerEl) {
-        answerEl.value = JSON.stringify(pc.localDescription);
-    }
-
-    startStatsMonitor();
-    startVideoWatchdog();
+        const connectBtn = document.getElementById("connectBtn");
+        connectBtn.disabled = true;
+    } catch {}
 }
 
 function cleanupPeerConnection() {
