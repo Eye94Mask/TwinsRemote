@@ -143,24 +143,30 @@ fn create_turn_credentials(
     Ok((username, credential))
 }
 
+fn normalize_origin_like(value: &str) -> String {
+    value.trim_end_matches('/').to_string()
+}
+
 fn origin_allowed(headers: &HeaderMap, allowed_origin: &Option<String>) -> bool {
     let Some(allowed) = allowed_origin.as_ref() else {
         return true;
     };
 
-    let origin_ok = headers
-        .get("origin")
-        .and_then(|v| v.to_str().ok())
-        .map(|v| v == allowed)
-        .unwrap_or(false);
+    let allowed = normalize_origin_like(allowed);
 
-    let referer_ok = headers
-        .get("referer")
-        .and_then(|v| v.to_str().ok())
-        .map(|v| v.starts_with(&(allowed.to_string() + "/")))
-        .unwrap_or(false);
+    if let Some(origin) = headers.get("origin").and_then(|v| v.to_str().ok()) {
+        if normalize_origin_like(origin) == allowed {
+            return true;
+        }
+    }
 
-    origin_ok || referer_ok
+    if let Some(referer) = headers.get("referer").and_then(|v| v.to_str().ok()) {
+        if referer.starts_with(&(allowed.clone() + "/")) || referer == allowed {
+            return true;
+        }
+    }
+
+    false
 }
 
 fn make_random_token(len: usize) -> String {
@@ -238,6 +244,10 @@ async fn post_webrtc_config(
     headers: HeaderMap,
     Json(req): Json<WebRtcConfigRequest>,
 ) -> Response {
+    println!("ALLOWED_ORIGIN = {:?}", state.config.allowed_origin);
+    println!("Origin  = {:?}", headers.get("origin"));
+    println!("Referer = {:?}", headers.get("referer"));
+
     if !origin_allowed(&headers, &state.config.allowed_origin) {
         return (
             StatusCode::FORBIDDEN,

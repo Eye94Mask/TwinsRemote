@@ -197,13 +197,22 @@ function sendForceKeyframe(reason) {
 }
 
 async function fetchWebRtcConfig() {
+    const token = window.__WEBRTC_CONFIG_TOKEN__;
+    if (!token) {
+        throw new Error("webrtc config token is missing");
+    }
+
     const res = await fetch("/webrtc-config", {
-        method: "GET",
-        cache: "no-store",
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ token })
     });
 
     if (!res.ok) {
-        throw new Error(`failed to fetch /webrtc-config: ${res.status}`);
+        const text = await res.text();
+        throw new Error("failed to fetch webrtc config: " + text);
     }
 
     return await res.json();
