@@ -382,8 +382,7 @@ async function connect() {
         };
 
         pc.onicecandidateerror = (e) => {
-            console.error("ICE candidate error", e);
-            throw new Error("ICE candidate error");
+            console.warn("ICE candidate warning", e);
         };
 
         pc.oniceconnectionstatechange = async () => {
@@ -444,10 +443,6 @@ async function connect() {
 
         startStatsMonitor();
         startVideoWatchdog();
-
-        connectBtn.disabled = true;
-    } catch (e) {
-        connectBtn.disabled = false;
     }
 }
 
