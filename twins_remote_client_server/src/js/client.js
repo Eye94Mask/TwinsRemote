@@ -35,6 +35,8 @@ let renderedFrames = 0;
 let ttlSeconds = 600 * 1000;
 let tokenTimeoutMessage = null;
 
+let connectStatus = null;
+
 const VIDEO_STALL_MS = 700;
 const RENDER_IDLE_WAIT_MS = 8;
 
@@ -52,7 +54,9 @@ window.addEventListener("gamepaddisconnected", (e) => {
 
 window.addEventListener("DOMContentLoaded", async () => {
     await fetchTtlSeconds();
-    tokenTimeoutMessage = window.setTimeout(tokenTimeout, ttlSeconds)
+    tokenTimeoutMessage = window.setTimeout(tokenTimeout, ttlSeconds);
+
+    connectStatus = document.getElementById("status");
 
     videoEl = document.getElementById("video");
     const fullscreenBtn = document.getElementById("fullscreenBtn");
@@ -265,6 +269,12 @@ function sleep(ms) {
     return new Promise(r => setTimeout(r, ms));
 }
 
+function connectStatusReset() {
+    connectStatus.classList.forEach((name) => {
+        connectStatus.classList.remove(name)
+    });
+}
+
 async function connect() {
     try {
         cleanupPeerConnection();
@@ -383,7 +393,16 @@ async function connect() {
         pc.oniceconnectionstatechange = async () => {
             console.log("iceConnectionState =", pc.iceConnectionState);
 
+            if (pc.iceConnectionState === "checking") {
+                connectStatus.innerText = "接続待機中";
+                connectStatusReset();
+                connectStatus.classList.add("connecting");
+            }
+
             if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+                connectStatus.innerText = "接続完了";
+                connectStatusReset();
+                connectStatus.classList.add("connected");
                 if (!rtcSummaryIntervalId) {
                     rtcSummaryIntervalId = setInterval(() => {
                         logRtcSummary(pc).catch(console.error);
@@ -391,6 +410,18 @@ async function connect() {
                 }
 
                 await logSelectedCandidatePair(pc);
+            }
+
+            if (pc.iceConnectionState === "disconnected" && connectStatus.innerText !== "接続待機中") {
+                connectStatus.innerText = "接続終了";
+                connectStatusReset();
+                connectStatus.classList.add("disconnected");
+            }
+
+            if (pc.iceConnectionState === "failed" && connectStatus.innerText !== "接続待機中") {
+                connectStatus.innerText = "接続エラー";
+                connectStatusReset();
+                connectStatus.classList.add("failed")
             }
         };
 

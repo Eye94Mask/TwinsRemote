@@ -62,3 +62,22 @@ button {
     background: black;
     object-fit: contain;
 }
+
+#status.disconnected {
+    color: #999;
+}
+#status.disconnected {
+    color: #999;
+}
+
+#status.connecting {
+    color: #ff0;
+}
+
+#status.connected {
+    color: #0f0;
+}
+
+#status.failed {
+    color: #f00;
+}
