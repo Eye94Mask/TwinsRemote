@@ -285,7 +285,7 @@ async function connect() {
 
         pc = new RTCPeerConnection({
             iceServers: config.iceServers,
-            iceTransportPolicy: "relay",
+            iceTransportPolicy: "all",
             bundlePolicy: "max-bundle",
             rtcpMuxPolicy: "require",
         });

@@ -99,7 +99,7 @@ impl WebRtcSender {
                     ..Default::default()
                 },
             ],
-            ice_transport_policy: RTCIceTransportPolicy::Relay,
+            ice_transport_policy: RTCIceTransportPolicy::All,
             ..Default::default()
         };
 
