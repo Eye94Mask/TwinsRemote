@@ -125,7 +125,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 });
 
 function tokenTimeout() {
-    if (!alert('"トークンの有効期限が切れました\nページの再読み込みをします"')) {
+    if (!alert("トークンの有効期限が切れました\nページの再読み込みをします")) {
         location.reload();
     }
 
