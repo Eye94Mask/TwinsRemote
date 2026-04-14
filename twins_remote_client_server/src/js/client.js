@@ -307,6 +307,9 @@ async function connect() {
                         if ("playoutDelayHint" in event.receiver) {
                             event.receiver.playoutDelayHint = 0.0;
                         }
+                        if ("jitterBufferTarget" in event.receiver) {
+                            event.receiver.jitterBufferTarget = 0;
+                        }
                     } catch (e) {
                         console.warn("video receiver tuning failed", e);
                     }
@@ -387,7 +390,7 @@ async function connect() {
         };
 
         pc.onicecandidateerror = (e) => {
-            console.error("ICE candidate error", e);
+            console.warn("ICE candidate warning", e);
         };
 
         pc.oniceconnectionstatechange = async () => {
@@ -460,9 +463,6 @@ async function connect() {
 
         startStatsMonitor();
         startVideoWatchdog();
-
-        const connectBtn = document.getElementById("connectBtn");
-        connectBtn.disabled = true;
     } catch {}
 }
 
