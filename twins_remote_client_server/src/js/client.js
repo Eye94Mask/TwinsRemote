@@ -266,8 +266,10 @@ function sleep(ms) {
 }
 
 async function connect() {
+    const connectBtn = document.getElementById("connectBtn");
     try {
         cleanupPeerConnection();
+        const status = document.getElementById("status");
         window.clearTimeout(tokenTimeoutMessage);
 
         const config = await fetchWebRtcConfig();
@@ -296,6 +298,9 @@ async function connect() {
                     try {
                         if ("playoutDelayHint" in event.receiver) {
                             event.receiver.playoutDelayHint = 0.0;
+                        }
+                        if ("jitterBufferTarget" in event.receiver) {
+                            event.receiver.jitterBufferTarget = 0;
                         }
                     } catch (e) {
                         console.warn("video receiver tuning failed", e);
@@ -377,13 +382,18 @@ async function connect() {
         };
 
         pc.onicecandidateerror = (e) => {
-            console.error("ICE candidate error", e);
+            console.warn("ICE candidate warning", e);
         };
 
         pc.oniceconnectionstatechange = async () => {
             console.log("iceConnectionState =", pc.iceConnectionState);
 
+            if (pc.iceConnectionState === "checking") {
+                status.innerText = "接続待機中";
+            }
+
             if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+                status.innerText = "接続完了";
                 if (!rtcSummaryIntervalId) {
                     rtcSummaryIntervalId = setInterval(() => {
                         logRtcSummary(pc).catch(console.error);
@@ -391,6 +401,10 @@ async function connect() {
                 }
 
                 await logSelectedCandidatePair(pc);
+            }
+
+            if (pc.iceConnectionState === "disconnected" && status.innerText !== "接続待機中") {
+                status.innerText = "接続終了";
             }
         };
 
@@ -429,10 +443,7 @@ async function connect() {
 
         startStatsMonitor();
         startVideoWatchdog();
-
-        const connectBtn = document.getElementById("connectBtn");
-        connectBtn.disabled = true;
-    } catch {}
+    }
 }
 
 function cleanupPeerConnection() {
