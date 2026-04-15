@@ -34,25 +34,35 @@ use crate::env::IceConfig;
 async fn main() -> Result<()> {
     default_provider().install_default().expect("install rustls crypto provider");
     println!("Starting Remote Play Host");
-    
-    let ice = IceConfig::load();
 
-    let webrtc = WebRtcSender::new(ice.clone()).await?;
-    let webrtc_clone = webrtc.clone();
+    println!("Please input session ID");
 
-    let controller = Arc::new(Mutex::new(Controller::new()?));
-
-    let input_mode = Arc::new(AtomicU32::new(0)); // 0=answer, 1=audio
+    let input_mode = Arc::new(AtomicU32::new(2)); // 0=answer, 1=audio, 2=session_id
 
     let (audio_cmd_tx, audio_cmd_rx) = std::sync::mpsc::channel::<AudioCommand>();
 
     let (answer_tx, answer_rx) = std::sync::mpsc::channel::<String>();
 
+    let (session_id_tx, session_id_rx) = std::sync::mpsc::channel::<String>();
+
     spawn_stdin_router(
         input_mode.clone(),
         answer_tx,
-        audio_cmd_tx.clone()
+        audio_cmd_tx.clone(),
+        session_id_tx
     );
+
+    
+    let session_id = session_id_rx
+        .recv()
+        .map_err(|e| anyhow!("failed to receive session_id from stdin router: {:?}", e))?;
+    
+    let ice = IceConfig::load(&session_id);
+
+    let webrtc = WebRtcSender::new(ice.clone()).await?;
+    let webrtc_clone = webrtc.clone();
+
+    let controller = Arc::new(Mutex::new(Controller::new()?));
     
     // balanced: バランス型(普段用)
     // stable:   安定重視型(重いゲーム)
@@ -391,7 +401,8 @@ enum InputMode {
 fn spawn_stdin_router(
     input_mode: Arc<AtomicU32>,
     answer_tx: std::sync::mpsc::Sender<String>,
-    audio_cmd_tx: std::sync::mpsc::Sender<AudioCommand>
+    audio_cmd_tx: std::sync::mpsc::Sender<AudioCommand>,
+    session_id_tx: std::sync::mpsc::Sender<String>
 ) {
     std::thread::spawn(move || {
         use std::io::{self, BufRead};
@@ -425,6 +436,9 @@ fn spawn_stdin_router(
                     } else {
                         eprintln!("[HOST] commands: pid <number> / audio_stop / system");
                     }
+                }
+                2 => {
+                    let _ = session_id_tx.send(line);
                 }
                 _ => {}
             }

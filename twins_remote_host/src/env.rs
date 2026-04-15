@@ -13,7 +13,7 @@ pub struct IceConfig {
 }
 
 impl IceConfig {
-    pub fn load() -> Self {
+    pub fn load(session_id: &str) -> Self {
         dotenv().ok();
 
         Self {
@@ -23,7 +23,7 @@ impl IceConfig {
             turn_ttl_seconds: env::var("TURN_TTL_SECONDS").ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(600),
             turn_user_id: env::var("TURN_USER_ID").unwrap_or_else(|_| "host".to_string()),
             signal_base_url: env::var("SIGNAL_BASE_URL").expect("SIGNAL_BASE_URL is not set"),
-            session_id: env::var("SESSION_ID").expect("SESSION_ID is not set")
+            session_id: session_id.to_string()
         }
     }
 }
