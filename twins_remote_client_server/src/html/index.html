@@ -10,6 +10,12 @@
 
 <body>
     <h2>Twins Remote Client</h2>
+    <div>
+        <input id="sessionId" placeholder="session id" />
+        <button onclick="copySessionId()">Copy</button>
+    </div>
+    <br>
+
     <div id="status" class="disconnected">未接続</div>
 
     <div class="controls">
@@ -31,15 +37,6 @@
         <h3>Answer</h3>
         <textarea id="answer" placeholder="Copy Answer back to Host" readonly></textarea>
         <button id="copyAnswer">Copy Your Answer</button>
-        <br>
-
-        <h3>Your ICE</h3>
-        <textarea id="ice" placeholder="Copy ICE back to Host" readonly></textarea>
-        <button id="copyICE">Copy Your ICE</button>
-        <br>
-
-        <textarea id="host" placeholder="Paste Host ICE here"></textarea>
-        <button onclick="onHostIce()">ICE</button>
         <br>
     </div>
 
