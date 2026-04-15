@@ -37,6 +37,8 @@ let tokenTimeoutMessage = null;
 
 let connectStatus = null;
 
+const sessionId = crypto.randomUUID;
+
 let candidatePollIntervalId = null;
 let seenRemoteCandidates = new Set();
 
@@ -258,14 +260,14 @@ function candidateKey(c) {
 }
 
 async function postClientCandidate(candidate) {
-    await postJson("/client-candidate", candidate);
+    await postJson(`/client-candidate?sessionId=${encodeURIComponent(sessionId)}`, candidate);
 }
 
 async function pollHostCandidates() {
     if (!pc) return;
 
     try {
-        const json = await fetchJson("/host-candidate");
+        const json = await fetchJson(`/host-candidate?sessionId=${encodeURIComponent(sessionId)}`);
         if (!json || !Array.isArray(json.candidates)) return;
 
         for (const c of json.candidates) {
