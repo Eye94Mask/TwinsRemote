@@ -1,6 +1,7 @@
 use anyhow::Result;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
+use std::fmt::format;
 
 use serde::{Deserialize, Serialize};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
@@ -20,6 +21,9 @@ use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
+use reqwest::Client;
+use tokio::time::{sleep, Duration};
+
 use crate::env::IceConfig;
 
 type HmacSha1 = Hmac<Sha1>;
@@ -28,7 +32,9 @@ type HmacSha1 = Hmac<Sha1>;
 pub struct WebRtcSender {
     pub video_track: Arc<TrackLocalStaticSample>,
     pub audio_track: Arc<TrackLocalStaticSample>,
-    pub peer: Arc<webrtc::peer_connection::RTCPeerConnection>
+    pub peer: Arc<webrtc::peer_connection::RTCPeerConnection>,
+    signal_base_url: String,
+    http: Client
 }
 
 #[derive(Deserialize)]
@@ -103,7 +109,41 @@ impl WebRtcSender {
             ..Default::default()
         };
 
+        let signal_base_url = ice.signal_base_url.clone();
+        let http = Client::new();
+
         let peer = Arc::new(api.new_peer_connection(config).await?);
+
+        let post_url = format!("{}/host-candidate", signal_base_url);
+
+        let http_clone = http.clone();
+        peer.on_ice_candidate(Box::new(move |c| {
+            let post_url = post_url.clone();
+            let http = http_clone.clone();
+
+            Box::pin(async move {
+                if let Some(c) = c {
+                    match c.to_json() {
+                        Ok(json) => {
+                            if let Ok(body) = serde_json::to_string(&json) {
+                                println!("HOST ICE -> {}", body);
+
+                                let _ = http
+                                    .post(&post_url)
+                                    .header("content-type", "application/json")
+                                    .body(body)
+                                    .send()
+                                    .await;
+                            }
+                        }
+
+                        Err(e) => {
+                            eprintln!("ICE to_json error: {:?}", e);
+                        }
+                    }
+                }
+            })
+        }));
 
         let video_track = Arc::new(TrackLocalStaticSample::new(
             RTCRtpCodecCapability {
@@ -147,7 +187,9 @@ impl WebRtcSender {
         Ok(Self {
             video_track,
             audio_track,
-            peer
+            peer,
+            signal_base_url,
+            http
         })
     }
 
@@ -175,6 +217,46 @@ impl WebRtcSender {
             eprintln!("REMOTE SDP:\n{}", remote.sdp);
         }
         Ok(())
+    }
+
+    pub async fn start_client_candidate_polling(&self) {
+        let url = format!("{}/client-candidate", self.signal_base_url);
+
+        let peer = self.peer.clone();
+        let http = self.http.clone();
+
+        tokio::spawn(async move {
+            loop {
+                match http.get(&url).send().await {
+                    Ok(resp) => {
+                        if resp.status().is_success() {
+                            if let Ok(json) = resp.json::<serde_json::Value>().await {
+                                if let Some(arr) = json.get("candidates").and_then(|v| v.as_array()) {
+                                    for item in arr {
+                                        let s = item.to_string();
+
+                                        if s.trim().is_empty() { continue; }
+
+                                        if let Err(e) = peer
+                                            .add_ice_candidate(serde_json::from_str(&s).unwrap())
+                                            .await {
+                                                eprintln!("addIceCandidate error: {:?}", e);
+                                            } else {
+                                                println!("CLIENT ICE <- {}", s);
+                                            }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("poll error: {:?}", e);
+                    }
+                }
+
+                sleep(Duration::from_millis(300)).await;
+            }
+        });
     }
 
     pub async fn get_host_ice_candidate(&self) -> Result<()> {

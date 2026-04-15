@@ -6,27 +6,22 @@ mod consts;
 mod env;
 
 use anyhow::{anyhow, Result};
-use serde::Serialize;
-use std::sync::{Arc, Mutex, atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering}};
-use std::process::{Command, Stdio, ChildStdout, Child};
 use std::io::{BufRead, Read, Write};
+use std::process::{Child, ChildStdout, Command, Stdio};
+use std::sync::{
+    atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
+    Arc, Mutex,
+};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use tokio::time::{sleep, Duration};
-use tokio::sync::mpsc;
-
 use bytes::Bytes;
-
 use rustls::crypto::ring::default_provider;
+use tokio::sync::mpsc;
+use tokio::time::{sleep, Duration};
 
 use webrtc::data_channel::data_channel_message::DataChannelMessage;
-use webrtc::data_channel::RTCDataChannel;
-use webrtc::data_channel::data_channel_init::RTCDataChannelInit;
-use webrtc::media::Sample;
-use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::ice_transport::ice_connection_state::RTCIceConnectionState;
-
-use windows::Win32::System::Com::{CoInitializeEx, COINIT_MULTITHREADED};
+use webrtc::media::Sample;
 
 use crate::dxgi_capture::DxgiCapture;
 use crate::webrtc_sender::WebRtcSender;
@@ -47,17 +42,15 @@ async fn main() -> Result<()> {
 
     let controller = Arc::new(Mutex::new(Controller::new()?));
 
-    let input_mode = Arc::new(AtomicU32::new(0)); // 0=answer, 1=ice, 2=audio
+    let input_mode = Arc::new(AtomicU32::new(0)); // 0=answer, 1=audio
 
     let (audio_cmd_tx, audio_cmd_rx) = std::sync::mpsc::channel::<AudioCommand>();
 
     let (answer_tx, answer_rx) = std::sync::mpsc::channel::<String>();
-    let (ice_tx, ice_rx) = std::sync::mpsc::channel::<String>();
 
     spawn_stdin_router(
         input_mode.clone(),
         answer_tx,
-        ice_tx,
         audio_cmd_tx.clone()
     );
     
@@ -102,8 +95,8 @@ async fn main() -> Result<()> {
     // ---------------
     let audio_track = webrtc.audio_track.clone();
 
-    let (tx, mut rx) = tokio::sync::mpsc::channel::<Sample>(3);
-    let tx_clone = tx.clone();
+    let (tx_audio, mut rx_audio) = tokio::sync::mpsc::channel::<Sample>(3);
+    let tx_audio_clone = tx_audio.clone();
 
     std::thread::spawn(move || {
         let mut helper: Option<AudioHelper> = None;
@@ -160,7 +153,7 @@ async fn main() -> Result<()> {
                         ..Default::default()
                     };
 
-                    if tx_clone.blocking_send(sample).is_err() {
+                    if tx_audio_clone.blocking_send(sample).is_err() {
                         return;
                     }
                 }
@@ -180,14 +173,12 @@ async fn main() -> Result<()> {
 
     let audio_track_clone = audio_track.clone();
     tokio::spawn(async move {
-        while let Some(sample) = rx.recv().await {
+        while let Some(sample) = rx_audio.recv().await {
             if audio_track_clone.write_sample(&sample).await.is_err() {
                 // drop frame
             }
         }
     });
-    let audio_input_started = Arc::new(AtomicBool::new(false));
-    let audio_input_started_for_ice = audio_input_started.clone();
 
     // -------------------------------
     // DataChannel
@@ -334,19 +325,16 @@ async fn main() -> Result<()> {
         }
     });
 
-    let audio_input_started = Arc::new(AtomicBool::new(false));
-    let audio_input_started_for_ice = audio_input_started.clone();
-
     let ice_connected = Arc::new(AtomicBool::new(false));
     let ice_connected_for_cb = ice_connected.clone();
-
     let input_mode_for_ice = input_mode.clone();
+
     webrtc.peer.on_ice_connection_state_change(Box::new(move |s| {
         println!("ICE: {:?}", s);
 
-        if s == RTCIceConnectionState::Connected {
+        if s == RTCIceConnectionState::Connected || s == RTCIceConnectionState::Completed {
             ice_connected_for_cb.store(true, Ordering::Release);
-            input_mode_for_ice.store(2, Ordering::Release);
+            input_mode_for_ice.store(1, Ordering::Release);
 
             eprintln!("[HOST] audio command input enabled");
             eprintln!("[HOST] commands: pid <number> / audio_stop / system");
@@ -355,34 +343,29 @@ async fn main() -> Result<()> {
         Box::pin(async {})
     }));
 
-    webrtc.get_host_ice_candidate().await?;
     webrtc.generate_offer().await?;
 
     println!("waiting for answer...");
     input_mode.store(0, Ordering::Release);
 
-    let answer_line = answer_rx.recv()
+    let answer_line = answer_rx
+        .recv()
         .map_err(|e| anyhow!("failed to receive answer from stdin router: {:?}", e))?;
-
-    if answer_line.trim().is_empty() {
-        return Err(anyhow!("answer was empty"));
-    }
+    
+    if answer_line.trim().is_empty() { return Err(anyhow!("answer was empty")); }
 
     webrtc.set_answer_from_json(answer_line.trim()).await?;
+    webrtc.start_client_candidate_polling().await;
 
-    input_mode.store(1, Ordering::Release);
     while !ice_connected.load(Ordering::Acquire) {
-        let line = ice_rx.recv()
-            .map_err(|e| anyhow!("failed to receive ICE candidate from stdin router: {:?}", e))?;
-
-        if line.trim().is_empty() {
-            continue;
-        }
-
-        webrtc.add_client_candidate_from_json(line.trim()).await?;
+        sleep(Duration::from_millis(100)).await;
     }
 
-    println!("ICE finished, switching stdin to audio commands");
+    println!("ICE finished, switching stdin to audio command");
+
+    loop {
+        sleep(Duration::from_secs(3600)).await;
+    }
 
     Ok(())
 }
@@ -408,7 +391,6 @@ enum InputMode {
 fn spawn_stdin_router(
     input_mode: Arc<AtomicU32>,
     answer_tx: std::sync::mpsc::Sender<String>,
-    ice_tx: std::sync::mpsc::Sender<String>,
     audio_cmd_tx: std::sync::mpsc::Sender<AudioCommand>
 ) {
     std::thread::spawn(move || {
@@ -424,9 +406,6 @@ fn spawn_stdin_router(
                     let _ = answer_tx.send(line);
                 }
                 1 => {
-                    let _ = ice_tx.send(line);
-                }
-                2 => {
                     if let Some(rest) = line.strip_prefix("pid ") {
                         match rest.trim().parse::<u32>() {
                             Ok(pid) => {
@@ -444,10 +423,10 @@ fn spawn_stdin_router(
                         let _ = audio_cmd_tx.send(AudioCommand::UseSystemMix);
                         eprintln!("[HOST] requested audio switch to system mix");
                     } else {
-                        eprintln!("[HOST] commands: pid <number> / audio_stop")
+                        eprintln!("[HOST] commands: pid <number> / audio_stop / system");
                     }
                 }
-                3_u32..=u32::MAX => {}
+                _ => {}
             }
         }
     });
@@ -480,7 +459,7 @@ fn spawn_system_mix_helper() -> Result<AudioHelper> {
         .stdout
         .take()
         .ok_or_else(|| anyhow!("failed to take helper stdout"))?;
-    
+
     Ok(AudioHelper { child, stdout })
 }
 

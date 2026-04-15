@@ -37,6 +37,9 @@ let tokenTimeoutMessage = null;
 
 let connectStatus = null;
 
+let candidatePollIntervalId = null;
+let seenRemoteCandidates = new Set();
+
 const VIDEO_STALL_MS = 700;
 const RENDER_IDLE_WAIT_MS = 8;
 
@@ -214,6 +217,82 @@ function sendForceKeyframe(reason) {
     }
 }
 
+async function postJson(url, body) {
+    const res = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+        throw new Error(`POST ${url} failed: ${res.status}`);
+    }
+}
+
+async function fetchJson(url, body) {
+    const res = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Accept": "application/json"
+        }
+    });
+
+    if (res.status === 204) { return null; }
+
+    if (!res.ok) {
+        throw new Error(`GET ${url} failed: ${res.status}`);
+    }
+
+    return await res.json();
+}
+
+function candidateKey(c) {
+    return JSON.stringify({
+        candidate: c.candidate ?? "",
+        sdpMid: c.sdpMid ?? null,
+        sdpMLineIndex: c.sdpMLineIndex ?? null,
+        usernameFragment: c.usernameFragment ?? null
+    });
+}
+
+async function postClientCandidate(candidate) {
+    await postJson("/client-candidate", candidate);
+}
+
+async function pollHostCandidates() {
+    if (!pc) return;
+
+    try {
+        const json = await fetchJson("/host-candidate");
+        if (!json || !Array.isArray(json.candidates)) return;
+
+        for (const c of json.candidates) {
+            if (!c || !c.candidate) continue;
+
+            const key = candidateKey(c);
+            if (seenRemoteCandidates.has(key)) continue;
+            seenRemoteCandidates.add(key);
+
+            await pc.addIceCandidate(new RTCIceCandidate(c));
+            console.log("Host ICE candidate added:", c);
+        }
+    } catch (e) {
+        console.warn("pollHostCandidates failed", e);
+    }
+}
+
+function startHostCandidatePolling() {
+    if (candidatePollIntervalId) {
+        clearInterval(candidatePollIntervalId);
+    }
+
+    candidatePollIntervalId = setInterval(() => {
+        pollHostCandidates();
+    }, 300);
+}
+
 async function fetchWebRtcConfig() {
     const token = window.__WEBRTC_CONFIG_TOKEN__;
     if (!token) {
@@ -379,13 +458,19 @@ async function connect() {
             };
         };
 
-        pc.onicecandidate = (e) => {
+        pc.onicecandidate = async (e) => {
             console.log("local candidate:", e.candidate);
-            const ice = document.getElementById("ice");
-            if (e.candidate && ice) {
-                ice.value = JSON.stringify(e.candidate);
-                console.log("CLIENT ICE CANDIDATE:");
-                console.log(JSON.stringify(e.candidate));
+            
+            if (!e.candidate) {
+                console.log("local ICE gathering finished");
+                return;
+            }
+
+            try {
+                await postClientCandidate(e.candidate.toJSON());
+                console.log("client candidate posted");
+            } catch (err) {
+                console.warn("failed to post client candidate", err)
             }
         };
 
@@ -456,6 +541,9 @@ async function connect() {
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
 
+        seenRemoteCandidates.clear();
+        startHostCandidatePolling();
+
         const answerEl = document.getElementById("answer");
         if (answerEl) {
             answerEl.value = JSON.stringify(pc.localDescription);
@@ -486,6 +574,13 @@ function cleanupPeerConnection() {
         videoStatsMonitorAbort.aborted = true;
         videoStatsMonitorAbort = null;
     }
+
+    if (candidatePollIntervalId) {
+        clearInterval(candidatePollIntervalId);
+        candidatePollIntervalId = null;
+    }
+
+    seenRemoteCandidates.clear();
 
     stopVideoTrackProcessor();
 
@@ -527,24 +622,6 @@ function cleanupPeerConnection() {
     forceKeyframeCooldownUntil = 0;
 
     clearCanvas();
-}
-
-async function onHostIce() {
-    await addHostCandidate();
-}
-
-async function addHostCandidate() {
-    const json = document.getElementById("host")?.value;
-    if (!json) return;
-    if (!pc) {
-        console.warn("pc is not ready");
-        return;
-    }
-
-    const candidate = new RTCIceCandidate(JSON.parse(json));
-    await pc.addIceCandidate(candidate);
-
-    console.log("Host ICE candidate added");
 }
 
 function onEnableAudio() {
