@@ -222,46 +222,61 @@ impl WebRtcSender {
         })
     }
 
-    pub async fn generate_offer(&self) -> Result<()> {
-        let offer = self.peer.create_offer(None).await?;
-        self.peer.set_local_description(offer).await?;
-
-        println!("=== OFFER ===");
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&self.peer.local_description().await.unwrap())?
+    pub async fn fetch_offer(&self) -> Result<Option<String>> {
+        let url = with_session_id(
+            &self.signal_base_url,
+            "/offer",
+            &self.session_id
         );
 
+        let resp = self.http.get(&url).send().await?;
+
+        if resp.status() == 204 {
+            return Ok(None);
+        }
+
+        if !resp.status().is_success() {
+            return Err(anyhow::anyhow!("fetch_offer failed: {}", resp.status()));
+        }
+
+        let text = resp.text().await?;
+        Ok(Some(text))
+    }
+
+    pub async fn set_remote_offer(&self, json:&str) -> Result<()> {
+        let offer: RTCSessionDescription = serde_json::from_str(json)?;
+        self.peer.set_remote_description(offer).await?;
         Ok(())
     }
 
-    pub async fn set_answer_from_json(&self, input: &str) -> Result<()> {
-        let answer: RTCSessionDescription = serde_json::from_str(input)?;
-        self.peer.set_remote_description(answer).await?;
+    pub async fn create_and_set_local_answer(&self) -> Result<String> {
+        let answer = self.peer.create_answer(None).await?;
+        self.peer.set_local_description(answer.clone()).await?;
 
-        if let Some(local) = self.peer.local_description().await {
-            eprintln!("LOCAL SDP:\n{}", local.sdp);
-        }
-        if let Some(remote) = self.peer.remote_description().await {
-            eprintln!("REMOTE SDP:\n{}", remote.sdp);
-        }
-        Ok(())
+        let json = serde_json::to_string(&answer)?;
+        Ok(json)
     }
 
-    pub async fn add_client_candidate_from_json(&self, input: &str) -> Result<()> {
-        if input.trim().is_empty() {
-            return Ok(());
+    pub async fn post_answer(&self, answer_json: &str) -> Result<()> {
+        let url = with_session_id(
+            &self.signal_base_url,
+            "/answer",
+            &self.session_id
+        );
+
+        let v: serde_json::Value = serde_json::from_str(answer_json)?;
+
+        let resp = self.http
+            .post(&url)
+            .header("content-type", "application/json")
+            .json(&v)
+            .send()
+            .await?;
+        
+        if !resp.status().is_success() {
+            return Err(anyhow::anyhow!("post_answer failed: {}", resp.status()));
         }
 
-        let candidate: RTCIceCandidateInit = serde_json::from_str(input)?;
-
-        if candidate.candidate.is_empty() {
-            println!("ICE gathering finished");
-            return Ok(());
-        }
-
-        self.peer.add_ice_candidate(candidate).await?;
-        println!("Client ICE candidate added.");
         Ok(())
     }
 
@@ -316,18 +331,5 @@ impl WebRtcSender {
                 sleep(Duration::from_millis(300)).await;
             }
         });
-    }
-
-    pub async fn handle_offer(&self, offer: Offer) -> Result<Answer> {
-        let offer = RTCSessionDescription::offer(offer.sdp)?;
-        self.peer.set_remote_description(offer).await?;
-
-        let answer = self.peer.create_answer(None).await?;
-        self.peer.set_local_description(answer.clone()).await?;
-
-        Ok(Answer {
-            sdp: answer.sdp,
-            r#type: "answer".to_string(),
-        })
     }
 }
