@@ -466,7 +466,7 @@ async function connect() {
                         event.receiver.playoutDelayHint = 0.0;
                     }
                     if ("jitterBufferTarget" in event.receiver) {
-                        event.receiver.jitterBufferTarget = 0;
+                        event.receiver.jitterBufferTarget = 0.02;
                     }
                 } catch (e) {
                     console.warn("video receiver tuning failed", e);
