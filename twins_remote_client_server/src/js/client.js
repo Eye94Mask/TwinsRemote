@@ -40,10 +40,10 @@ let tokenTimeoutMessage = null;
 let connectStatus = null;
 let seenRemoteCandidates = new Set();
 
+let sessionId = null;
+
 const VIDEO_STALL_MS = 700;
 const RENDER_IDLE_WAIT_MS = 8;
-
-let sessionId = null;
 
 window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
@@ -105,27 +105,19 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (sessionIdEl && !sessionIdEl.value) {
         sessionIdEl.value = generateSessionId();
     }
+
+    try {
+        await connect();
+    } catch (e) {
+        console.error("initial connect failed", e);
+    }
 });
 
 function tokenTimeout() {
     if (!alert("トークンの有効期限が切れました\nページの再読み込みをします")) {
         location.reload();
     }
-
     window.clearTimeout(tokenTimeoutMessage);
-}
-
-async function copySessionId() {
-    const sessionId = document.getElementById("sessionId");
-
-    if (sessionId) {
-        try {
-            await navigator.clipboard.writeText(sessionId.value);
-            console.log("Session ID copied");
-        } catch (e) {
-            console.warn("failed to copy sessionId", e);
-        }
-    }
 }
 
 function setupCanvas() {
@@ -176,6 +168,7 @@ function log(...args) {
     console.log(...args);
     const el = document.getElementById("log");
     if (!el) return;
+
     el.textContent += args.map(v => {
         if (typeof v === "string") return v;
         try {
@@ -218,6 +211,18 @@ function buildSessionUrl(path) {
     }
     return `${path}?sessionId=${encodeURIComponent(sessionId)}`;
 }
+
+async function copySessionId() {
+    try {
+        const text = document.getElementById("sessionId")?.value || sessionId || "";
+        await navigator.clipboard.writeText(text);
+        console.log("Session ID copied");
+    } catch (e) {
+        console.warn("failed to copy sessionId", e);
+    }
+}
+
+window.copySessionId = copySessionId;
 
 function sendForceKeyframe(reason) {
     const now = performance.now();
@@ -427,215 +432,208 @@ function connectStatusReset() {
 }
 
 async function connect() {
-    try {
-        cleanupPeerConnection();
-        window.clearTimeout(tokenTimeoutMessage);
+    cleanupPeerConnection();
+    window.clearTimeout(tokenTimeoutMessage);
 
-        sessionId = getOrCreateSessionId();
-        const config = await fetchWebRtcConfig();
-        log("ICE CONFIG:", config);
-        log("SESSION ID:", sessionId);
+    sessionId = getOrCreateSessionId();
+    log("SESSION ID:", sessionId);
 
-        pc = new RTCPeerConnection({
-            iceServers: config.iceServers,
-            iceTransportPolicy: "all",
-            bundlePolicy: "max-bundle",
-            rtcpMuxPolicy: "require",
-        });
+    const config = await fetchWebRtcConfig();
+    log("ICE CONFIG:", config);
 
-        if (audioEl) {
-            audioEl.srcObject = remoteAudioStream;
-            audioEl.muted = true;
-            audioEl.volume = 1.0;
-        }
+    pc = new RTCPeerConnection({
+        iceServers: config.iceServers,
+        iceTransportPolicy: "all",
+        bundlePolicy: "max-bundle",
+        rtcpMuxPolicy: "require",
+    });
 
-        pc.ontrack = async (event) => {
-            console.log("ontrack", event.track.kind, event.streams);
-
-            if (event.track.kind === "video") {
-                console.log("[VIDEO] track received:", event.track.id);
-
-                if (event.receiver) {
-                    try {
-                        if ("playoutDelayHint" in event.receiver) {
-                            event.receiver.playoutDelayHint = 0.0;
-                        }
-                        if ("jitterBufferTarget" in event.receiver) {
-                            event.receiver.jitterBufferTarget = 0;
-                        }
-                    } catch (e) {
-                        console.warn("video receiver tuning failed", e);
-                    }
-
-                    if (videoStatsMonitorAbort) {
-                        videoStatsMonitorAbort.aborted = true;
-                    }
-
-                    videoStatsMonitorAbort = { aborted: false };
-                    monitorVideoStats(event.receiver, videoStatsMonitorAbort);
-                }
-
-                await startVideoTrackProcessor(event.track);
-
-                setTimeout(() => {
-                    sendForceKeyframe("initial_start");
-                }, 300);
-
-                return;
-            }
-
-            if (event.track.kind === "audio") {
-                if (!remoteAudioStream.getTracks().some(t => t.id === event.track.id)) {
-                    remoteAudioStream.addTrack(event.track);
-                }
-
-                if (event.receiver) {
-                    try {
-                        if ("playoutDelayHint" in event.receiver) {
-                            event.receiver.playoutDelayHint = 0.0;
-                        }
-                    } catch (e) {
-                        console.warn("audio receiver tuning failed", e);
-                    }
-                }
-
-                if (audioEl) {
-                    audioEl.srcObject = remoteAudioStream;
-                    await audioEl.play().catch((e) => {
-                        console.warn("audio.play rejected", e);
-                    });
-                }
-            }
-        };
-
-        pc.ondatachannel = (e) => {
-            dc = e.channel;
-            inputDc = dc;
-
-            console.log("DataChannel received:", dc.label);
-
-            dc.onopen = () => {
-                console.log("DataChannel open");
-                startGamepadLoop();
-            };
-
-            dc.onclose = () => {
-                console.log("DataChannel closed");
-            };
-
-            dc.onerror = (err) => {
-                console.error("DataChannel error", err);
-            };
-
-            dc.onmessage = (ev) => {
-                console.log("DataChannel message:", ev.data);
-            };
-        };
-
-        pc.onicecandidate = async (e) => {
-            console.log("local candidate:", e.candidate);
-
-            if (!e.candidate) {
-                console.log("local ICE gathering finished");
-                return;
-            }
-
-            try {
-                await postClientCandidate(e.candidate.toJSON());
-                console.log("client candidate posted");
-            } catch (err) {
-                console.warn("failed to post client candidate", err);
-            }
-        };
-
-        pc.onicecandidateerror = (e) => {
-            console.warn("ICE candidate warning", e);
-        };
-
-        pc.oniceconnectionstatechange = async () => {
-            console.log("iceConnectionState =", pc.iceConnectionState);
-
-            if (pc.iceConnectionState === "checking") {
-                if (connectStatus) {
-                    connectStatus.innerText = "接続待機中";
-                    connectStatusReset();
-                    connectStatus.classList.add("connecting");
-                }
-            }
-
-            if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
-                if (connectStatus) {
-                    connectStatus.innerText = "接続完了";
-                    connectStatusReset();
-                    connectStatus.classList.add("connected");
-                }
-
-                if (!rtcSummaryIntervalId) {
-                    rtcSummaryIntervalId = setInterval(() => {
-                        logRtcSummary(pc).catch(console.error);
-                    }, 5000);
-                }
-
-                await logSelectedCandidatePair(pc);
-            }
-
-            if (pc.iceConnectionState === "disconnected") {
-                if (connectStatus) {
-                    connectStatus.innerText = "接続終了";
-                    connectStatusReset();
-                    connectStatus.classList.add("disconnected");
-                }
-            }
-
-            if (pc.iceConnectionState === "failed") {
-                if (connectStatus) {
-                    connectStatus.innerText = "接続エラー";
-                    connectStatusReset();
-                    connectStatus.classList.add("failed");
-                }
-            }
-        };
-
-        pc.onconnectionstatechange = () => {
-            console.log("connectionState =", pc.connectionState);
-        };
-
-        pc.onicegatheringstatechange = () => {
-            console.log("iceGatheringState =", pc.iceGatheringState);
-        };
-
-        pc.onsignalingstatechange = () => {
-            console.log("signalingState =", pc.signalingState);
-        };
-
-        pc.createDataChannel("input", {
-            ordered: false,
-            maxRetransmits: 0
-        });
-
-        const offerText = document.getElementById("offer")?.value;
-        if (!offerText) {
-            throw new Error("offer is empty");
-        }
-
-        const offer = JSON.parse(offerText);
-        await pc.setRemoteDescription(offer);
-
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-
-        await resetSession();
-        await postOffer(offer)
-
-        seenRemoteCandidates.clear();
-        startHostCandidatePolling();
-        startAnswerPolling();
-
-        startStatsMonitor();
-        startVideoWatchdog();
-    } catch (e) {
-        console.error("connect failed", e);
+    if (audioEl) {
+        audioEl.srcObject = remoteAudioStream;
+        audioEl.muted = true;
+        audioEl.volume = 1.0;
     }
+
+    pc.ontrack = async (event) => {
+        console.log("ontrack", event.track.kind, event.streams);
+
+        if (event.track.kind === "video") {
+            console.log("[VIDEO] track received:", event.track.id);
+
+            if (event.receiver) {
+                try {
+                    if ("playoutDelayHint" in event.receiver) {
+                        event.receiver.playoutDelayHint = 0.0;
+                    }
+                    if ("jitterBufferTarget" in event.receiver) {
+                        event.receiver.jitterBufferTarget = 0;
+                    }
+                } catch (e) {
+                    console.warn("video receiver tuning failed", e);
+                }
+
+                if (videoStatsMonitorAbort) {
+                    videoStatsMonitorAbort.aborted = true;
+                }
+
+                videoStatsMonitorAbort = { aborted: false };
+                monitorVideoStats(event.receiver, videoStatsMonitorAbort);
+            }
+
+            await startVideoTrackProcessor(event.track);
+
+            setTimeout(() => {
+                sendForceKeyframe("initial_start");
+            }, 300);
+
+            return;
+        }
+
+        if (event.track.kind === "audio") {
+            if (!remoteAudioStream.getTracks().some(t => t.id === event.track.id)) {
+                remoteAudioStream.addTrack(event.track);
+            }
+
+            if (event.receiver) {
+                try {
+                    if ("playoutDelayHint" in event.receiver) {
+                        event.receiver.playoutDelayHint = 0.0;
+                    }
+                } catch (e) {
+                    console.warn("audio receiver tuning failed", e);
+                }
+            }
+
+            if (audioEl) {
+                audioEl.srcObject = remoteAudioStream;
+                await audioEl.play().catch((e) => {
+                    console.warn("audio.play rejected", e);
+                });
+            }
+        }
+    };
+
+    pc.ondatachannel = (e) => {
+        dc = e.channel;
+        inputDc = dc;
+
+        console.log("DataChannel received:", dc.label);
+
+        dc.onopen = () => {
+            console.log("DataChannel open");
+            startGamepadLoop();
+        };
+
+        dc.onclose = () => {
+            console.log("DataChannel closed");
+        };
+
+        dc.onerror = (err) => {
+            console.error("DataChannel error", err);
+        };
+
+        dc.onmessage = (ev) => {
+            console.log("DataChannel message:", ev.data);
+        };
+    };
+
+    pc.onicecandidate = async (e) => {
+        console.log("local candidate:", e.candidate);
+
+        if (!e.candidate) {
+            console.log("local ICE gathering finished");
+            return;
+        }
+
+        try {
+            await postClientCandidate(e.candidate.toJSON());
+            console.log("client candidate posted");
+        } catch (err) {
+            console.warn("failed to post client candidate", err);
+        }
+    };
+
+    pc.onicecandidateerror = (e) => {
+        console.warn("ICE candidate warning", e);
+    };
+
+    pc.oniceconnectionstatechange = async () => {
+        console.log("iceConnectionState =", pc.iceConnectionState);
+
+        if (pc.iceConnectionState === "checking") {
+            if (connectStatus) {
+                connectStatus.innerText = "接続待機中";
+                connectStatusReset();
+                connectStatus.classList.add("connecting");
+            }
+        }
+
+        if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+            if (connectStatus) {
+                connectStatus.innerText = "接続完了";
+                connectStatusReset();
+                connectStatus.classList.add("connected");
+            }
+
+            if (!rtcSummaryIntervalId) {
+                rtcSummaryIntervalId = setInterval(() => {
+                    logRtcSummary(pc).catch(console.error);
+                }, 5000);
+            }
+
+            await logSelectedCandidatePair(pc);
+        }
+
+        if (pc.iceConnectionState === "disconnected") {
+            if (connectStatus) {
+                connectStatus.innerText = "接続終了";
+                connectStatusReset();
+                connectStatus.classList.add("disconnected");
+            }
+        }
+
+        if (pc.iceConnectionState === "failed") {
+            if (connectStatus) {
+                connectStatus.innerText = "接続エラー";
+                connectStatusReset();
+                connectStatus.classList.add("failed");
+            }
+        }
+    };
+
+    pc.onconnectionstatechange = () => {
+        console.log("connectionState =", pc.connectionState);
+    };
+
+    pc.onicegatheringstatechange = () => {
+        console.log("iceGatheringState =", pc.iceGatheringState);
+    };
+
+    pc.onsignalingstatechange = () => {
+        console.log("signalingState =", pc.signalingState);
+    };
+
+    pc.createDataChannel("input", {
+        ordered: false,
+        maxRetransmits: 0
+    });
+
+    // 受信用Tranceiver
+    pc.addTransceiver("video", { direction: "recvonly"});
+    pc.addTransceiver("audio", { direction: "recvonly"});
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    await resetSession();
+    await postOffer(pc.localDescription?.toJSON ? pc.localDescription.toJSON() : pc.localDescription);
+
+    seenRemoteCandidates.clear();
+    startHostCandidatePolling();
+    startAnswerPolling();
+
+    startStatsMonitor();
+    startVideoWatchdog();
 }
 
 function cleanupPeerConnection() {

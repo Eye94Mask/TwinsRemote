@@ -37,19 +37,16 @@ async fn main() -> Result<()> {
 
     println!("Please input session ID");
 
-    let input_mode = Arc::new(AtomicU32::new(2)); // 0=answer, 1=audio, 2=session_id
+    let input_mode = Arc::new(AtomicU32::new(0)); // 0=session_id, 1=audio
 
     let (audio_cmd_tx, audio_cmd_rx) = std::sync::mpsc::channel::<AudioCommand>();
-
-    let (answer_tx, answer_rx) = std::sync::mpsc::channel::<String>();
 
     let (session_id_tx, session_id_rx) = std::sync::mpsc::channel::<String>();
 
     spawn_stdin_router(
         input_mode.clone(),
-        answer_tx,
-        audio_cmd_tx.clone(),
-        session_id_tx
+        session_id_tx,
+        audio_cmd_tx.clone()
     );
     
     let session_id = session_id_rx
@@ -239,7 +236,14 @@ async fn main() -> Result<()> {
                     || text.contains("\"type\": \"force_keyframe\"")
                     || text.trim() == "force_keyframe"
                 {
-                    // ...
+                    let now = now_millis();
+                    let prev = last_force_keyframe_at.load(Ordering::Relaxed);
+
+                    if now.saturating_sub(prev) >= 1000 {
+                        last_force_keyframe_at.store(now, Ordering::Relaxed);
+                        let _ = nvenc_cmd_tx.send("force_idr\n".to_string());
+                    }
+
                     return;
                 }
 
@@ -247,8 +251,6 @@ async fn main() -> Result<()> {
             }
         })
     }));
-
-    let audio_track = webrtc.audio_track.clone();
 
     // -------------------------------
     // VIDEO READER THREAD
@@ -319,6 +321,7 @@ async fn main() -> Result<()> {
                 //     "[VIDEO WATCHDOG] STALL DETECTED packet_age={}ms sample_age={}ms",
                 //     packet_age, sample_age
                 // );
+                let _ = nvenc_cmd_tx_wd.send("force_idr\n".to_string());
 
                 if let Err(e) = nvenc_cmd_tx_wd.send("force_idr\n".to_string()) {
                     // eprintln!("[VIDEO WATCHDOG] failed to send_force_idr: {:?}", e);
@@ -351,23 +354,23 @@ async fn main() -> Result<()> {
 
         Box::pin(async {})
     }));
-
    
-    // Poll Offer
+    // Offer / Answer Auto Exchange
+    println!("[HOST] waiting for offer...");
     let offer_json = loop {
         match webrtc.fetch_offer().await {
-            Ok(Some(o)) => break o,
+            Ok(Some(offer)) => break offer,
             Ok(None) => {
                 tokio::time::sleep(Duration::from_millis(500)).await;
             }
             Err(e) => {
-                eprintln!("fetch_offer error: {:?}", e);
+                eprintln!("[HOST] fetch_offer error: {:?}", e);
                 tokio::time::sleep(Duration::from_millis(1000)).await;
             }
         }
     };
 
-    println!("offer received");
+    println!("[HOST] offer received");
 
     // Apply Offer
     webrtc.set_remote_offer(&offer_json).await?;
@@ -376,6 +379,11 @@ async fn main() -> Result<()> {
     let answer = webrtc.create_and_set_local_answer().await?;
 
     // Send Answer
+    webrtc.post_answer(&answer).await?;
+
+    println!("[HOST] answer posted");
+
+    // Start ICE Polling
     webrtc.start_client_candidate_polling().await;
 
     println!("waiting ICE...");
@@ -384,7 +392,7 @@ async fn main() -> Result<()> {
         sleep(Duration::from_millis(100)).await;
     }
 
-    println!("ICE finished, switching stdin to audio command");
+    println!("[HOST] ICE finished, switching stdin to audio command");
 
     loop {
         sleep(Duration::from_secs(3600)).await;
@@ -413,9 +421,8 @@ enum InputMode {
 
 fn spawn_stdin_router(
     input_mode: Arc<AtomicU32>,
-    answer_tx: std::sync::mpsc::Sender<String>,
-    audio_cmd_tx: std::sync::mpsc::Sender<AudioCommand>,
-    session_id_tx: std::sync::mpsc::Sender<String>
+    session_id_tx: std::sync::mpsc::Sender<String>,
+    audio_cmd_tx: std::sync::mpsc::Sender<AudioCommand>
 ) {
     std::thread::spawn(move || {
         use std::io::{self, BufRead};
@@ -427,7 +434,7 @@ fn spawn_stdin_router(
 
             match input_mode.load(Ordering::Acquire) {
                 0 => {
-                    let _ = answer_tx.send(line);
+                    let _ = session_id_tx.send(line);
                 }
                 1 => {
                     if let Some(rest) = line.strip_prefix("pid ") {
@@ -449,9 +456,6 @@ fn spawn_stdin_router(
                     } else {
                         eprintln!("[HOST] commands: pid <number> / audio_stop / system");
                     }
-                }
-                2 => {
-                    let _ = session_id_tx.send(line);
                 }
                 _ => {}
             }
