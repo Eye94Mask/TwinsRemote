@@ -9,7 +9,8 @@ let statsIntervalId = null;
 let rtcSummaryIntervalId = null;
 let videoStatsMonitorAbort = null;
 let videoWatchdogIntervalId = null;
-let candidatePollIntervalId = null;
+let hostCandidatePollIntervalId = null;
+let answerPollIntervalId = null;
 
 let audioEl = null;
 let videoEl = null;
@@ -42,7 +43,6 @@ let seenRemoteCandidates = new Set();
 const VIDEO_STALL_MS = 700;
 const RENDER_IDLE_WAIT_MS = 8;
 
-// Offer/Answer/ICE をまとめるセッションID
 let sessionId = null;
 
 window.addEventListener("gamepadconnected", (e) => {
@@ -101,32 +101,38 @@ window.addEventListener("DOMContentLoaded", async () => {
     audioEl.volume = 1.0;
     document.body.appendChild(audioEl);
 
+    const copyIce = document.getElementById("copyICE");
+    const copyAnswer = document.getElementById("copyAnswer");
+    const answer = document.getElementById("answer");
+
+    if (copyIce) {
+        copyIce.addEventListener("click", async () => {
+            try {
+                const text = document.getElementById("sessionId")?.value || sessionId || "";
+                await navigator.clipboard.writeText(text);
+                console.log("Session ID copied");
+            } catch (e) {
+                console.warn("failed to copy sessionId", e);
+            }
+        });
+    }
+
+    if (copyAnswer && answer) {
+        copyAnswer.addEventListener("click", async () => {
+            try {
+                await navigator.clipboard.writeText(answer.value || "");
+                console.log("Answer copied");
+            } catch (e) {
+                console.warn("failed to copy Answer", e);
+            }
+        });
+    }
+
     const sessionIdEl = document.getElementById("sessionId");
     if (sessionIdEl && !sessionIdEl.value) {
-        sessionIdEl.value = crypto.randomUUID();
+        sessionIdEl.value = generateSessionId();
     }
 });
-
-async function copyAnswer() {
-    const answer = document.getElementById("answer");
-    if (copyAnswer && answer) {
-        try {
-            await navigator.clipboard.writeText(answer.value || "");
-            console.log("Answer copied");
-        } catch (e) {
-            console.warn("failed to copy answer", e);
-        }
-    }
-}
-
-async function copySessionId() {
-    const sessionIdEl = document.getElementById("sessionId");
-    try {
-        await navigator.clipboard.writeText(sessionIdEl.value || "");
-    } catch (e) {
-        console.warn("failed to copy session ID");
-    }
-}
 
 function tokenTimeout() {
     if (!alert("トークンの有効期限が切れました\nページの再読み込みをします")) {
@@ -196,6 +202,37 @@ function log(...args) {
     el.scrollTop = el.scrollHeight;
 }
 
+function generateSessionId() {
+    if (window.crypto?.randomUUID) {
+        return window.crypto.randomUUID();
+    }
+    return Math.random().toString(36).slice(2, 10);
+}
+
+function getOrCreateSessionId() {
+    const el = document.getElementById("sessionId");
+    if (el) {
+        const v = (el.value || "").trim();
+        if (v) return v;
+
+        const newId = generateSessionId();
+        el.value = newId;
+        return newId;
+    }
+
+    if (!sessionId) {
+        sessionId = generateSessionId();
+    }
+    return sessionId;
+}
+
+function buildSessionUrl(path) {
+    if (!sessionId) {
+        throw new Error("sessionId is not set");
+    }
+    return `${path}?sessionId=${encodeURIComponent(sessionId)}`;
+}
+
 function sendForceKeyframe(reason) {
     const now = performance.now();
 
@@ -216,28 +253,6 @@ function sendForceKeyframe(reason) {
     } catch (e) {
         console.warn("[CLIENT] force_keyframe send failed:", e);
     }
-}
-
-function getOrCreateSessionId() {
-    const el = document.getElementById("sessionId");
-    if (el) {
-        const v = (el.value || "").trim();
-        if (v) return v;
-
-        const newId = crypto.randomUUID();
-        el.value = newId;
-        return newId;
-    }
-
-    if (!sessionId) {
-        sessionId = crypto.randomUUID();
-    }
-    return sessionId;
-}
-
-function buildSessionUrl(path) {
-    const sid = encodeURIComponent(sessionId);
-    return `${path}?sessionId=${sid}`;
 }
 
 async function fetchWebRtcConfig() {
@@ -317,6 +332,42 @@ function candidateKey(c) {
     });
 }
 
+async function postOffer(offer) {
+    await postJson(buildSessionUrl("/offer"), offer);
+}
+
+async function pollAnswerOnce() {
+    const json = await fetchJson(buildSessionUrl("/answer"));
+    if (!json) return false;
+    if (!pc) return false;
+    if (pc.remoteDescription) return true;
+
+    await pc.setRemoteDescription(json);
+    console.log("remote answer set");
+    return true;
+}
+
+function startAnswerPolling() {
+    if (answerPollIntervalId) {
+        clearInterval(answerPollIntervalId);
+    }
+
+    answerPollIntervalId = setInterval(async () => {
+        if (!pc) return;
+        if (pc.remoteDescription) return;
+
+        try {
+            const ok = await pollAnswerOnce();
+            if (ok) {
+                clearInterval(answerPollIntervalId);
+                answerPollIntervalId = null;
+            }
+        } catch (e) {
+            console.warn("pollAnswer failed", e);
+        }
+    }, 500);
+}
+
 async function postClientCandidate(candidate) {
     await postJson(buildSessionUrl("/client-candidate"), candidate);
 }
@@ -344,17 +395,13 @@ async function pollHostCandidates() {
 }
 
 function startHostCandidatePolling() {
-    if (candidatePollIntervalId) {
-        clearInterval(candidatePollIntervalId);
+    if (hostCandidatePollIntervalId) {
+        clearInterval(hostCandidatePollIntervalId);
     }
 
-    candidatePollIntervalId = setInterval(() => {
+    hostCandidatePollIntervalId = setInterval(() => {
         pollHostCandidates();
     }, 300);
-}
-
-async function postAnswer(answer) {
-    await postJson(buildSessionUrl("/answer"), answer);
 }
 
 async function resetSession() {
@@ -399,8 +446,6 @@ async function connect() {
         window.clearTimeout(tokenTimeoutMessage);
 
         sessionId = getOrCreateSessionId();
-        await resetSession();
-
         const config = await fetchWebRtcConfig();
         log("ICE CONFIG:", config);
         log("SESSION ID:", sessionId);
@@ -593,19 +638,12 @@ async function connect() {
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
 
+        await resetSession();
+        await postOffer(offer)
+
         seenRemoteCandidates.clear();
         startHostCandidatePolling();
-
-        const localAnswer = pc.localDescription?.toJSON
-            ? pc.localDescription.toJSON()
-            : pc.localDescription;
-
-        await postAnswer(localAnswer);
-
-        const answerEl = document.getElementById("answer");
-        if (answerEl) {
-            answerEl.value = JSON.stringify(pc.localDescription);
-        }
+        startAnswerPolling();
 
         startStatsMonitor();
         startVideoWatchdog();
@@ -630,9 +668,14 @@ function cleanupPeerConnection() {
         videoWatchdogIntervalId = null;
     }
 
-    if (candidatePollIntervalId) {
-        clearInterval(candidatePollIntervalId);
-        candidatePollIntervalId = null;
+    if (hostCandidatePollIntervalId) {
+        clearInterval(hostCandidatePollIntervalId);
+        hostCandidatePollIntervalId = null;
+    }
+
+    if (answerPollIntervalId) {
+        clearInterval(answerPollIntervalId);
+        answerPollIntervalId = null;
     }
 
     if (videoStatsMonitorAbort) {
