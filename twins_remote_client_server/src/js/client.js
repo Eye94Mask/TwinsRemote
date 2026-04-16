@@ -18,7 +18,7 @@ let canvasEl = null;
 let canvasCtx = null;
 
 let forceKeyframeCooldownUntil = 0;
-const FORCE_KEYFRAME_COOLDOWN_MS = 5000;
+const FORCE_KEYFRAME_COOLDOWN_MS = 2000;
 
 // ---- video processor state ----
 let videoProcessor = null;
@@ -42,7 +42,7 @@ let seenRemoteCandidates = new Set();
 
 let sessionId = null;
 
-const VIDEO_STALL_MS = 700;
+const VIDEO_STALL_MS = 300;
 const RENDER_IDLE_WAIT_MS = 8;
 
 window.addEventListener("gamepadconnected", (e) => {
