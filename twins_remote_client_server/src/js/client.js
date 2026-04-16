@@ -101,33 +101,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     audioEl.volume = 1.0;
     document.body.appendChild(audioEl);
 
-    const copyIce = document.getElementById("copyICE");
-    const copyAnswer = document.getElementById("copyAnswer");
-    const answer = document.getElementById("answer");
-
-    if (copyIce) {
-        copyIce.addEventListener("click", async () => {
-            try {
-                const text = document.getElementById("sessionId")?.value || sessionId || "";
-                await navigator.clipboard.writeText(text);
-                console.log("Session ID copied");
-            } catch (e) {
-                console.warn("failed to copy sessionId", e);
-            }
-        });
-    }
-
-    if (copyAnswer && answer) {
-        copyAnswer.addEventListener("click", async () => {
-            try {
-                await navigator.clipboard.writeText(answer.value || "");
-                console.log("Answer copied");
-            } catch (e) {
-                console.warn("failed to copy Answer", e);
-            }
-        });
-    }
-
     const sessionIdEl = document.getElementById("sessionId");
     if (sessionIdEl && !sessionIdEl.value) {
         sessionIdEl.value = generateSessionId();
@@ -140,6 +113,19 @@ function tokenTimeout() {
     }
 
     window.clearTimeout(tokenTimeoutMessage);
+}
+
+async function copySessionId() {
+    const sessionId = document.getElementById("sessionId");
+
+    if (sessionId) {
+        try {
+            await navigator.clipboard.writeText(sessionId.value);
+            console.log("Session ID copied");
+        } catch (e) {
+            console.warn("failed to copy sessionId", e);
+        }
+    }
 }
 
 function setupCanvas() {
