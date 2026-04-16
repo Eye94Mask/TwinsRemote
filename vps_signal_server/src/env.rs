@@ -8,7 +8,8 @@ pub struct AppConfig {
     pub turn_url: String,
     pub turn_shared_secret: String,
     pub turn_ttl_seconds: u64,
-    pub allowed_origin: Option<String>
+    pub allowed_origin: Option<String>,
+    pub session_ttl_seconds: u64
 }
 
 impl AppConfig {
@@ -17,7 +18,7 @@ impl AppConfig {
 
         Self {
             host_bind: env::var("HOST_BIND")
-                .unwrap_or_else(|_| "0.0.0.0:8080".to_string()),
+                .unwrap_or_else(|_| "127.0.0.1:8080".to_string()),
             stun_url: env::var("STUN_URL")
                 .expect("STUN_URL is not set"),
             turn_url: env::var("TURN_URL")
@@ -28,7 +29,11 @@ impl AppConfig {
                 .ok()
                 .and_then(|v| v.parse::<u64>().ok())
                 .unwrap_or(600),
-            allowed_origin: env::var("ALLOWED_ORIGIN").ok()
+            allowed_origin: env::var("ALLOWED_ORIGIN").ok(),
+            session_ttl_seconds: env::var("SESSION_TTL_SECONDS")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(3600)
         }
     }
 }

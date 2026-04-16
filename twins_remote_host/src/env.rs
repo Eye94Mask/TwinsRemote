@@ -8,11 +8,12 @@ pub struct IceConfig {
     pub turn_shared_secret: String,
     pub turn_ttl_seconds: u64,
     pub turn_user_id: String,
-    pub signal_base_url: String
+    pub signal_base_url: String,
+    pub session_id: String
 }
 
 impl IceConfig {
-    pub fn load() -> Self {
+    pub fn load(session_id: &str) -> Self {
         dotenv().ok();
 
         Self {
@@ -21,7 +22,8 @@ impl IceConfig {
             turn_shared_secret: env::var("TURN_SHARED_SECRET").expect("TURN_SHARED_SECRET is not set"),
             turn_ttl_seconds: env::var("TURN_TTL_SECONDS").ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(600),
             turn_user_id: env::var("TURN_USER_ID").unwrap_or_else(|_| "host".to_string()),
-            signal_base_url: env::var("SIGNAL_BASE_URL").expect("SIGNAL_BASE_URL is not set")
+            signal_base_url: env::var("SIGNAL_BASE_URL").expect("SIGNAL_BASE_URL is not set"),
+            session_id: session_id.to_string()
         }
     }
 }

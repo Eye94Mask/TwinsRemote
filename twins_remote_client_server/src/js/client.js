@@ -9,6 +9,7 @@ let statsIntervalId = null;
 let rtcSummaryIntervalId = null;
 let videoStatsMonitorAbort = null;
 let videoWatchdogIntervalId = null;
+let candidatePollIntervalId = null;
 
 let audioEl = null;
 let videoEl = null;
@@ -36,12 +37,13 @@ let ttlSeconds = 600 * 1000;
 let tokenTimeoutMessage = null;
 
 let connectStatus = null;
-
-let candidatePollIntervalId = null;
 let seenRemoteCandidates = new Set();
 
 const VIDEO_STALL_MS = 700;
 const RENDER_IDLE_WAIT_MS = 8;
+
+// Offer/Answer/ICE をまとめるセッションID
+let sessionId = null;
 
 window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
@@ -99,33 +101,32 @@ window.addEventListener("DOMContentLoaded", async () => {
     audioEl.volume = 1.0;
     document.body.appendChild(audioEl);
 
-    const copyIce = document.getElementById("copyICE");
-    const copyAnswer = document.getElementById("copyAnswer");
-    const iceCandidate = document.getElementById("ice");
-    const answer = document.getElementById("answer");
-
-    if (copyIce && iceCandidate) {
-        copyIce.addEventListener("click", async () => {
-            try {
-                await navigator.clipboard.writeText(iceCandidate.value || "");
-                console.log("ICE copied");
-            } catch (e) {
-                console.warn("failed to copy ICE", e);
-            }
-        });
-    }
-
-    if (copyAnswer && answer) {
-        copyAnswer.addEventListener("click", async () => {
-            try {
-                await navigator.clipboard.writeText(answer.value || "");
-                console.log("Answer copied");
-            } catch (e) {
-                console.warn("failed to copy Answer", e);
-            }
-        });
+    const sessionIdEl = document.getElementById("sessionId");
+    if (sessionIdEl && !sessionIdEl.value) {
+        sessionIdEl.value = crypto.randomUUID();
     }
 });
+
+async function copyAnswer() {
+    const answer = document.getElementById("answer");
+    if (copyAnswer && answer) {
+        try {
+            await navigator.clipboard.writeText(answer.value || "");
+            console.log("Answer copied");
+        } catch (e) {
+            console.warn("failed to copy answer", e);
+        }
+    }
+}
+
+async function copySessionId() {
+    const sessionIdEl = document.getElementById("sessionId");
+    try {
+        await navigator.clipboard.writeText(sessionIdEl.value || "");
+    } catch (e) {
+        console.warn("failed to copy session ID");
+    }
+}
 
 function tokenTimeout() {
     if (!alert("トークンの有効期限が切れました\nページの再読み込みをします")) {
@@ -217,80 +218,26 @@ function sendForceKeyframe(reason) {
     }
 }
 
-async function postJson(url, body) {
-    const res = await fetch(url, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(body)
-    });
+function getOrCreateSessionId() {
+    const el = document.getElementById("sessionId");
+    if (el) {
+        const v = (el.value || "").trim();
+        if (v) return v;
 
-    if (!res.ok) {
-        throw new Error(`POST ${url} failed: ${res.status}`);
-    }
-}
-
-async function fetchJson(url, body) {
-    const res = await fetch(url, {
-        method: "GET",
-        headers: {
-            "Accept": "application/json"
-        }
-    });
-
-    if (res.status === 204) { return null; }
-
-    if (!res.ok) {
-        throw new Error(`GET ${url} failed: ${res.status}`);
+        const newId = crypto.randomUUID();
+        el.value = newId;
+        return newId;
     }
 
-    return await res.json();
-}
-
-function candidateKey(c) {
-    return JSON.stringify({
-        candidate: c.candidate ?? "",
-        sdpMid: c.sdpMid ?? null,
-        sdpMLineIndex: c.sdpMLineIndex ?? null,
-        usernameFragment: c.usernameFragment ?? null
-    });
-}
-
-async function postClientCandidate(candidate) {
-    await postJson("/client-candidate", candidate);
-}
-
-async function pollHostCandidates() {
-    if (!pc) return;
-
-    try {
-        const json = await fetchJson("/host-candidate");
-        if (!json || !Array.isArray(json.candidates)) return;
-
-        for (const c of json.candidates) {
-            if (!c || !c.candidate) continue;
-
-            const key = candidateKey(c);
-            if (seenRemoteCandidates.has(key)) continue;
-            seenRemoteCandidates.add(key);
-
-            await pc.addIceCandidate(new RTCIceCandidate(c));
-            console.log("Host ICE candidate added:", c);
-        }
-    } catch (e) {
-        console.warn("pollHostCandidates failed", e);
+    if (!sessionId) {
+        sessionId = crypto.randomUUID();
     }
+    return sessionId;
 }
 
-function startHostCandidatePolling() {
-    if (candidatePollIntervalId) {
-        clearInterval(candidatePollIntervalId);
-    }
-
-    candidatePollIntervalId = setInterval(() => {
-        pollHostCandidates();
-    }, 300);
+function buildSessionUrl(path) {
+    const sid = encodeURIComponent(sessionId);
+    return `${path}?sessionId=${sid}`;
 }
 
 async function fetchWebRtcConfig() {
@@ -318,13 +265,104 @@ async function fetchWebRtcConfig() {
 async function fetchTtlSeconds() {
     const res = await fetch("/ttl-seconds");
 
-    // デフォルトの時間でタイマー開始
     if (!res.ok) {
         return;
     }
 
     const json = await res.json();
     ttlSeconds = json.ttlSeconds * 1000;
+}
+
+async function postJson(url, body) {
+    const res = await fetch(url, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`POST ${url} failed: ${res.status} ${text}`);
+    }
+}
+
+async function fetchJson(url) {
+    const res = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Accept": "application/json"
+        }
+    });
+
+    if (res.status === 204) {
+        return null;
+    }
+
+    if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`GET ${url} failed: ${res.status} ${text}`);
+    }
+
+    return await res.json();
+}
+
+function candidateKey(c) {
+    return JSON.stringify({
+        candidate: c.candidate ?? "",
+        sdpMid: c.sdpMid ?? null,
+        sdpMLineIndex: c.sdpMLineIndex ?? null,
+        usernameFragment: c.usernameFragment ?? null
+    });
+}
+
+async function postClientCandidate(candidate) {
+    await postJson(buildSessionUrl("/client-candidate"), candidate);
+}
+
+async function pollHostCandidates() {
+    if (!pc) return;
+
+    try {
+        const json = await fetchJson(buildSessionUrl("/host-candidate"));
+        if (!json || !Array.isArray(json.candidates)) return;
+
+        for (const c of json.candidates) {
+            if (!c || !c.candidate) continue;
+
+            const key = candidateKey(c);
+            if (seenRemoteCandidates.has(key)) continue;
+            seenRemoteCandidates.add(key);
+
+            await pc.addIceCandidate(new RTCIceCandidate(c));
+            console.log("Host ICE candidate added:", c);
+        }
+    } catch (e) {
+        console.warn("pollHostCandidates failed", e);
+    }
+}
+
+function startHostCandidatePolling() {
+    if (candidatePollIntervalId) {
+        clearInterval(candidatePollIntervalId);
+    }
+
+    candidatePollIntervalId = setInterval(() => {
+        pollHostCandidates();
+    }, 300);
+}
+
+async function postAnswer(answer) {
+    await postJson(buildSessionUrl("/answer"), answer);
+}
+
+async function resetSession() {
+    try {
+        await postJson(buildSessionUrl("/reset"), {});
+    } catch (e) {
+        console.warn("resetSession failed", e);
+    }
 }
 
 //--------------------------------------------------
@@ -349,8 +387,9 @@ function sleep(ms) {
 }
 
 function connectStatusReset() {
+    if (!connectStatus) return;
     connectStatus.classList.forEach((name) => {
-        connectStatus.classList.remove(name)
+        connectStatus.classList.remove(name);
     });
 }
 
@@ -359,8 +398,12 @@ async function connect() {
         cleanupPeerConnection();
         window.clearTimeout(tokenTimeoutMessage);
 
+        sessionId = getOrCreateSessionId();
+        await resetSession();
+
         const config = await fetchWebRtcConfig();
         log("ICE CONFIG:", config);
+        log("SESSION ID:", sessionId);
 
         pc = new RTCPeerConnection({
             iceServers: config.iceServers,
@@ -460,7 +503,7 @@ async function connect() {
 
         pc.onicecandidate = async (e) => {
             console.log("local candidate:", e.candidate);
-            
+
             if (!e.candidate) {
                 console.log("local ICE gathering finished");
                 return;
@@ -470,7 +513,7 @@ async function connect() {
                 await postClientCandidate(e.candidate.toJSON());
                 console.log("client candidate posted");
             } catch (err) {
-                console.warn("failed to post client candidate", err)
+                console.warn("failed to post client candidate", err);
             }
         };
 
@@ -482,15 +525,20 @@ async function connect() {
             console.log("iceConnectionState =", pc.iceConnectionState);
 
             if (pc.iceConnectionState === "checking") {
-                connectStatus.innerText = "接続待機中";
-                connectStatusReset();
-                connectStatus.classList.add("connecting");
+                if (connectStatus) {
+                    connectStatus.innerText = "接続待機中";
+                    connectStatusReset();
+                    connectStatus.classList.add("connecting");
+                }
             }
 
             if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
-                connectStatus.innerText = "接続完了";
-                connectStatusReset();
-                connectStatus.classList.add("connected");
+                if (connectStatus) {
+                    connectStatus.innerText = "接続完了";
+                    connectStatusReset();
+                    connectStatus.classList.add("connected");
+                }
+
                 if (!rtcSummaryIntervalId) {
                     rtcSummaryIntervalId = setInterval(() => {
                         logRtcSummary(pc).catch(console.error);
@@ -500,16 +548,20 @@ async function connect() {
                 await logSelectedCandidatePair(pc);
             }
 
-            if (pc.iceConnectionState === "disconnected" && connectStatus.innerText !== "接続待機中") {
-                connectStatus.innerText = "接続終了";
-                connectStatusReset();
-                connectStatus.classList.add("disconnected");
+            if (pc.iceConnectionState === "disconnected") {
+                if (connectStatus) {
+                    connectStatus.innerText = "接続終了";
+                    connectStatusReset();
+                    connectStatus.classList.add("disconnected");
+                }
             }
 
-            if (pc.iceConnectionState === "failed" && connectStatus.innerText !== "接続待機中") {
-                connectStatus.innerText = "接続エラー";
-                connectStatusReset();
-                connectStatus.classList.add("failed")
+            if (pc.iceConnectionState === "failed") {
+                if (connectStatus) {
+                    connectStatus.innerText = "接続エラー";
+                    connectStatusReset();
+                    connectStatus.classList.add("failed");
+                }
             }
         };
 
@@ -544,6 +596,12 @@ async function connect() {
         seenRemoteCandidates.clear();
         startHostCandidatePolling();
 
+        const localAnswer = pc.localDescription?.toJSON
+            ? pc.localDescription.toJSON()
+            : pc.localDescription;
+
+        await postAnswer(localAnswer);
+
         const answerEl = document.getElementById("answer");
         if (answerEl) {
             answerEl.value = JSON.stringify(pc.localDescription);
@@ -551,7 +609,9 @@ async function connect() {
 
         startStatsMonitor();
         startVideoWatchdog();
-    } catch {}
+    } catch (e) {
+        console.error("connect failed", e);
+    }
 }
 
 function cleanupPeerConnection() {
@@ -570,14 +630,14 @@ function cleanupPeerConnection() {
         videoWatchdogIntervalId = null;
     }
 
-    if (videoStatsMonitorAbort) {
-        videoStatsMonitorAbort.aborted = true;
-        videoStatsMonitorAbort = null;
-    }
-
     if (candidatePollIntervalId) {
         clearInterval(candidatePollIntervalId);
         candidatePollIntervalId = null;
+    }
+
+    if (videoStatsMonitorAbort) {
+        videoStatsMonitorAbort.aborted = true;
+        videoStatsMonitorAbort = null;
     }
 
     seenRemoteCandidates.clear();
