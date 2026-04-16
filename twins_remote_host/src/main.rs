@@ -51,7 +51,6 @@ async fn main() -> Result<()> {
         audio_cmd_tx.clone(),
         session_id_tx
     );
-
     
     let session_id = session_id_rx
         .recv()
@@ -353,19 +352,33 @@ async fn main() -> Result<()> {
         Box::pin(async {})
     }));
 
-    webrtc.generate_offer().await?;
+   
+    // Poll Offer
+    let offer_json = loop {
+        match webrtc.fetch_offer().await {
+            Ok(Some(o)) => break o,
+            Ok(None) => {
+                tokio::time::sleep(Duration::from_millis(500)).await;
+            }
+            Err(e) => {
+                eprintln!("fetch_offer error: {:?}", e);
+                tokio::time::sleep(Duration::from_millis(1000)).await;
+            }
+        }
+    };
 
-    println!("waiting for answer...");
-    input_mode.store(0, Ordering::Release);
+    println!("offer received");
 
-    let answer_line = answer_rx
-        .recv()
-        .map_err(|e| anyhow!("failed to receive answer from stdin router: {:?}", e))?;
-    
-    if answer_line.trim().is_empty() { return Err(anyhow!("answer was empty")); }
+    // Apply Offer
+    webrtc.set_remote_offer(&offer_json).await?;
 
-    webrtc.set_answer_from_json(answer_line.trim()).await?;
+    // Generate Answer
+    let answer = webrtc.create_and_set_local_answer().await?;
+
+    // Send Answer
     webrtc.start_client_candidate_polling().await;
+
+    println!("waiting ICE...");
 
     while !ice_connected.load(Ordering::Acquire) {
         sleep(Duration::from_millis(100)).await;
