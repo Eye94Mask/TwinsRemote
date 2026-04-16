@@ -65,6 +65,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
     videoEl = document.getElementById("video");
     const fullscreenBtn = document.getElementById("fullscreenBtn");
+    const audioBtnOuter = document.getElementsByClassName("audioBtnOuter")[0];
     const audioBtn = document.getElementById("audioBtn");
 
     if (videoEl) {
@@ -86,9 +87,11 @@ window.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    if (audioBtn) {
-        audioBtn.addEventListener("click", () => {
-            onEnableAudio();
+    if (audioBtnOuter) {
+        audioBtnOuter.addEventListener("click", () => {
+            audioBtnOuter.classList.toggle("active");
+            audioBtn.classList.toggle("active");
+            onToggleAudio();
         });
     }
 
@@ -711,17 +714,23 @@ function cleanupPeerConnection() {
     clearCanvas();
 }
 
-function onEnableAudio() {
+function onToggleAudio() {
     try {
         if (audioEl) {
-            audioEl.muted = false;
+            audioEl.muted = !audioEl.muted;
             audioEl.volume = 1.0;
-            audioEl.play().catch((e) => console.warn("audio.play rejected", e));
+            if (!audioEl.muted) {
+                audioEl.play().catch((e) => console.warn("audio.play rejected", e));
+            }
         }
 
-        console.log("audio enabled");
+        if (audioEl.muted) {
+            console.log("audio disabled");
+        } else {
+            console.log("audio enabled");
+        }
     } catch (e) {
-        console.error("failed to enable audio", e);
+        console.error("failed to toggle audio", e);
     }
 }
 
