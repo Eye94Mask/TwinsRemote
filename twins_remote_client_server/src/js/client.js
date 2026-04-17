@@ -18,7 +18,7 @@ let canvasEl = null;
 let canvasCtx = null;
 
 let forceKeyframeCooldownUntil = 0;
-const FORCE_KEYFRAME_COOLDOWN_MS = 2000;
+const FORCE_KEYFRAME_COOLDOWN_MS = 5000;
 
 // ---- video processor state ----
 let videoProcessor = null;
@@ -39,12 +39,12 @@ let tokenTimeoutMessage = null;
 
 let connectStatus = null;
 let seenRemoteCandidates = new Set();
+let pendingRemoteCandidates = [];
 
 let sessionId = null;
 let copySessionResetTimer = null;
-let pendingRemoteCandidates = [];
 
-const VIDEO_STALL_MS = 300;
+const VIDEO_STALL_MS = 700;
 const RENDER_IDLE_WAIT_MS = 8;
 
 window.addEventListener("gamepadconnected", (e) => {
@@ -67,9 +67,8 @@ window.addEventListener("DOMContentLoaded", async () => {
 
     videoEl = document.getElementById("video");
     const fullscreenBtn = document.getElementById("fullscreenBtn");
-    const audioSwitch = document.getElementById("audio");
-
-    setAudioUiState("off");
+    const audioOn = document.getElementById("audioOn");
+    const audioOff = document.getElementById("audioOff");
 
     if (videoEl) {
         videoEl.style.display = "none";
@@ -90,8 +89,6 @@ window.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    audioSwitch.addEventListener("change", onSwitchAudio);
-
     audioEl = document.createElement("audio");
     audioEl.autoplay = true;
     audioEl.playsInline = true;
@@ -101,10 +98,41 @@ window.addEventListener("DOMContentLoaded", async () => {
     audioEl.volume = 1.0;
     document.body.appendChild(audioEl);
 
+    if (audioOn) {
+        audioOn.addEventListener("change", async () => {
+            if (!audioOn.checked) return;
+            await onEnableAudio();
+        });
+    }
+
+    if (audioOff) {
+        audioOff.addEventListener("change", () => {
+            if (!audioOff.checked) return;
+
+            setAudioUiState("pending-off");
+
+            if (audioEl) {
+                audioEl.muted = true;
+            }
+
+            setTimeout(() => {
+                setAudioUiState("off");
+            }, 120);
+        });
+    }
+
+    setAudioUiState("off");
+
     const sessionIdEl = document.getElementById("sessionId");
     if (sessionIdEl && !sessionIdEl.value) {
         sessionIdEl.value = generateSessionId();
     }
+
+    document.addEventListener("fullscreenchange", () => {
+        const btn = document.getElementById("fullscreenBtn");
+        if (!btn) return;
+        btn.textContent = document.fullscreenElement ? "Exit Fullscreen" : "Fullscreen";
+    });
 
     try {
         await connect();
@@ -181,6 +209,24 @@ function log(...args) {
     el.scrollTop = el.scrollHeight;
 }
 
+function showToast(message, type = "info") {
+    let toast = document.getElementById("toast");
+    if (!toast) {
+        toast = document.createElement("div");
+        toast.id = "toast";
+        document.body.appendChild(toast);
+    }
+
+    toast.textContent = message;
+    toast.dataset.type = type;
+    toast.classList.add("show");
+
+    clearTimeout(showToast._timer);
+    showToast._timer = setTimeout(() => {
+        toast.classList.remove("show");
+    }, 1800);
+}
+
 function generateSessionId() {
     if (window.crypto?.randomUUID) {
         return window.crypto.randomUUID();
@@ -212,15 +258,23 @@ function buildSessionUrl(path) {
     return `${path}?sessionId=${encodeURIComponent(sessionId)}`;
 }
 
+function setAudioUiState(state) {
+    const area = document.getElementById("makeImg");
+    if (!area) return;
+    area.dataset.audioState = state;
+}
+
 async function copySessionId() {
-    const btn = document.getElementById("copySessionIdBtn");
+    const btn = document.getElementById("copySessionBtn");
     const text = document.getElementById("sessionId")?.value || sessionId || "";
 
     if (!btn) {
         try {
             await navigator.clipboard.writeText(text);
+            showToast("Session IDをコピーしました");
         } catch (e) {
             console.warn("failed to copy sessionId", e);
+            showToast("コピーに失敗しました", "error");
         }
         return;
     }
@@ -234,8 +288,9 @@ async function copySessionId() {
     try {
         await navigator.clipboard.writeText(text);
 
-        btn.textContent = "✔";
+        btn.textContent = "✓ Copied";
         btn.classList.add("copy-success");
+        showToast("Session IDをコピーしました");
 
         copySessionResetTimer = setTimeout(() => {
             btn.classList.remove("copy-success");
@@ -246,6 +301,7 @@ async function copySessionId() {
 
         btn.textContent = "Failed";
         btn.classList.add("copy-error");
+        showToast("コピーに失敗しました", "error");
 
         copySessionResetTimer = setTimeout(() => {
             btn.classList.remove("copy-error");
@@ -367,9 +423,7 @@ async function pollAnswerOnce() {
 
     await pc.setRemoteDescription(json);
     console.log("remote answer set");
-
     await flushPendingRemoteCandidates();
-
     return true;
 }
 
@@ -479,11 +533,14 @@ function sleep(ms) {
     return new Promise(r => setTimeout(r, ms));
 }
 
-function connectStatusReset() {
-    if (!connectStatus) return;
-    connectStatus.classList.forEach((name) => {
-        connectStatus.classList.remove(name);
-    });
+function setStatus(state, text) {
+    const el = document.getElementById("status");
+    if (!el) return;
+
+    el.className = "";
+    el.id = "status";
+    el.classList.add(state);
+    el.textContent = text;
 }
 
 async function connect() {
@@ -492,6 +549,8 @@ async function connect() {
 
     sessionId = getOrCreateSessionId();
     log("SESSION ID:", sessionId);
+
+    setStatus("connecting", "接続準備中");
 
     const config = await fetchWebRtcConfig();
     log("ICE CONFIG:", config);
@@ -509,6 +568,9 @@ async function connect() {
         audioEl.volume = 1.0;
     }
 
+    pc.addTransceiver("video", { direction: "recvonly" });
+    pc.addTransceiver("audio", { direction: "recvonly" });
+
     pc.ontrack = async (event) => {
         console.log("ontrack", event.track.kind, event.streams);
 
@@ -521,7 +583,7 @@ async function connect() {
                         event.receiver.playoutDelayHint = 0.0;
                     }
                     if ("jitterBufferTarget" in event.receiver) {
-                        event.receiver.jitterBufferTarget = 0.02;
+                        event.receiver.jitterBufferTarget = 0;
                     }
                 } catch (e) {
                     console.warn("video receiver tuning failed", e);
@@ -616,19 +678,11 @@ async function connect() {
         console.log("iceConnectionState =", pc.iceConnectionState);
 
         if (pc.iceConnectionState === "checking") {
-            if (connectStatus) {
-                connectStatus.innerText = "接続待機中";
-                connectStatusReset();
-                connectStatus.classList.add("connecting");
-            }
+            setStatus("connecting", "接続待機中");
         }
 
         if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
-            if (connectStatus) {
-                connectStatus.innerText = "接続完了";
-                connectStatusReset();
-                connectStatus.classList.add("connected");
-            }
+            setStatus("connected", "接続完了");
 
             if (!rtcSummaryIntervalId) {
                 rtcSummaryIntervalId = setInterval(() => {
@@ -640,19 +694,11 @@ async function connect() {
         }
 
         if (pc.iceConnectionState === "disconnected") {
-            if (connectStatus) {
-                connectStatus.innerText = "接続終了";
-                connectStatusReset();
-                connectStatus.classList.add("disconnected");
-            }
+            setStatus("disconnected", "接続終了");
         }
 
         if (pc.iceConnectionState === "failed") {
-            if (connectStatus) {
-                connectStatus.innerText = "接続エラー";
-                connectStatusReset();
-                connectStatus.classList.add("failed");
-            }
+            setStatus("failed", "接続エラー");
         }
     };
 
@@ -673,17 +719,16 @@ async function connect() {
         maxRetransmits: 0
     });
 
-    // 受信用Tranceiver
-    pc.addTransceiver("video", { direction: "recvonly"});
-    pc.addTransceiver("audio", { direction: "recvonly"});
-
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
 
     await resetSession();
     await postOffer(pc.localDescription?.toJSON ? pc.localDescription.toJSON() : pc.localDescription);
 
+    setStatus("waiting", "ホストの応答待ち");
+
     seenRemoteCandidates.clear();
+    pendingRemoteCandidates = [];
     startHostCandidatePolling();
     startAnswerPolling();
 
@@ -723,6 +768,7 @@ function cleanupPeerConnection() {
     }
 
     seenRemoteCandidates.clear();
+    pendingRemoteCandidates = [];
 
     stopVideoTrackProcessor();
 
@@ -763,63 +809,32 @@ function cleanupPeerConnection() {
     renderedFrames = 0;
     forceKeyframeCooldownUntil = 0;
 
-    pendingRemoteCandidates = [];
-
     clearCanvas();
 }
 
-function setAudioUiState(state) {
-    const area = document.getElementById("makeImg");
-    if (!area) return;
-    area.dataset.audioState = state;
-}
+async function onEnableAudio() {
+    try {
+        setAudioUiState("pending");
 
-function onSwitchAudio() {
-    const audioOn = document.getElementById("audioOn");
-    const audioOff = document.getElementById("audioOff");
+        if (audioEl) {
+            audioEl.muted = false;
+            audioEl.volume = 1.0;
+            await audioEl.play();
+        }
 
-    if (audioOn) {
-        audioOn.addEventListener("change", async () => {
-            if (!audioOn.checked) return;
+        const on = document.getElementById("audioOn");
+        if (on) on.checked = true;
 
-            try {
-                setAudioUiState("pending");
+        setAudioUiState("on");
+        showToast("音声を有効化しました");
+    } catch (e) {
+        console.error("failed to enable audio", e);
 
-                if (audioEl) {
-                    audioEl.muted = false;
-                    audioEl.volume = 1.0;
-                    await audioEl.play();
-                }
+        const off = document.getElementById("audioOff");
+        if (off) off.checked = true;
 
-                setAudioUiState("on");
-            } catch (e) {
-                console.error("failed to enable audio", e);
-                audioOff.checked = true;
-                setAudioUiState("off");
-            }
-        });
-    }
-
-    if (audioOff) {
-        audioOff.addEventListener("change", () => {
-            if (!audioOff.checked) return;
-
-            setAudioUiState("pending-off");
-
-            if (audioEl) {
-                audioEl.muted = true;
-            }
-
-            setTimeout(() => {
-                setAudioUiState("off");
-            }, 120);
-        });
-    }
-
-    if (audioEl.muted) {
-        log("audio disabled");
-    } else {
-        log("audio enabled");
+        setAudioUiState("off");
+        showToast("音声の有効化に失敗しました", "error");
     }
 }
 
