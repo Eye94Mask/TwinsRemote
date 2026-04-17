@@ -265,7 +265,7 @@ function setAudioUiState(state) {
 }
 
 async function copySessionId() {
-    const btn = document.getElementById("copySessionBtn");
+    const btn = document.getElementById("copySessionIdBtn");
     const text = document.getElementById("sessionId")?.value || sessionId || "";
 
     if (!btn) {
@@ -288,7 +288,7 @@ async function copySessionId() {
     try {
         await navigator.clipboard.writeText(text);
 
-        btn.textContent = "✓ Copied";
+        btn.textContent = "✓";
         btn.classList.add("copy-success");
         showToast("Session IDをコピーしました");
 
