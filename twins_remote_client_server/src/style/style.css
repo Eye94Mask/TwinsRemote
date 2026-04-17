@@ -9,6 +9,11 @@ h2 {
     margin-top: 0;
 }
 
+#connectionStatus {
+    display: flex;
+    align-items: center
+}
+
 #player {
     width: 100%;
     max-width: 1280px;
@@ -338,4 +343,31 @@ button {
   50% { transform: translateX(3px); }
   75% { transform: translateX(-2px); }
   100% { transform: translateX(0); }
+}
+
+.fullscreenBtn {
+        display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    width: 250px;
+    padding: .9em 2em;
+    border: 1px solid #6d73bf;
+    border-radius: 10px;
+    background-color: #2e3371;;
+    color: #fff;
+    font-size: 1em;
+}
+
+.fullscreenBtn:hover {
+    animation: anima-button-30 1s;
+}
+
+@keyframes anima-button-30 {
+    0% {
+        box-shadow: 0 0 0 0 rgb(37 137 208 / 50%);
+    }
+    100% {
+        box-shadow: 0 0 0 1.2em rgb(0 0 0 / 0%);
+    }
 }

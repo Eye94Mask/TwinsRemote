@@ -16,10 +16,13 @@
     </div>
     <br>
 
-    <div id="status" class="disconnected">未接続</div>
+    <div id="connectionStatus">
+        <p>接続ステータス：</p>
+        <div id="status" class="disconnected">未接続</div>
+    </div>
 
     <div class="controls">
-        <button id="fullscreenBtn">Fullscreen</button>
+        <button id="fullscreenBtn" class="fullscreenBtn">フルスクリーン</button>
         <div class="audioArea" id="makeImg">
             <form id="audio">
                 <input type="radio" name="audioToggle" id="audioOn">
