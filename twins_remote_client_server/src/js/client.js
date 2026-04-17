@@ -41,6 +41,7 @@ let connectStatus = null;
 let seenRemoteCandidates = new Set();
 
 let sessionId = null;
+let copySessionResetTimer = null;
 
 const VIDEO_STALL_MS = 300;
 const RENDER_IDLE_WAIT_MS = 8;
@@ -211,12 +212,44 @@ function buildSessionUrl(path) {
 }
 
 async function copySessionId() {
+    const btn = document.getElementById("copySessionIdBtn");
+    const text = document.getElementById("sessionId")?.value || sessionId || "";
+
+    if (!btn) {
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch (e) {
+            console.warn("failed to copy sessionId", e);
+        }
+        return;
+    }
+
+    const originalText = btn.dataset.originalText || btn.textContent || "Copy";
+    btn.dataset.originalText = originalText;
+
+    clearTimeout(copySessionResetTimer);
+    btn.classList.remove("copy-success", "copy-error");
+
     try {
-        const text = document.getElementById("sessionId")?.value || sessionId || "";
         await navigator.clipboard.writeText(text);
-        console.log("Session ID copied");
+
+        btn.textContent = "✔";
+        btn.classList.add("copy-success");
+
+        copySessionResetTimer = setTimeout(() => {
+            btn.classList.remove("copy-success");
+            btn.textContent = originalText;
+        }, 1600);
     } catch (e) {
         console.warn("failed to copy sessionId", e);
+
+        btn.textContent = "Failed";
+        btn.classList.add("copy-error");
+
+        copySessionResetTimer = setTimeout(() => {
+            btn.classList.remove("copy-error");
+            btn.textContent = originalText;
+        }, 1400);
     }
 }
 
