@@ -215,7 +215,7 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
 			2 * 1000 * 1000,
 			1 * 1000 * 1000,
 			180,
-			180,
+			30,
 			true,
 			false,
 			1,
