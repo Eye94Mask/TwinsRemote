@@ -41,6 +41,7 @@ let connectStatus = null;
 let seenRemoteCandidates = new Set();
 
 let sessionId = null;
+let copySessionResetTimer = null;
 let pendingRemoteCandidates = [];
 
 const VIDEO_STALL_MS = 300;
@@ -66,8 +67,9 @@ window.addEventListener("DOMContentLoaded", async () => {
 
     videoEl = document.getElementById("video");
     const fullscreenBtn = document.getElementById("fullscreenBtn");
-    const audioBtnOuter = document.getElementsByClassName("audioBtnOuter")[0];
-    const audioBtn = document.getElementById("audioBtn");
+    const audioSwitch = document.getElementById("audio");
+
+    setAudioUiState("off");
 
     if (videoEl) {
         videoEl.style.display = "none";
@@ -88,13 +90,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    if (audioBtnOuter) {
-        audioBtnOuter.addEventListener("click", () => {
-            audioBtnOuter.classList.toggle("active");
-            audioBtn.classList.toggle("active");
-            onToggleAudio();
-        });
-    }
+    audioSwitch.addEventListener("change", onSwitchAudio);
 
     audioEl = document.createElement("audio");
     audioEl.autoplay = true;
@@ -217,12 +213,44 @@ function buildSessionUrl(path) {
 }
 
 async function copySessionId() {
+    const btn = document.getElementById("copySessionIdBtn");
+    const text = document.getElementById("sessionId")?.value || sessionId || "";
+
+    if (!btn) {
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch (e) {
+            console.warn("failed to copy sessionId", e);
+        }
+        return;
+    }
+
+    const originalText = btn.dataset.originalText || btn.textContent || "Copy";
+    btn.dataset.originalText = originalText;
+
+    clearTimeout(copySessionResetTimer);
+    btn.classList.remove("copy-success", "copy-error");
+
     try {
-        const text = document.getElementById("sessionId")?.value || sessionId || "";
         await navigator.clipboard.writeText(text);
-        console.log("Session ID copied");
+
+        btn.textContent = "✔";
+        btn.classList.add("copy-success");
+
+        copySessionResetTimer = setTimeout(() => {
+            btn.classList.remove("copy-success");
+            btn.textContent = originalText;
+        }, 1600);
     } catch (e) {
         console.warn("failed to copy sessionId", e);
+
+        btn.textContent = "Failed";
+        btn.classList.add("copy-error");
+
+        copySessionResetTimer = setTimeout(() => {
+            btn.classList.remove("copy-error");
+            btn.textContent = originalText;
+        }, 1400);
     }
 }
 
@@ -740,23 +768,58 @@ function cleanupPeerConnection() {
     clearCanvas();
 }
 
-function onToggleAudio() {
-    try {
-        if (audioEl) {
-            audioEl.muted = !audioEl.muted;
-            audioEl.volume = 1.0;
-            if (!audioEl.muted) {
-                audioEl.play().catch((e) => console.warn("audio.play rejected", e));
-            }
-        }
+function setAudioUiState(state) {
+    const area = document.getElementById("makeImg");
+    if (!area) return;
+    area.dataset.audioState = state;
+}
 
-        if (audioEl.muted) {
-            console.log("audio disabled");
-        } else {
-            console.log("audio enabled");
-        }
-    } catch (e) {
-        console.error("failed to toggle audio", e);
+function onSwitchAudio() {
+    const audioOn = document.getElementById("audioOn");
+    const audioOff = document.getElementById("audioOff");
+
+    if (audioOn) {
+        audioOn.addEventListener("change", async () => {
+            if (!audioOn.checked) return;
+
+            try {
+                setAudioUiState("pending");
+
+                if (audioEl) {
+                    audioEl.muted = false;
+                    audioEl.volume = 1.0;
+                    await audioEl.play();
+                }
+
+                setAudioUiState("on");
+            } catch (e) {
+                console.error("failed to enable audio", e);
+                audioOff.checked = true;
+                setAudioUiState("off");
+            }
+        });
+    }
+
+    if (audioOff) {
+        audioOff.addEventListener("change", () => {
+            if (!audioOff.checked) return;
+
+            setAudioUiState("pending-off");
+
+            if (audioEl) {
+                audioEl.muted = true;
+            }
+
+            setTimeout(() => {
+                setAudioUiState("off");
+            }, 120);
+        });
+    }
+
+    if (audioEl.muted) {
+        log("audio disabled");
+    } else {
+        log("audio enabled");
     }
 }
 

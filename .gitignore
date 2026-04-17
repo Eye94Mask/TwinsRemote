@@ -16,4 +16,4 @@ packages.config
 .env
 twins_remote_client/
 
-client_update.bat
+update_client.bat
