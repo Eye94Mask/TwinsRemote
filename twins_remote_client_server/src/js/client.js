@@ -42,6 +42,7 @@ let seenRemoteCandidates = new Set();
 
 let sessionId = null;
 let copySessionResetTimer = null;
+let pendingRemoteCandidates = [];
 
 const VIDEO_STALL_MS = 300;
 const RENDER_IDLE_WAIT_MS = 8;
@@ -366,6 +367,9 @@ async function pollAnswerOnce() {
 
     await pc.setRemoteDescription(json);
     console.log("remote answer set");
+
+    await flushPendingRemoteCandidates();
+
     return true;
 }
 
@@ -408,11 +412,31 @@ async function pollHostCandidates() {
             if (seenRemoteCandidates.has(key)) continue;
             seenRemoteCandidates.add(key);
 
+            if (!pc.remoteDescription) {
+                pendingRemoteCandidates.push(c);
+                console.log("Host ICE candidate queued (remoteDescription not set yet):", c);
+                continue;
+            }
+
             await pc.addIceCandidate(new RTCIceCandidate(c));
             console.log("Host ICE candidate added:", c);
         }
     } catch (e) {
         console.warn("pollHostCandidates failed", e);
+    }
+}
+
+async function flushPendingRemoteCandidates() {
+    if (!pc || !pc.remoteDescription) return;
+
+    while (pendingRemoteCandidates.length > 0) {
+        const c = pendingRemoteCandidates.shift();
+        try {
+            await pc.addIceCandidate(new RTCIceCandidate(c));
+            console.log("Queued host ICE candidate added:", c);
+        } catch (e) {
+            console.warn("failed to add queued host candidate", e, c);
+        }
     }
 }
 
@@ -738,6 +762,8 @@ function cleanupPeerConnection() {
     droppedFrames = 0;
     renderedFrames = 0;
     forceKeyframeCooldownUntil = 0;
+
+    pendingRemoteCandidates = [];
 
     clearCanvas();
 }
