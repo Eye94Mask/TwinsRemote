@@ -51,71 +51,232 @@ button {
 }
 
 #status {
-    margin: 12px 0;
-    font-weight: bold;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-weight: 700;
+  transition: transform 160ms ease, opacity 160ms ease, background-color 200ms ease;
 }
 
-#videoCanvas {
-    display: block;
-    width: 100%;
-    height: 100%;
-    background: black;
-    object-fit: contain;
-}
-
-#status.disconnected {
-    color: #999;
-}
-#status.disconnected {
-    color: #999;
-}
-
-#status.connecting {
-    color: #ff0;
+#status.connecting,
+#status.waiting {
+  background: #fff3cd;
+  color: #7a5a00;
 }
 
 #status.connected {
-    color: #0f0;
+  background: #d1fae5;
+  color: #065f46;
 }
 
-#status.failed {
-    color: #f00;
+#status.failed,
+#status.disconnected {
+  background: #fee2e2;
+  color: #991b1b;
 }
 
-.audioBtnOuter {
-    width: 100px;
-    height: 40px;
-    background-color: lightgray;
-    border-radius: 30px;
-    position: relative;
+.controls button,
+#audio label {
+  transition: transform 120ms ease, box-shadow 160ms ease, background-color 160ms ease, color 160ms ease;
 }
 
-.audioBtnOuter.active {
-  background-color: #51E373;
+.controls button:hover,
+#audio label:hover {
+  transform: translateY(-1px);
 }
 
-#audioBtn {
-  display: flex;
-  width: 50px;
-  height: 30px;
-  border-radius: 30px;
+.controls button:active,
+#audio label:active {
+  transform: scale(0.98);
+}
+
+/* Audio toggle */
+.audioArea {
+  display: inline-flex;
+  align-items: center;
+}
+
+#audio {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  width: 132px;
+  padding: 4px;
+  border-radius: 999px;
+  background: #1f2937;
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.28),
+    0 6px 18px rgba(0, 0, 0, 0.16);
+  overflow: hidden;
+}
+
+#audio input {
   position: absolute;
-  background-color: white;
-  color: black;
-  top: 0;
-  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#audio label {
+  position: relative;
+  z-index: 1;
+  display: flex;
   justify-content: center;
-  bottom: 0;
-  left: 5px;
-  margin: auto;
+  align-items: center;
+  height: 36px;
+  border-radius: 999px;
+  cursor: pointer;
+  user-select: none;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #cbd5e1;
+  transition:
+    color 180ms ease,
+    transform 140ms ease,
+    opacity 180ms ease;
 }
 
-#audioBtn.active {
-  left: 45px;
+#audio label:hover {
+  transform: translateY(-1px);
 }
 
-#audioBtn > p {
-    padding: 0;
-    margin: 1px;
-    font-size: 16px;
+#audio label:active {
+  transform: scale(0.97);
+}
+
+/* 動く白い背景 */
+#audio::before {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 7px;
+  width: calc(50% - 4px);
+  height: 36px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffffff 0%, #eef2f7 100%);
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  transform: translateX(62px);
+  transition:
+    transform 220ms cubic-bezier(.2, .8, .2, 1),
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+
+/* ON が選ばれたら左へ */
+#audio:has(#audioOn:checked)::before {
+  transform: translateX(0);
+}
+
+/* OFF が選ばれたら右へ */
+#audio:has(#audioOff:checked)::before {
+  transform: translateX(62px);
+}
+
+/* 選択中の文字色 */
+#audio:has(#audioOn:checked) label[for="audioOn"] {
+  color: #111827;
+}
+
+#audio:has(#audioOn:checked) label[for="audioOff"] {
+  color: #94a3b8;
+}
+
+#audio:has(#audioOff:checked) label[for="audioOff"] {
+  color: #111827;
+}
+
+#audio:has(#audioOff:checked) label[for="audioOn"] {
+  color: #94a3b8;
+}
+
+/* 状態別アクセント */
+.audioArea[data-audio-state="on"] #audio {
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.24),
+    0 0 0 3px rgba(34, 197, 94, 0.18),
+    0 8px 20px rgba(34, 197, 94, 0.14);
+}
+
+.audioArea[data-audio-state="off"] #audio {
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.24),
+    0 0 0 3px rgba(148, 163, 184, 0.10),
+    0 6px 18px rgba(0, 0, 0, 0.14);
+}
+
+.audioArea[data-audio-state="pending"] #audio {
+  opacity: 1;
+}
+
+.audioArea[data-audio-state="pending"] #audio::before {
+  animation: audioPulse 900ms ease-in-out infinite;
+}
+
+@keyframes audioPulse {
+  0%, 100% {
+    transform: translateX(0) scale(1);
+    box-shadow:
+      0 4px 10px rgba(0, 0, 0, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  }
+  50% {
+    transform: translateX(0) scale(1.03);
+    box-shadow:
+      0 6px 14px rgba(34, 197, 94, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+}
+
+/* OFF 側 pending 対応 */
+.audioArea[data-audio-state="pending-off"] #audio::before {
+  animation: audioPulseOff 900ms ease-in-out infinite;
+}
+
+@keyframes audioPulseOff {
+  0%, 100% {
+    transform: translateX(62px) scale(1);
+  }
+  50% {
+    transform: translateX(62px) scale(1.03);
+  }
+}
+
+.audioArea[data-audio-state="pending"] {
+  opacity: 1;
+  filter: saturate(0.8);
+}
+
+.audioArea[data-audio-state="on"] #audioOn + label {
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+}
+
+.audioArea[data-audio-state="off"] #audioOff + label {
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.18);
+}
+
+#toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(17, 24, 39, 0.92);
+  color: white;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#toast[data-type="error"] {
+  background: rgba(153, 27, 27, 0.95);
 }

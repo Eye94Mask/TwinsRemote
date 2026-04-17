@@ -65,8 +65,9 @@ window.addEventListener("DOMContentLoaded", async () => {
 
     videoEl = document.getElementById("video");
     const fullscreenBtn = document.getElementById("fullscreenBtn");
-    const audioBtnOuter = document.getElementsByClassName("audioBtnOuter")[0];
-    const audioBtn = document.getElementById("audioBtn");
+    const audioSwitch = document.getElementById("audio");
+
+    setAudioUiState("off");
 
     if (videoEl) {
         videoEl.style.display = "none";
@@ -87,13 +88,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
-    if (audioBtnOuter) {
-        audioBtnOuter.addEventListener("click", () => {
-            audioBtnOuter.classList.toggle("active");
-            audioBtn.classList.toggle("active");
-            onToggleAudio();
-        });
-    }
+    audioSwitch.addEventListener("change", onSwitchAudio);
 
     audioEl = document.createElement("audio");
     audioEl.autoplay = true;
@@ -714,23 +709,58 @@ function cleanupPeerConnection() {
     clearCanvas();
 }
 
-function onToggleAudio() {
-    try {
-        if (audioEl) {
-            audioEl.muted = !audioEl.muted;
-            audioEl.volume = 1.0;
-            if (!audioEl.muted) {
-                audioEl.play().catch((e) => console.warn("audio.play rejected", e));
-            }
-        }
+function setAudioUiState(state) {
+    const area = document.getElementById("makeImg");
+    if (!area) return;
+    area.dataset.audioState = state;
+}
 
-        if (audioEl.muted) {
-            console.log("audio disabled");
-        } else {
-            console.log("audio enabled");
-        }
-    } catch (e) {
-        console.error("failed to toggle audio", e);
+function onSwitchAudio() {
+    const audioOn = document.getElementById("audioOn");
+    const audioOff = document.getElementById("audioOff");
+
+    if (audioOn) {
+        audioOn.addEventListener("change", async () => {
+            if (!audioOn.checked) return;
+
+            try {
+                setAudioUiState("pending");
+
+                if (audioEl) {
+                    audioEl.muted = false;
+                    audioEl.volume = 1.0;
+                    await audioEl.play();
+                }
+
+                setAudioUiState("on");
+            } catch (e) {
+                console.error("failed to enable audio", e);
+                audioOff.checked = true;
+                setAudioUiState("off");
+            }
+        });
+    }
+
+    if (audioOff) {
+        audioOff.addEventListener("change", () => {
+            if (!audioOff.checked) return;
+
+            setAudioUiState("pending-off");
+
+            if (audioEl) {
+                audioEl.muted = true;
+            }
+
+            setTimeout(() => {
+                setAudioUiState("off");
+            }, 120);
+        });
+    }
+
+    if (audioEl.muted) {
+        log("audio disabled");
+    } else {
+        log("audio enabled");
     }
 }
 
