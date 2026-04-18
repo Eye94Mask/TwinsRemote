@@ -37,18 +37,32 @@ async fn main() -> Result<()> {
 
     println!("Please input session ID");
 
-    let input_mode = Arc::new(AtomicU32::new(0)); // 0=session_id, 1=audio
+    let input_mode = Arc::new(AtomicU32::new(0)); // 0=stream_mode, 1=session_id, 2=audio
 
+    let (stream_mode_tx, stream_mode_rx) = std::sync::mpsc::channel::<String>();
     let (audio_cmd_tx, audio_cmd_rx) = std::sync::mpsc::channel::<AudioCommand>();
-
     let (session_id_tx, session_id_rx) = std::sync::mpsc::channel::<String>();
 
     spawn_stdin_router(
         input_mode.clone(),
+        stream_mode_tx,
         session_id_tx,
         audio_cmd_tx.clone()
     );
+
     
+    // balanced: バランス型(普段用)
+    // stable:   安定重視型(重いゲーム)
+    // quality:  画質重視型(軽いゲーム)
+    // mobile:   帯域節約型
+    println!("Please choose stream mode.\n1): balanced (default)\n2): stable\n3): quality\n4): mobile\n");
+    let mut preset = stream_mode_rx
+        .recv()
+        .map_err(|e| anyhow!("failed to receive stream_mode from stdin router: {:?}", e))?;
+    println!("choosed stream mode: {}", preset);
+    
+    input_mode.store(1, Ordering::Release);
+
     let session_id = session_id_rx
         .recv()
         .map_err(|e| anyhow!("failed to receive session_id from stdin router: {:?}", e))?;
@@ -59,12 +73,6 @@ async fn main() -> Result<()> {
     let webrtc_clone = webrtc.clone();
 
     let controller = Arc::new(Mutex::new(Controller::new()?));
-    
-    // balanced: バランス型(普段用)
-    // stable:   安定重視型(重いゲーム)
-    // quality:  画質重視型(軽いゲーム)
-    // mobile:   帯域節約型
-    let preset = "balanced";
 
     let mut child = Command::new("NvEnc.exe")
         .arg(preset)
@@ -346,7 +354,7 @@ async fn main() -> Result<()> {
 
         if s == RTCIceConnectionState::Connected || s == RTCIceConnectionState::Completed {
             ice_connected_for_cb.store(true, Ordering::Release);
-            input_mode_for_ice.store(1, Ordering::Release);
+            input_mode_for_ice.store(2, Ordering::Release);
 
             eprintln!("[HOST] audio command input enabled");
             eprintln!("[HOST] commands: pid <number> / audio_stop / system");
@@ -421,6 +429,7 @@ enum InputMode {
 
 fn spawn_stdin_router(
     input_mode: Arc<AtomicU32>,
+    stream_mode_tx: std::sync::mpsc::Sender<String>,
     session_id_tx: std::sync::mpsc::Sender<String>,
     audio_cmd_tx: std::sync::mpsc::Sender<AudioCommand>
 ) {
@@ -434,9 +443,28 @@ fn spawn_stdin_router(
 
             match input_mode.load(Ordering::Acquire) {
                 0 => {
-                    let _ = session_id_tx.send(line);
+                    match &*line {
+                        "1" => {
+                            let _ = stream_mode_tx.send("balanced".to_string());
+                        }
+                        "2" => {
+                            let _ = stream_mode_tx.send("stable".to_string());
+                        }
+                        "3" => {
+                            let _ = stream_mode_tx.send("quality".to_string());
+                        }
+                        "4" => {
+                            let _ = stream_mode_tx.send("mobile".to_string());
+                        }
+                        _ => {
+                            let _ = stream_mode_tx.send("default".to_string());
+                        }
+                    }
                 }
                 1 => {
+                    let _ = session_id_tx.send(line);
+                }
+                2 => {
                     if let Some(rest) = line.strip_prefix("pid ") {
                         match rest.trim().parse::<u32>() {
                             Ok(pid) => {
