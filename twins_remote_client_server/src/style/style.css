@@ -413,3 +413,90 @@ button {
 .btn-sns:hover .btn-github:hover {
     opacity: 0.8;
 }
+
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(255,255,255,0.10), transparent 28%),
+    linear-gradient(180deg, rgba(12,18,28,0.94), rgba(8,12,20,0.98));
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 420ms ease,
+    visibility 420ms ease;
+}
+
+.splash.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+.splash.hide {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.splash-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 28px 32px;
+  border-radius: 24px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow:
+    0 18px 50px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+  transform: translateY(10px) scale(0.98);
+  animation: splashCardIn 700ms cubic-bezier(.2,.8,.2,1) forwards;
+}
+
+.splash-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  object-fit: cover;
+  box-shadow:
+    0 10px 24px rgba(0,0,0,0.28),
+    0 0 0 1px rgba(255,255,255,0.10);
+  animation: splashLogoFloat 2200ms ease-in-out infinite;
+}
+
+.splash-title {
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+}
+
+.splash-subtitle {
+  font-size: 0.98rem;
+  color: rgba(255,255,255,0.78);
+  letter-spacing: 0.01em;
+}
+
+@keyframes splashCardIn {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes splashLogoFloat {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}

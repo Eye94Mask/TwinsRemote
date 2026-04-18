@@ -44,6 +44,12 @@ let pendingRemoteCandidates = [];
 let sessionId = null;
 let copySessionResetTimer = null;
 
+const splashSubtitles = [
+    "Two PCs, one feeling.",
+    "Connecting comfort and speed.",
+    "Twins in sync."
+];
+
 const VIDEO_STALL_MS = 700;
 const RENDER_IDLE_WAIT_MS = 8;
 
@@ -62,6 +68,10 @@ window.addEventListener("gamepaddisconnected", (e) => {
 window.addEventListener("DOMContentLoaded", async () => {
     await fetchTtlSeconds();
     tokenTimeoutMessage = window.setTimeout(tokenTimeout, ttlSeconds);
+
+    const selectedSubtitle = splashSubtitles[getRandomInt(splashSubtitles.length)];
+    const subtitle = document.getElementById("splashSubtitle");
+    subtitle.textContent = selectedSubtitle;
 
     connectStatus = document.getElementById("status");
 
@@ -139,7 +149,28 @@ window.addEventListener("DOMContentLoaded", async () => {
     } catch (e) {
         console.error("initial connect failed", e);
     }
+
+    startSplash();
 });
+
+function getRandomInt(max) {
+  return Math.floor(Math.random() * max);
+}
+
+function startSplash() {
+    const splash = document.getElementById("splash");
+    if (!splash) return;
+    splash.classList.add("show");
+
+    setTimeout(() => {
+        splash.classList.add("hide");
+        splash.classList.remove("show");
+    }, 1000);
+
+    setTimeout(() => {
+        splash.remove();
+    }, 2400);
+}
 
 function tokenTimeout() {
     if (!alert("トークンの有効期限が切れました\nページの再読み込みをします")) {
