@@ -23,82 +23,97 @@ use webrtc::data_channel::data_channel_message::DataChannelMessage;
 use webrtc::ice_transport::ice_connection_state::RTCIceConnectionState;
 use webrtc::media::Sample;
 
-use crate::dxgi_capture::DxgiCapture;
-use crate::webrtc_sender::WebRtcSender;
 use crate::audio_encoder::AudioEncoder;
+use crate::consts::VIDEO_FRAME_DURATION;
 use crate::controller::{Controller, GamepadState};
-use crate::consts::{FPS_MILLIS, AUDIO_FRAME, VIDEO_FRAME_DURATION};
 use crate::env::IceConfig;
+use crate::webrtc_sender::WebRtcSender;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    default_provider().install_default().expect("install rustls crypto provider");
-    println!("Starting Remote Play Host");
+    default_provider()
+        .install_default()
+        .expect("install rustls crypto provider");
 
+    println!("Starting Remote Play Host");
     println!("Please input session ID");
 
-    let input_mode = Arc::new(AtomicU32::new(0)); // 0=session_id, 1=audio
+    let input_mode = Arc::new(AtomicU32::new(0)); // 0=stream_mode, 1=session_id, 2=audio
 
+    let (stream_mode_tx, stream_mode_rx) = std::sync::mpsc::channel::<String>();
     let (audio_cmd_tx, audio_cmd_rx) = std::sync::mpsc::channel::<AudioCommand>();
-
     let (session_id_tx, session_id_rx) = std::sync::mpsc::channel::<String>();
 
     spawn_stdin_router(
         input_mode.clone(),
+        stream_mode_tx,
         session_id_tx,
-        audio_cmd_tx.clone()
+        audio_cmd_tx.clone(),
     );
-    
+
+    println!(
+        "Please choose stream mode.\n\
+         1): balanced (default)\n\
+         2): stable\n\
+         3): quality\n\
+         4): mobile\n"
+    );
+
+    let preset = stream_mode_rx
+        .recv()
+        .map_err(|e| anyhow!("failed to receive stream_mode from stdin router: {:?}", e))?;
+
+    println!("choosed stream mode: {}", preset);
+
+    input_mode.store(1, Ordering::Release);
+
     let session_id = session_id_rx
         .recv()
         .map_err(|e| anyhow!("failed to receive session_id from stdin router: {:?}", e))?;
-    
-    let ice = IceConfig::load(&session_id);
 
+    let ice = IceConfig::load(&session_id);
     let webrtc = WebRtcSender::new(ice.clone()).await?;
     let webrtc_clone = webrtc.clone();
 
     let controller = Arc::new(Mutex::new(Controller::new()?));
-    
-    // balanced: バランス型(普段用)
-    // stable:   安定重視型(重いゲーム)
-    // quality:  画質重視型(軽いゲーム)
-    // mobile:   帯域節約型
-    let preset = "balanced";
 
     let mut child = Command::new("NvEnc.exe")
-        .arg(preset)
+        .arg(&preset)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()
         .expect("failed to start nvenc");
 
-    let mut stdin = child.stdin.take().expect("failed to take nvenc stdin");
-    let mut stdout = child.stdout.take().expect("failed to take nvenc stdout");
+    let mut nvenc_stdin = child.stdin.take().expect("failed to take nvenc stdin");
+    let nvenc_stdout = child.stdout.take().expect("failed to take nvenc stdout");
 
     let last_nvenc_packet_at = Arc::new(AtomicU64::new(now_millis()));
     let last_video_sample_at = Arc::new(AtomicU64::new(now_millis()));
     let video_watchdog_fired = Arc::new(AtomicBool::new(false));
 
-    // Thread for sending comands to NvEnc.exe
-    let (nvenc_cmd_tx, nvenc_cmd_rx) = std::sync::mpsc::channel::<String>();
+    // NvEnc command thread
+    let (nvenc_cmd_tx, nvenc_cmd_rx) = std::sync::mpsc::channel::<NvencCommand>();
     std::thread::spawn(move || {
         while let Ok(cmd) = nvenc_cmd_rx.recv() {
-            if let Err(e) = stdin.write_all(cmd.as_bytes()) {
+            let line = match cmd {
+                NvencCommand::ForceIdr => "force_idr\n",
+            };
+
+            if let Err(e) = nvenc_stdin.write_all(line.as_bytes()) {
                 eprintln!("[HOST] nvenc stdin write failed: {:?}", e);
                 break;
             }
-            if let Err(e) = stdin.flush() {
+            if let Err(e) = nvenc_stdin.flush() {
                 eprintln!("[HOST] nvenc stdin flush failed: {:?}", e);
                 break;
             }
         }
     });
 
-    // ---------------
+    // -------------------------------
     // AUDIO THREAD
-    // ---------------
+    // -------------------------------
     let audio_track = webrtc.audio_track.clone();
 
     let (tx_audio, mut rx_audio) = tokio::sync::mpsc::channel::<Sample>(3);
@@ -116,30 +131,26 @@ async fn main() -> Result<()> {
                 }
 
                 helper = match cmd {
-                    AudioCommand::UsePid(pid) => {
-                        match spawn_audio_helper(pid) {
-                            Ok(h) => {
-                                println!("[AUDIO] helper started for pid={}", pid);
-                                Some(h)
-                            }
-                            Err(e) => {
-                                eprintln!("[AUDIO] failed to start helper: {:?}", e);
-                                None
-                            }
+                    AudioCommand::UsePid(pid) => match spawn_audio_helper(pid) {
+                        Ok(h) => {
+                            println!("[AUDIO] helper started for pid={}", pid);
+                            Some(h)
                         }
-                    }
-                    AudioCommand::UseSystemMix => {
-                        match spawn_system_mix_helper() {
-                            Ok(h) => {
-                                println!("[AUDIO] system mix helper started.");
-                                Some(h)
-                            }
-                            Err(e) => {
-                                eprintln!("[AUDIO] failed to start system mix helper: {:?}", e);
-                                None
-                            }
+                        Err(e) => {
+                            eprintln!("[AUDIO] failed to start helper: {:?}", e);
+                            None
                         }
-                    }
+                    },
+                    AudioCommand::UseSystemMix => match spawn_system_mix_helper() {
+                        Ok(h) => {
+                            println!("[AUDIO] system mix helper started.");
+                            Some(h)
+                        }
+                        Err(e) => {
+                            eprintln!("[AUDIO] failed to start system mix helper: {:?}", e);
+                            None
+                        }
+                    },
                     AudioCommand::Stop => None,
                 };
             }
@@ -194,17 +205,19 @@ async fn main() -> Result<()> {
 
     let controller_clone = controller.clone();
     let nvenc_cmd_tx_clone = nvenc_cmd_tx.clone();
+
     let last_force_keyframe_at = Arc::new(AtomicU64::new(0));
     let last_force_keyframe_at_clone = last_force_keyframe_at.clone();
+
     dc.on_message(Box::new(move |msg: DataChannelMessage| {
         let controller = controller_clone.clone();
         let nvenc_cmd_tx = nvenc_cmd_tx_clone.clone();
         let last_force_keyframe_at = last_force_keyframe_at_clone.clone();
-        
+
         Box::pin(async move {
             let data = &msg.data;
 
-            // Xbox controller input from Client
+            // Xbox controller input from client
             if data.len() == 12 {
                 let buttons = u16::from_le_bytes([data[0], data[1]]);
                 let lt = data[2];
@@ -230,18 +243,16 @@ async fn main() -> Result<()> {
                 return;
             }
 
-            // String message from Client
+            // Text control message from client
             if let Ok(text) = std::str::from_utf8(data) {
-                if text.contains("\"type\":\"force_keyframe\"")
-                    || text.contains("\"type\": \"force_keyframe\"")
-                    || text.trim() == "force_keyframe"
-                {
+                if is_force_keyframe_message(text) {
                     let now = now_millis();
                     let prev = last_force_keyframe_at.load(Ordering::Relaxed);
 
                     if now.saturating_sub(prev) >= 1000 {
                         last_force_keyframe_at.store(now, Ordering::Relaxed);
-                        let _ = nvenc_cmd_tx.send("force_idr\n".to_string());
+                        let _ = nvenc_cmd_tx.send(NvencCommand::ForceIdr);
+                        println!("[HOST] force_keyframe requested from client: {}", text);
                     }
 
                     return;
@@ -257,13 +268,15 @@ async fn main() -> Result<()> {
     // -------------------------------
     let (tx_video, mut rx_video) = mpsc::channel::<Vec<u8>>(16);
     let last_nvenc_packet_at_reader = last_nvenc_packet_at.clone();
+
     std::thread::spawn(move || {
-        let mut stdout = stdout;
+        let mut stdout = nvenc_stdout;
 
         loop {
             match read_packet(&mut stdout) {
                 Ok(packet) => {
                     last_nvenc_packet_at_reader.store(now_millis(), Ordering::Relaxed);
+
                     if tx_video.blocking_send(packet).is_err() {
                         break;
                     }
@@ -278,25 +291,29 @@ async fn main() -> Result<()> {
 
     let video_track = webrtc_clone.video_track.clone();
     let last_video_sample_at_writer = last_video_sample_at.clone();
+
     tokio::spawn(async move {
         while let Some(frame) = rx_video.recv().await {
             let filtered = rebuild_annexb_without_aud(&frame);
+
             let sample = Sample {
                 data: Bytes::from(filtered),
                 duration: VIDEO_FRAME_DURATION,
                 ..Default::default()
             };
+
             if let Err(e) = video_track.write_sample(&sample).await {
                 eprintln!("video write_sample failed: {:?}", e);
                 tokio::time::sleep(Duration::from_millis(10)).await;
                 continue;
             }
+
             last_video_sample_at_writer.store(now_millis(), Ordering::Relaxed);
         }
     });
 
     // -------------------------------
-    // WATCHDOG TASK THREAD
+    // WATCHDOG TASK
     // -------------------------------
     let last_nvenc_packet_at_wd = last_nvenc_packet_at.clone();
     let last_video_sample_at_wd = last_video_sample_at.clone();
@@ -311,26 +328,16 @@ async fn main() -> Result<()> {
             let packet_age = now.saturating_sub(last_nvenc_packet_at_wd.load(Ordering::Relaxed));
             let sample_age = now.saturating_sub(last_video_sample_at_wd.load(Ordering::Relaxed));
 
-            // println!(
-            //     "[VIDEO WATCHDOG] packet_age={}ms sample_age={}ms fired={}",
-            //     packet_age, sample_age, video_watchdog_fired_wd.load(Ordering::Relaxed)
-            // );
-
-            if packet_age > 3000 || sample_age > 3000 && !video_watchdog_fired_wd.swap(true, Ordering::SeqCst) {
-                // eprintln!(
-                //     "[VIDEO WATCHDOG] STALL DETECTED packet_age={}ms sample_age={}ms",
-                //     packet_age, sample_age
-                // );
-                let _ = nvenc_cmd_tx_wd.send("force_idr\n".to_string());
-
-                if let Err(e) = nvenc_cmd_tx_wd.send("force_idr\n".to_string()) {
-                    // eprintln!("[VIDEO WATCHDOG] failed to send_force_idr: {:?}", e);
-                } else {
-                    // eprintln!("[VIDEO WATCHDOG] force_idr sent");
-                }
+            if (packet_age > 3000 || sample_age > 3000)
+                && !video_watchdog_fired_wd.swap(true, Ordering::SeqCst)
+            {
+                let _ = nvenc_cmd_tx_wd.send(NvencCommand::ForceIdr);
+                eprintln!(
+                    "[VIDEO WATCHDOG] STALL DETECTED packet_age={}ms sample_age={}ms",
+                    packet_age, sample_age
+                );
             }
 
-            // 復帰したら再び発火可能に戻す
             if packet_age < 500 && sample_age < 500 {
                 video_watchdog_fired_wd.store(false, Ordering::SeqCst);
             }
@@ -346,7 +353,7 @@ async fn main() -> Result<()> {
 
         if s == RTCIceConnectionState::Connected || s == RTCIceConnectionState::Completed {
             ice_connected_for_cb.store(true, Ordering::Release);
-            input_mode_for_ice.store(1, Ordering::Release);
+            input_mode_for_ice.store(2, Ordering::Release);
 
             eprintln!("[HOST] audio command input enabled");
             eprintln!("[HOST] commands: pid <number> / audio_stop / system");
@@ -397,8 +404,11 @@ async fn main() -> Result<()> {
     loop {
         sleep(Duration::from_secs(3600)).await;
     }
+}
 
-    Ok(())
+#[derive(Debug, Clone, Copy)]
+enum NvencCommand {
+    ForceIdr,
 }
 
 struct AudioHelper {
@@ -412,15 +422,17 @@ enum AudioCommand {
     Stop,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum InputMode {
-    WaitAnswer,
-    WaitIce,
-    AudioCommand
+fn is_force_keyframe_message(text: &str) -> bool {
+    let t = text.trim();
+
+    t == "force_keyframe"
+        || t.contains("\"type\":\"force_keyframe\"")
+        || t.contains("\"type\": \"force_keyframe\"")
 }
 
 fn spawn_stdin_router(
     input_mode: Arc<AtomicU32>,
+    stream_mode_tx: std::sync::mpsc::Sender<String>,
     session_id_tx: std::sync::mpsc::Sender<String>,
     audio_cmd_tx: std::sync::mpsc::Sender<AudioCommand>
 ) {
@@ -434,9 +446,28 @@ fn spawn_stdin_router(
 
             match input_mode.load(Ordering::Acquire) {
                 0 => {
-                    let _ = session_id_tx.send(line);
+                    match &*line {
+                        "1" => {
+                            let _ = stream_mode_tx.send("balanced".to_string());
+                        }
+                        "2" => {
+                            let _ = stream_mode_tx.send("stable".to_string());
+                        }
+                        "3" => {
+                            let _ = stream_mode_tx.send("quality".to_string());
+                        }
+                        "4" => {
+                            let _ = stream_mode_tx.send("mobile".to_string());
+                        }
+                        _ => {
+                            let _ = stream_mode_tx.send("default".to_string());
+                        }
+                    }
                 }
                 1 => {
+                    let _ = session_id_tx.send(line);
+                }
+                2 => {
                     if let Some(rest) = line.strip_prefix("pid ") {
                         match rest.trim().parse::<u32>() {
                             Ok(pid) => {
@@ -495,7 +526,7 @@ fn spawn_system_mix_helper() -> Result<AudioHelper> {
 }
 
 fn read_exact_pcm_20ms(stdout: &mut ChildStdout) -> std::io::Result<Vec<i16>> {
-    // 48kHz, stereo, 16bit, 20ms:
+    // 48kHz, stereo, 16bit, 20ms
     // 48000 * 0.02 = 960 frames
     // 960 * 2ch * 2bytes = 3840 bytes
     let mut buf = [0u8; 3840];

@@ -18,7 +18,7 @@ let canvasEl = null;
 let canvasCtx = null;
 
 let forceKeyframeCooldownUntil = 0;
-const FORCE_KEYFRAME_COOLDOWN_MS = 5000;
+const FORCE_KEYFRAME_COOLDOWN_MS = 2500;
 
 // ---- video processor state ----
 let videoProcessor = null;
@@ -33,6 +33,7 @@ let firstVideoFrameArrived = false;
 let receivedFrames = 0;
 let droppedFrames = 0;
 let renderedFrames = 0;
+let lateDroppedFrames = 0;
 
 let ttlSeconds = 600 * 1000;
 let tokenTimeoutMessage = null;
@@ -44,8 +45,16 @@ let pendingRemoteCandidates = [];
 let sessionId = null;
 let copySessionResetTimer = null;
 
+const splashSubtitles = [
+    "Two PCs, one feeling.",
+    "Connecting comfort and speed.",
+    "Twins in sync."
+];
+
 const VIDEO_STALL_MS = 700;
 const RENDER_IDLE_WAIT_MS = 8;
+const MAX_FRAME_AGE_MS = 150;
+const MAX_RENDER_BACKLOG = 1;
 
 window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
@@ -62,6 +71,10 @@ window.addEventListener("gamepaddisconnected", (e) => {
 window.addEventListener("DOMContentLoaded", async () => {
     await fetchTtlSeconds();
     tokenTimeoutMessage = window.setTimeout(tokenTimeout, ttlSeconds);
+
+    const selectedSubtitle = splashSubtitles[getRandomInt(splashSubtitles.length)];
+    const subtitle = document.getElementById("splashSubtitle");
+    subtitle.textContent = selectedSubtitle;
 
     connectStatus = document.getElementById("status");
 
@@ -139,7 +152,28 @@ window.addEventListener("DOMContentLoaded", async () => {
     } catch (e) {
         console.error("initial connect failed", e);
     }
+
+    startSplash();
 });
+
+function getRandomInt(max) {
+    return Math.floor(Math.random() * max);
+}
+
+function startSplash() {
+    const splash = document.getElementById("splash");
+    if (!splash) return;
+    splash.classList.add("show");
+
+    setTimeout(() => {
+        splash.classList.add("hide");
+        splash.classList.remove("show");
+    }, 1000);
+
+    setTimeout(() => {
+        splash.remove();
+    }, 2400);
+}
 
 function tokenTimeout() {
     if (!alert("トークンの有効期限が切れました\nページの再読み込みをします")) {
@@ -601,7 +635,7 @@ async function connect() {
 
             setTimeout(() => {
                 sendForceKeyframe("initial_start");
-            }, 300);
+            }, 250);
 
             return;
         }
@@ -807,6 +841,7 @@ function cleanupPeerConnection() {
     receivedFrames = 0;
     droppedFrames = 0;
     renderedFrames = 0;
+    lateDroppedFrames = 0;
     forceKeyframeCooldownUntil = 0;
 
     clearCanvas();
@@ -970,6 +1005,7 @@ async function startVideoTrackProcessor(track) {
     receivedFrames = 0;
     droppedFrames = 0;
     renderedFrames = 0;
+    lateDroppedFrames = 0;
 
     console.log("[VIDEO] startVideoTrackProcessor");
 
@@ -1057,6 +1093,14 @@ function startRenderLoop() {
             if (latestFrame) {
                 const frame = latestFrame;
                 latestFrame = null;
+
+                const age = nowMs() - lastFrameArrivedAt;
+                if (age > MAX_FRAME_AGE_MS) {
+                    lateDroppedFrames++;
+                    closeFrameSafe(frame);
+                    continue;
+                }
+
                 drawVideoFrame(frame);
                 closeFrameSafe(frame);
                 continue;
@@ -1081,10 +1125,13 @@ function startVideoWatchdog() {
     videoWatchdogIntervalId = setInterval(() => {
         if (!pc) return;
         if (pc.connectionState !== "connected" && pc.connectionState !== "connecting") return;
-        if (!firstVideoFrameArrived) return;
+
+        if (!firstVideoFrameArrived) {
+            sendForceKeyframe("waiting_first_frame");
+            return;
+        }
 
         const age = nowMs() - lastFrameArrivedAt;
-
         if (age > VIDEO_STALL_MS) {
             console.warn("[VIDEO WATCHDOG] stall detected age=", Math.floor(age), "ms");
             sendForceKeyframe("video_stall");
@@ -1106,34 +1153,40 @@ function startStatsMonitor() {
             const stats = await pc.getStats();
 
             let selectedCandidatePair = null;
+            let localCandidateId = null;
             let remoteCandidateId = null;
 
             stats.forEach((report) => {
                 if (report.type === "candidate-pair" && report.state === "succeeded" && report.nominated) {
                     selectedCandidatePair = report;
+                    localCandidateId = report.localCandidateId;
                     remoteCandidateId = report.remoteCandidateId;
                 }
                 if (!selectedCandidatePair && report.type === "transport" && report.selectedCandidatePairId) {
                     selectedCandidatePair = stats.get(report.selectedCandidatePairId);
+                    localCandidateId = selectedCandidatePair?.localCandidateId;
                     remoteCandidateId = selectedCandidatePair?.remoteCandidateId;
                 }
             });
 
+            let localCandidate = null;
             let remoteCandidate = null;
-            if (remoteCandidateId) {
-                remoteCandidate = stats.get(remoteCandidateId);
-            }
+            if (localCandidateId) localCandidate = stats.get(localCandidateId);
+            if (remoteCandidateId) remoteCandidate = stats.get(remoteCandidateId);
 
             stats.forEach((report) => {
                 if (report.type === "inbound-rtp" && report.kind === "video") {
                     console.log("[video stats]", {
-                        jitter: report.jitter,
+                        packetsReceived: report.packetsReceived,
+                        bytesReceived: report.bytesReceived,
+                        framesReceived: report.framesReceived,
                         framesDecoded: report.framesDecoded,
                         framesDropped: report.framesDropped,
                         frameWidth: report.frameWidth,
                         frameHeight: report.frameHeight,
                         keyFramesDecoded: report.keyFramesDecoded,
                         totalDecodeTime: report.totalDecodeTime,
+                        jitter: report.jitter,
                         jitterBufferDelay: report.jitterBufferDelay,
                         jitterBufferEmittedCount: report.jitterBufferEmittedCount,
                         freezeCount: report.freezeCount,
@@ -1142,12 +1195,15 @@ function startStatsMonitor() {
                         processorReceivedFrames: receivedFrames,
                         processorDroppedFrames: droppedFrames,
                         processorRenderedFrames: renderedFrames,
+                        processorLateDroppedFrames: lateDroppedFrames,
                         latestFrameAgeMs: firstVideoFrameArrived ? Math.floor(nowMs() - lastFrameArrivedAt) : null,
                     });
                 }
 
                 if (report.type === "inbound-rtp" && report.kind === "audio") {
                     console.log("[audio stats]", {
+                        packetsReceived: report.packetsReceived,
+                        bytesReceived: report.bytesReceived,
                         jitter: report.jitter,
                         jitterBufferDelay: report.jitterBufferDelay,
                         packetsLost: report.packetsLost
@@ -1162,10 +1218,12 @@ function startStatsMonitor() {
                     availableOutgoingBitrate: selectedCandidatePair.availableOutgoingBitrate,
                     bytesReceived: selectedCandidatePair.bytesReceived,
                     bytesSent: selectedCandidatePair.bytesSent,
-                    localCandidateId: selectedCandidatePair.localCandidateId,
-                    remoteCandidateId: selectedCandidatePair.remoteCandidateId,
-                    remoteCandidateProtocol: remoteCandidate?.protocol,
+                    localCandidateType: localCandidate?.candidateType,
+                    localCandidateProtocol: localCandidate?.protocol,
+                    localCandidateAddress: localCandidate?.address,
+                    localCandidatePort: localCandidate?.port,
                     remoteCandidateType: remoteCandidate?.candidateType,
+                    remoteCandidateProtocol: remoteCandidate?.protocol,
                     remoteCandidateAddress: remoteCandidate?.address,
                     remoteCandidatePort: remoteCandidate?.port
                 });
@@ -1251,8 +1309,11 @@ async function logRtcSummary(pc) {
         currentRoundTripTime: selectedPair?.currentRoundTripTime,
         availableOutgoingBitrate: selectedPair?.availableOutgoingBitrate,
         availableIncomingBitrate: selectedPair?.availableIncomingBitrate,
+        packetsReceived: inboundVideo?.packetsReceived,
+        bytesReceived: inboundVideo?.bytesReceived,
         packetsLost: inboundVideo?.packetsLost,
         jitter: inboundVideo?.jitter,
+        framesReceived: inboundVideo?.framesReceived,
         framesDecoded: inboundVideo?.framesDecoded,
         framesPerSecond: inboundVideo?.framesPerSecond,
         freezeCount: inboundVideo?.freezeCount,
@@ -1262,6 +1323,7 @@ async function logRtcSummary(pc) {
         processorReceivedFrames: receivedFrames,
         processorDroppedFrames: droppedFrames,
         processorRenderedFrames: renderedFrames,
+        processorLateDroppedFrames: lateDroppedFrames,
         latestFrameAgeMs: firstVideoFrameArrived ? Math.floor(nowMs() - lastFrameArrivedAt) : null,
     });
 }

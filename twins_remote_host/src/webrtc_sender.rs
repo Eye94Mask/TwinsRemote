@@ -1,28 +1,29 @@
 use anyhow::Result;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::fmt::format;
 
-use serde::{Deserialize, Serialize};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use hmac::{Hmac, Mac, KeyInit};
+use hmac::{Hmac, KeyInit, Mac};
+use reqwest::Client;
+use serde::Deserialize;
 use sha1::Sha1;
+use tokio::sync::Mutex;
+use tokio::time::{sleep, Duration};
 
-use webrtc::api::APIBuilder;
-use webrtc::api::media_engine::MediaEngine;
 use webrtc::api::interceptor_registry::register_default_interceptors;
+use webrtc::api::media_engine::MediaEngine;
+use webrtc::api::APIBuilder;
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
-use webrtc::interceptor::registry::Registry;
-use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::ice_transport::ice_credential_type::RTCIceCredentialType;
-use webrtc::peer_connection::policy::ice_transport_policy::RTCIceTransportPolicy;
+use webrtc::ice_transport::ice_server::RTCIceServer;
+use webrtc::ice_transport::ice_connection_state::RTCIceConnectionState;
+use webrtc::interceptor::registry::Registry;
 use webrtc::peer_connection::configuration::RTCConfiguration;
+use webrtc::peer_connection::policy::ice_transport_policy::RTCIceTransportPolicy;
+use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
-use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
-
-use reqwest::Client;
-use tokio::time::{sleep, Duration};
 
 use crate::env::IceConfig;
 
@@ -35,24 +36,12 @@ pub struct WebRtcSender {
     pub peer: Arc<webrtc::peer_connection::RTCPeerConnection>,
     signal_base_url: String,
     session_id: String,
-    http: Client
-}
-
-#[derive(Deserialize)]
-pub struct Offer {
-    pub sdp: String,
-    pub r#type: String
-}
-
-#[derive(Serialize)]
-pub struct Answer {
-    pub sdp: String,
-    pub r#type: String
+    http: Client,
 }
 
 #[derive(Debug, Deserialize)]
 struct CandidatePollResponse {
-    candidates: Vec<RTCIceCandidateInit>
+    candidates: Vec<RTCIceCandidateInit>,
 }
 
 fn current_unix_time() -> u64 {
@@ -65,7 +54,7 @@ fn current_unix_time() -> u64 {
 fn create_turn_credentials(
     secret: &str,
     ttl_seconds: u64,
-    user_id: &str
+    user_id: &str,
 ) -> anyhow::Result<(String, String)> {
     let expiry = current_unix_time() + ttl_seconds;
     let username = format!("{}:{}", expiry, user_id);
@@ -87,6 +76,16 @@ fn with_session_id(base: &str, path: &str, session_id: &str) -> String {
     )
 }
 
+fn candidate_dedup_key(c: &RTCIceCandidateInit) -> String {
+    format!(
+        "{}|{:?}|{:?}|{:?}",
+        c.candidate,
+        c.sdp_mid,
+        c.sdp_mline_index,
+        c.username_fragment
+    )
+}
+
 impl WebRtcSender {
     pub async fn new(ice: IceConfig) -> Result<Self> {
         let mut m = MediaEngine::default();
@@ -103,7 +102,7 @@ impl WebRtcSender {
         let (turn_username, turn_credential) = create_turn_credentials(
             &ice.turn_shared_secret,
             ice.turn_ttl_seconds,
-            &ice.turn_user_id
+            &ice.turn_user_id,
         )?;
 
         println!("[TURN] url={}", ice.turn_url);
@@ -123,7 +122,7 @@ impl WebRtcSender {
                     credential: turn_credential,
                     credential_type: RTCIceCredentialType::Password,
                     ..Default::default()
-                }
+                },
             ],
             ice_transport_policy: RTCIceTransportPolicy::All,
             ..Default::default()
@@ -133,6 +132,11 @@ impl WebRtcSender {
 
         peer.on_ice_gathering_state_change(Box::new(move |s| {
             println!("ICE gathering state: {:?}", s);
+            Box::pin(async {})
+        }));
+
+        peer.on_ice_connection_state_change(Box::new(move |s: RTCIceConnectionState| {
+            println!("[HOST] ICE state changed: {:?}", s);
             Box::pin(async {})
         }));
 
@@ -151,7 +155,10 @@ impl WebRtcSender {
                 if let Some(c) = c {
                     match c.to_json() {
                         Ok(json) => {
-                            println!("HOST ICE CANDIDATE: {}", serde_json::to_string(&json).unwrap_or_default());
+                            println!(
+                                "HOST ICE CANDIDATE: {}",
+                                serde_json::to_string(&json).unwrap_or_default()
+                            );
 
                             if let Err(e) = http
                                 .post(&post_url)
@@ -178,11 +185,13 @@ impl WebRtcSender {
                 mime_type: "video/H264".to_string(),
                 clock_rate: 90000,
                 channels: 0,
-                sdp_fmtp_line: "".to_string(),
-                rtcp_feedback: vec![]
+                sdp_fmtp_line:
+                    "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f"
+                        .to_string(),
+                rtcp_feedback: vec![],
             },
             "video".to_string(),
-            "nvenc".to_string()
+            "nvenc".to_string(),
         ));
         let video_sender = peer.add_track(video_track.clone()).await?;
 
@@ -204,13 +213,26 @@ impl WebRtcSender {
                 mime_type: "audio/opus".to_string(),
                 clock_rate: 48000,
                 channels: 2,
-                sdp_fmtp_line: "".to_string(),
-                rtcp_feedback: vec![]
+                sdp_fmtp_line: "minptime=10;useinbandfec=1".to_string(),
+                rtcp_feedback: vec![],
             },
             "audio".to_string(),
-            "webrtc-rs".to_string()
+            "webrtc-rs".to_string(),
         ));
-        peer.add_track(audio_track.clone()).await?;
+        let audio_sender = peer.add_track(audio_track.clone()).await?;
+
+        tokio::spawn(async move {
+            let mut rtcp_buf = vec![0u8; 1500];
+            loop {
+                match audio_sender.read(&mut rtcp_buf).await {
+                    Ok((_n, _)) => {}
+                    Err(e) => {
+                        eprintln!("audio RTCP read failed: {:?}", e);
+                        break;
+                    }
+                }
+            }
+        });
 
         Ok(Self {
             video_track,
@@ -218,7 +240,7 @@ impl WebRtcSender {
             peer,
             signal_base_url,
             session_id,
-            http
+            http,
         })
     }
 
@@ -243,7 +265,7 @@ impl WebRtcSender {
         Ok(Some(text))
     }
 
-    pub async fn set_remote_offer(&self, json:&str) -> Result<()> {
+    pub async fn set_remote_offer(&self, json: &str) -> Result<()> {
         let offer: RTCSessionDescription = serde_json::from_str(json)?;
         self.peer.set_remote_description(offer).await?;
         Ok(())
@@ -258,21 +280,18 @@ impl WebRtcSender {
     }
 
     pub async fn post_answer(&self, answer_json: &str) -> Result<()> {
-        let url = with_session_id(
-            &self.signal_base_url,
-            "/answer",
-            &self.session_id
-        );
+        let url = with_session_id(&self.signal_base_url, "/answer", &self.session_id);
 
         let v: serde_json::Value = serde_json::from_str(answer_json)?;
 
-        let resp = self.http
+        let resp = self
+            .http
             .post(&url)
             .header("content-type", "application/json")
             .json(&v)
             .send()
             .await?;
-        
+
         if !resp.status().is_success() {
             return Err(anyhow::anyhow!("post_answer failed: {}", resp.status()));
         }
@@ -290,10 +309,17 @@ impl WebRtcSender {
         let peer = self.peer.clone();
         let http = self.http.clone();
 
+        let seen = Arc::new(Mutex::new(HashSet::<String>::new()));
+
         tokio::spawn(async move {
             loop {
                 match http.get(&url).send().await {
                     Ok(resp) => {
+                        if resp.status() == 204 {
+                            sleep(Duration::from_millis(300)).await;
+                            continue;
+                        }
+
                         if resp.status().is_success() {
                             match resp.json::<CandidatePollResponse>().await {
                                 Ok(payload) => {
@@ -302,11 +328,22 @@ impl WebRtcSender {
                                             continue;
                                         }
 
+                                        let key = candidate_dedup_key(&candidate);
+
+                                        {
+                                            let mut guard = seen.lock().await;
+                                            if guard.contains(&key) {
+                                                continue;
+                                            }
+                                            guard.insert(key);
+                                        }
+
                                         match peer.add_ice_candidate(candidate.clone()).await {
                                             Ok(_) => {
                                                 println!(
                                                     "CLIENT ICE added: {}",
-                                                    serde_json::to_string(&candidate).unwrap_or_default()
+                                                    serde_json::to_string(&candidate)
+                                                        .unwrap_or_default()
                                                 );
                                             }
                                             Err(e) => {
