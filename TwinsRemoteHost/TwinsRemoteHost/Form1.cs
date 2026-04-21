@@ -6,5 +6,10 @@ namespace TwinsRemoteHost
         {
             InitializeComponent();
         }
+
+        private void Host_Load(object sender, EventArgs e)
+        {
+
+        }
     }
 }
