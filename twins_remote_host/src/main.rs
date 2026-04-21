@@ -25,7 +25,7 @@ use webrtc::media::Sample;
 
 use crate::audio_encoder::AudioEncoder;
 use crate::consts::VIDEO_FRAME_DURATION;
-use crate::controller::{Controller, GamepadState};
+use crate::controller::{Controller, GamepadState, VirtualPadType};
 use crate::env::IceConfig;
 use crate::webrtc_sender::WebRtcSender;
 
@@ -75,7 +75,7 @@ async fn main() -> Result<()> {
     let webrtc = WebRtcSender::new(ice.clone()).await?;
     let webrtc_clone = webrtc.clone();
 
-    let controller = Arc::new(Mutex::new(Controller::new()?));
+    let controller = Arc::new(Mutex::new(Controller::new(VirtualPadType::Xbox360)?));
 
     let mut child = Command::new("NvEnc.exe")
         .arg(&preset)

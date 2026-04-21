@@ -13,8 +13,6 @@ use windows::{
     }
 };
 
-use crate::consts::TIMEOUT_MILLIS;
-
 pub struct DxgiCapture {
     device: ID3D11Device,
     context:ID3D11DeviceContext,
