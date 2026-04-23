@@ -12,6 +12,7 @@ use hmac::{Hmac, Mac, KeyInit};
 use rand::{distr::Alphanumeric, RngExt};
 use serde::{Deserialize, Serialize};
 use sha1::Sha1;
+use sha2::Sha256;
 use std::{
     collections::HashMap,
     net::SocketAddr,
@@ -19,12 +20,14 @@ use std::{
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH}
 };
+use subtle::ConstantTimeEq;
 use tokio::sync::Mutex;
 use tower_http::services::ServeDir;
 
 use crate::env::AppConfig;
 
 type HmacSha1 = Hmac<Sha1>;
+type HmacSha256 = Hmac<Sha256>;
 
 #[derive(Clone)]
 struct AppState {
@@ -84,6 +87,8 @@ struct PollCandidatesResponse {
 
 #[derive(Debug, Deserialize)]
 struct WebRtcConfigRequest {
+    #[serde(rename="sessionId")]
+    session_id: Option<String>,
     token: String
 }
 
@@ -97,6 +102,19 @@ struct TtlSecondsResponse {
 struct SessionQuery {
     #[serde(rename = "sessionId")]
     session_id: String
+}
+
+#[derive(Debug, Deserialize)]
+struct IssueHostTokenRequest {
+    #[serde(rename = "sessionId")]
+    session_id: String
+}
+
+#[derive(Debug, Serialize)]
+struct IssueHostTokenResponse {
+    #[serde(rename = "expiresIn")]
+    expires_in: u64,
+    token: String
 }
 
 #[tokio::main]
@@ -114,6 +132,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/", get(get_index))
         .route("/index.html", get(get_index))
+        .route("/issue-host-token", post(post_issue_host_token))
         .route("/webrtc-config", post(post_webrtc_config))
         .route("/offer", get(get_offer).post(post_offer))
         .route("/answer", get(get_answer).post(post_answer))
@@ -280,12 +299,127 @@ window.__WEBRTC_CONFIG_TOKEN__ = "{token}";
     response
 }
 
+async fn post_issue_host_token(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<IssueHostTokenRequest>
+) -> Response {
+    if req.session_id.trim().is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            [("cache-control", "no-store")],
+            "missing sessionId"
+        )
+            .into_response();
+    }
+
+    let expires_in = state.config.host_token_ttl_seconds;
+    let expires_at = current_unix_time().saturating_add(expires_in);
+
+    let token = match make_host_token(
+        &state.config.host_token_secret,
+        &req.session_id,
+        expires_at
+    ) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("failed to issue host token: {e}");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                [("cache-control", "no-store")],
+                "failed to issue host token"
+            )
+                .into_response();
+        }
+    };
+
+    (
+        StatusCode::OK,
+        [
+            ("cache-control", "no-store"),
+            ("pragma", "no-cache")
+        ],
+        Json(IssueHostTokenResponse {
+            token,
+            expires_in: expires_in
+        })
+    )
+        .into_response()
+}
+
+fn make_host_token(secret: &str, session_id: &str, expires_at: u64) -> anyhow::Result<String> {
+    let payload = format!("{}.{}", session_id, expires_at);
+
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())?;
+    mac.update(payload.as_bytes());
+    let sig = hex::encode(mac.finalize().into_bytes());
+
+    Ok(format!("{}.{}", expires_at, sig))
+}
+
+fn verify_host_token(
+    secret: &str,
+    session_id: &str,
+    token: &str,
+    now_unix: u64,
+    allowed_skew_secs: u64
+) -> anyhow::Result<()> {
+    let (expires_at_str, sig_hex) = token
+        .split_once('.')
+        .ok_or_else(|| anyhow::anyhow!("invalid token format"))?;
+
+    let expires_at: u64 = expires_at_str.parse()?;
+
+    if now_unix > expires_at.saturating_add(allowed_skew_secs) {
+        return Err(anyhow::anyhow!("token expired"));
+    }
+
+    let payload = format!("{}.{}", session_id, expires_at);
+
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())?;
+    mac.update(payload.as_bytes());
+    let expected = mac.finalize().into_bytes();
+
+    let provided = hex::decode(sig_hex)?;
+    if expected.as_slice().ct_eq(provided.as_slice()).unwrap_u8() != 1 {
+        return Err(anyhow::anyhow!("invalid token signature"));
+    }
+
+    Ok(())
+}
+
 async fn post_webrtc_config(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(req): Json<WebRtcConfigRequest>
 ) -> Response {
-    if !origin_allowed(&headers, &state.config.allowed_origin) {
+    let mut authorized = false;
+
+    // Token flow for browser
+    if origin_allowed(&headers, &state.config.allowed_origin) {
+        if consume_web_token(&state, &req.token).await { authorized = true; }
+    }
+
+    // Token flow for host
+    if !authorized {
+        if let Some(session_id) = req.session_id.as_deref() {
+            match verify_host_token(
+                &state.config.host_token_secret,
+                session_id,
+                &req.token,
+                current_unix_time(),
+                10
+            ) {
+                Ok(()) => {
+                    authorized = true;
+                }
+                Err(e) => {
+                    eprintln!("host token verify failed: {e}");
+                }
+            }
+        }
+    }
+
+    if !authorized {
         return (
             StatusCode::FORBIDDEN,
             [("cache-control", "no-store")],
@@ -294,17 +428,12 @@ async fn post_webrtc_config(
             .into_response();
     }
 
-    if !consume_web_token(&state, &req.token).await {
-        return (
-            StatusCode::FORBIDDEN,
-            [("cache-control", "no-store")],
-            "invalid token"
-        )
-            .into_response();
-    }
-
     let ttl = state.config.turn_ttl_seconds;
-    let user_id = "guest";
+    let user_id = req
+        .session_id
+        .as_deref()
+        .filter(|v| !v.trim().is_empty())
+        .unwrap_or("guest");
 
     let (turn_username, turn_credential) = match create_turn_credentials(
         &state.config.turn_shared_secret,
