@@ -67,12 +67,16 @@ async fn main() -> Result<()> {
     let (quit_tx, quit_rx) = std::sync::mpsc::channel::<()>();
     spawn_stdin_router(audio_cmd_tx.clone(), quit_tx);
 
-    let ice = IceConfig::load(&session_id);
-    let webrtc = WebRtcSender::new(ice.clone()).await?;
+    println!("[INFO] fetching IceConfig from server");
+    let ice = IceConfig::fetch_from_server(&session_id).await?;
+    println!("[INFO] IceConfig fetched");
+
+    let webrtc = WebRtcSender::new(ice.clone(), &session_id).await?;
     let webrtc_clone = webrtc.clone();
 
     let controller = Arc::new(Mutex::new(Controller::new(VirtualPadType::Xbox360)?));
 
+    println!("[INFO] launching NvEnc.exe preset={}", preset);
     let mut child = Command::new("NvEnc.exe")
         .arg(&preset)
         .stdin(Stdio::piped())
