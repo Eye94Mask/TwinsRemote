@@ -73,7 +73,6 @@ async fn main() -> Result<()> {
 
     let webrtc = WebRtcSender::new(ice.clone(), &session_id).await?;
     let webrtc_clone = webrtc.clone();
-
     let controller = Arc::new(Mutex::new(Controller::new(VirtualPadType::Xbox360)?));
 
     println!("[INFO] launching NvEnc.exe preset={}", preset);
