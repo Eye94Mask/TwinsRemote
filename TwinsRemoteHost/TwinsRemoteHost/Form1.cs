@@ -324,7 +324,9 @@ namespace TwinsRemoteHost
             if (pSelector == null || pSelector.IsDisposed)
             {
                 pSelector = new ProcessSelector();
-                pSelector.FormClosed += new FormClosedEventHandler(ProcessSelector_FormClosed);
+                pSelector.Left = this.Left + 200;
+                pSelector.Top = this.Top + 200;
+                pSelector.StartPosition = FormStartPosition.Manual;
                 pSelector.ShowDialog();
                 pId = pSelector.GetProcessId();
             }
@@ -342,12 +344,6 @@ namespace TwinsRemoteHost
                 pId = "";
 
             }
-        }
-
-        private void ProcessSelector_FormClosed(object? sender, FormClosedEventArgs e)
-        {
-            //ProcessSelector processSelector = (ProcessSelector)sender;
-            
         }
 
         private void buttonAudioOff_Click(object sender, EventArgs e)
