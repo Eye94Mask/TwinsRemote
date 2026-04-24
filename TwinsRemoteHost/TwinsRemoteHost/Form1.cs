@@ -89,7 +89,7 @@ namespace TwinsRemoteHost
 
             buttonAudioOn.Enabled = running;
             buttonAudioOff.Enabled = running;
-            buttonStop.Enabled = running;
+            buttonAudioSystem.Enabled = running;
         }
 
         private void AppendLog(string message)
@@ -324,32 +324,12 @@ namespace TwinsRemoteHost
 
         private void buttonAudioOff_Click(object sender, EventArgs e)
         {
-            SendCommand("audio off");
+            SendCommand("audio stop");
         }
 
-        private void buttonStop_Click(object sender, EventArgs e)
+        private void buttonAudioSystem_Click(object sender, EventArgs e)
         {
-            if (_hostProcess == null || _hostProcess.HasExited)
-            {
-                SetStatus("停止中");
-                SetRunningState(false);
-                return;
-            }
-
-            try
-            {
-                SendCommand("quit");
-
-                if (!_hostProcess.WaitForExit(2000))
-                {
-                    AppendLog("終了応答がないため強制終了します。");
-                    _hostProcess.Kill();
-                }
-            }
-            catch (Exception ex)
-            {
-                AppendLog("停止時エラー: " + ex.Message);
-            }
+            SendCommand("system");
         }
 
         private async Task<string> IssueHostTokenAsync(string signalBaseUrl, string sessionId)

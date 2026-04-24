@@ -37,7 +37,7 @@
             buttonStart = new Button();
             buttonAudioOn = new Button();
             buttonAudioOff = new Button();
-            buttonStop = new Button();
+            buttonAudioSystem = new Button();
             textBoxLog = new TextBox();
             SuspendLayout();
             // 
@@ -118,6 +118,7 @@
             buttonAudioOn.TabIndex = 7;
             buttonAudioOn.Text = "button1";
             buttonAudioOn.UseVisualStyleBackColor = true;
+            buttonAudioOn.Click += buttonAudioOn_Click;
             // 
             // buttonAudioOff
             // 
@@ -128,16 +129,18 @@
             buttonAudioOff.TabIndex = 8;
             buttonAudioOff.Text = "button1";
             buttonAudioOff.UseVisualStyleBackColor = true;
+            buttonAudioOff.Click += buttonAudioOff_Click;
             // 
-            // buttonStop
+            // buttonAudioSystem
             // 
-            buttonStop.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            buttonStop.Location = new Point(577, 228);
-            buttonStop.Name = "buttonStop";
-            buttonStop.Size = new Size(162, 59);
-            buttonStop.TabIndex = 9;
-            buttonStop.Text = "button1";
-            buttonStop.UseVisualStyleBackColor = true;
+            buttonAudioSystem.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            buttonAudioSystem.Location = new Point(577, 228);
+            buttonAudioSystem.Name = "buttonAudioSystem";
+            buttonAudioSystem.Size = new Size(162, 59);
+            buttonAudioSystem.TabIndex = 9;
+            buttonAudioSystem.Text = "button1";
+            buttonAudioSystem.UseVisualStyleBackColor = true;
+            buttonAudioSystem.Click += buttonAudioSystem_Click;
             // 
             // textBoxLog
             // 
@@ -154,7 +157,7 @@
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(2287, 1014);
             Controls.Add(textBoxLog);
-            Controls.Add(buttonStop);
+            Controls.Add(buttonAudioSystem);
             Controls.Add(buttonAudioOff);
             Controls.Add(buttonAudioOn);
             Controls.Add(buttonStart);
@@ -181,7 +184,7 @@
         private Button buttonStart;
         private Button buttonAudioOn;
         private Button buttonAudioOff;
-        private Button buttonStop;
+        private Button buttonAudioSystem;
         private TextBox textBoxLog;
     }
 }
