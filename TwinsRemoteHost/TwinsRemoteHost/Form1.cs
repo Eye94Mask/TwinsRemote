@@ -324,7 +324,7 @@ namespace TwinsRemoteHost
 
         private void buttonAudioOff_Click(object sender, EventArgs e)
         {
-            SendCommand("audio stop");
+            SendCommand("audio_stop");
         }
 
         private void buttonAudioSystem_Click(object sender, EventArgs e)
