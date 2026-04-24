@@ -17,6 +17,8 @@ namespace TwinsRemoteHost
     {
         private Process? _hostProcess;
         private LocaleData locale;
+        private ProcessSelector? pSelector = null;
+        private string pId = "";
 
         public Host()
         {
@@ -38,7 +40,7 @@ namespace TwinsRemoteHost
             labelStatusValue.Text = "停止中";
             SetRunningState(false);
         }
-        
+
         private void Host_FormClosing(object? sender, FormClosingEventArgs e)
         {
             Process[] systemMixCapture = Process.GetProcessesByName("SystemMixCapture");
@@ -297,7 +299,7 @@ namespace TwinsRemoteHost
             }
         }
 
-        private void SendCommand(string command)
+        public void SendCommand(string command)
         {
             if (_hostProcess == null || _hostProcess.HasExited)
             {
@@ -319,7 +321,33 @@ namespace TwinsRemoteHost
 
         private void buttonAudioOn_Click(object sender, EventArgs e)
         {
-            SendCommand("audio on");
+            if (pSelector == null || pSelector.IsDisposed)
+            {
+                pSelector = new ProcessSelector();
+                pSelector.FormClosed += new FormClosedEventHandler(ProcessSelector_FormClosed);
+                pSelector.ShowDialog();
+                pId = pSelector.GetProcessId();
+            }
+            else
+            {
+                pSelector.WindowState = FormWindowState.Normal;
+                pSelector.Activate();
+            }
+
+            pSelector.Dispose();
+            pSelector = null;
+            if (pId != "") 
+            {   
+                SendCommand(pId);
+                pId = "";
+
+            }
+        }
+
+        private void ProcessSelector_FormClosed(object? sender, FormClosedEventArgs e)
+        {
+            //ProcessSelector processSelector = (ProcessSelector)sender;
+            
         }
 
         private void buttonAudioOff_Click(object sender, EventArgs e)
