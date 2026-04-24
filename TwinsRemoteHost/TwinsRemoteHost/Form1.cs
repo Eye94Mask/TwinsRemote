@@ -22,6 +22,8 @@ namespace TwinsRemoteHost
         {
             InitializeComponent();
             InitializeUi();
+
+            FormClosing += Host_FormClosing;
         }
 
         private void InitializeUi()
@@ -35,6 +37,48 @@ namespace TwinsRemoteHost
 
             labelStatusValue.Text = "停止中";
             SetRunningState(false);
+        }
+        
+        private void Host_FormClosing(object? sender, FormClosingEventArgs e)
+        {
+            Process[] systemMixCapture = Process.GetProcessesByName("SystemMixCapture");
+            Process[] processAudioCapture = Process.GetProcessesByName("ProcessAudioCapture");
+            Process[] nvEnc = Process.GetProcessesByName("NvEnc");
+            Process[] twinsRemoteHost = Process.GetProcessesByName("twins_remote_host");
+
+            KillProcesses(systemMixCapture);
+            KillProcesses(processAudioCapture);
+            KillProcesses(nvEnc);
+            KillProcesses(twinsRemoteHost);
+        }
+        private void KillProcesses(Process[] processes)
+        {
+            foreach (Process process in processes)
+            {
+                try
+                {
+                    if (!process.HasExited)
+                    {
+                        process.Kill(entireProcessTree: true);
+                        process.WaitForExit(2000);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    try
+                    {
+                        AppendLog("プロセス終了失敗: " + ex.Message);
+                    }
+                    catch
+                    {
+
+                    }
+                }
+                finally
+                {
+                    process.Dispose();
+                }
+            }
         }
 
         private void SetRunningState(bool running)
@@ -78,19 +122,44 @@ namespace TwinsRemoteHost
                 return;
             }
 
-            string exePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "exes", "twins_remote_host.exe");
-            string exeDir = Path.GetDirectoryName(exePath)!;
+            string hostExePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "exes", "twins_remote_host.exe");
+            string exeDir = Path.GetDirectoryName(hostExePath)!;
 
-            if (!File.Exists(exePath))
+            string nvEncPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "exes", "NvEnc.exe");
+            string processAudioCapturePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "exes", "ProcessAudioCapture.exe");
+            string systemMixCapture = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "exes", "SystemMixCapture.exe");
+
+            if (!File.Exists(hostExePath))
             {
-                MessageBox.Show($"host.exe が見つかりません\n{exePath}", "エラー",
+                MessageBox.Show($"twins_remote_host.exe が見つかりません\n{hostExePath}", "エラー",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (!File.Exists(nvEncPath))
+            {
+                MessageBox.Show($"NvEnc.exe が見つかりません\n{nvEncPath}", "エラー",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (!File.Exists(processAudioCapturePath))
+            {
+                MessageBox.Show($"ProcessAudioCapture.exe が見つかりません\n{processAudioCapturePath}", "エラー",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            if (!File.Exists(systemMixCapture))
+            {
+                MessageBox.Show($"SystemMixCapture.exe が見つかりません\n{systemMixCapture}", "エラー",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
 
             var psi = new ProcessStartInfo
             {
-                FileName = exePath,
+                FileName = hostExePath,
                 WorkingDirectory = exeDir,
                 Arguments = $"--mode {mode} --session \"{sessionId}\"",
                 UseShellExecute = false,
