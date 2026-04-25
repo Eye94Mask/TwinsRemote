@@ -1,7 +1,8 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::env;
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use hmac::{Hmac, KeyInit, Mac};
@@ -87,7 +88,7 @@ fn candidate_dedup_key(c: &RTCIceCandidateInit) -> String {
 }
 
 impl WebRtcSender {
-    pub async fn new(ice: IceConfig) -> Result<Self> {
+    pub async fn new(ice: IceConfig, session_id: &str) -> Result<Self> {
         let mut m = MediaEngine::default();
         m.register_default_codecs()?;
 
@@ -99,25 +100,17 @@ impl WebRtcSender {
             .with_interceptor_registry(registry)
             .build();
 
-        let (turn_username, turn_credential) = create_turn_credentials(
-            &ice.turn_shared_secret,
-            ice.turn_ttl_seconds,
-            &ice.turn_user_id,
-        )?;
-
-        println!("[TURN] url={}", ice.turn_url);
-        println!("[TURN] ttl={}", ice.turn_ttl_seconds);
-        println!("[TURN] user_id={}", ice.turn_user_id);
-        println!("[TURN] generated username={}", turn_username);
+        let turn_username = ice.ice_servers[1].username.clone().expect("turn_username not found");
+        let turn_credential = ice.ice_servers[1].credential.clone().expect("turn_credential not found");
 
         let config = RTCConfiguration {
             ice_servers: vec![
                 RTCIceServer {
-                    urls: vec![ice.stun_url.clone()],
+                    urls: ice.ice_servers[0].urls.clone(),
                     ..Default::default()
                 },
                 RTCIceServer {
-                    urls: vec![ice.turn_url.clone()],
+                    urls: ice.ice_servers[1].urls.clone(),
                     username: turn_username,
                     credential: turn_credential,
                     credential_type: RTCIceCredentialType::Password,
@@ -141,10 +134,9 @@ impl WebRtcSender {
         }));
 
         let http = Client::new();
-        let signal_base_url = ice.signal_base_url.clone();
-        let session_id = ice.session_id.clone();
+        let signal_base_url = env::var("SIGNAL_BASE_URL").map_err(|e| anyhow!("SIGNAL_BASE_URL is not set: {:?}", e))?;
 
-        let post_url = with_session_id(&signal_base_url, "/host-candidate", &session_id);
+        let post_url = with_session_id(&signal_base_url, "/host-candidate", session_id);
         let http_for_candidate = http.clone();
 
         peer.on_ice_candidate(Box::new(move |c| {
@@ -239,7 +231,7 @@ impl WebRtcSender {
             audio_track,
             peer,
             signal_base_url,
-            session_id,
+            session_id: session_id.to_string(),
             http,
         })
     }
