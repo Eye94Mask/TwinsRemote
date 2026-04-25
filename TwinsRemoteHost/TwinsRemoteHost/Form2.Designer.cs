@@ -29,33 +29,18 @@
         private void InitializeComponent()
         {
             flowLayoutPanel = new FlowLayoutPanel();
-            radioButton1 = new RadioButton();
             OkButton = new Button();
             cancelButton = new Button();
             reloadButton = new Button();
-            flowLayoutPanel.SuspendLayout();
             SuspendLayout();
             // 
             // flowLayoutPanel
             // 
             flowLayoutPanel.AutoScroll = true;
-            flowLayoutPanel.Controls.Add(radioButton1);
             flowLayoutPanel.Location = new Point(12, 12);
             flowLayoutPanel.Name = "flowLayoutPanel";
             flowLayoutPanel.Size = new Size(819, 898);
             flowLayoutPanel.TabIndex = 0;
-            // 
-            // radioButton1
-            // 
-            radioButton1.AutoSize = true;
-            radioButton1.BackgroundImageLayout = ImageLayout.None;
-            radioButton1.Location = new Point(3, 3);
-            radioButton1.Name = "radioButton1";
-            radioButton1.Size = new Size(141, 29);
-            radioButton1.TabIndex = 0;
-            radioButton1.TabStop = true;
-            radioButton1.Text = "radioButton1";
-            radioButton1.UseVisualStyleBackColor = true;
             // 
             // OkButton
             // 
@@ -98,8 +83,6 @@
             Controls.Add(OkButton);
             Name = "ProcessSelector";
             Text = "ProcessSelector";
-            flowLayoutPanel.ResumeLayout(false);
-            flowLayoutPanel.PerformLayout();
             ResumeLayout(false);
         }
 
@@ -110,6 +93,5 @@
         private Button OkButton;
         private Button cancelButton;
         private Button reloadButton;
-        private RadioButton radioButton1;
     }
 }

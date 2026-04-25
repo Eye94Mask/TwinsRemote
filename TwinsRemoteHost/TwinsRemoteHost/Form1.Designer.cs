@@ -39,6 +39,7 @@
             buttonAudioOff = new Button();
             buttonAudioSystem = new Button();
             textBoxLog = new TextBox();
+            comboBoxLanguage = new ComboBox();
             SuspendLayout();
             // 
             // labelMode
@@ -151,11 +152,22 @@
             textBoxLog.Size = new Size(2074, 464);
             textBoxLog.TabIndex = 10;
             // 
+            // comboBoxLanguage
+            // 
+            comboBoxLanguage.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            comboBoxLanguage.FormattingEnabled = true;
+            comboBoxLanguage.Location = new Point(2110, 12);
+            comboBoxLanguage.Name = "comboBoxLanguage";
+            comboBoxLanguage.Size = new Size(182, 50);
+            comboBoxLanguage.TabIndex = 11;
+            comboBoxLanguage.SelectedIndexChanged += comboBoxLanguage_SelectedIndexChanged;
+            // 
             // Host
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(2287, 1014);
+            ClientSize = new Size(2304, 1014);
+            Controls.Add(comboBoxLanguage);
             Controls.Add(textBoxLog);
             Controls.Add(buttonAudioSystem);
             Controls.Add(buttonAudioOff);
@@ -169,6 +181,7 @@
             Controls.Add(labelMode);
             Name = "Host";
             Text = "TwinsRemote Host";
+            Load += Host_Load;
             ResumeLayout(false);
             PerformLayout();
         }
@@ -186,5 +199,6 @@
         private Button buttonAudioOff;
         private Button buttonAudioSystem;
         private TextBox textBoxLog;
+        private ComboBox comboBoxLanguage;
     }
 }

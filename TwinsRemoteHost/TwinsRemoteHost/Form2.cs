@@ -82,6 +82,7 @@ namespace TwinsRemoteHost
                 {
                     Name = "pId",
                     Text = $"pid {audioProcess.Item1}",
+                    Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128),
                     AutoSize = true,
                     TextAlign = ContentAlignment.MiddleLeft
                 };
@@ -89,7 +90,9 @@ namespace TwinsRemoteHost
 
                 var nameLabel = new Label
                 {
+                    Name = "appName",
                     Text = $"{audioProcess.Item2}",
+                    Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128),
                     AutoSize = true,
                     TextAlign = ContentAlignment.MiddleLeft
                 };

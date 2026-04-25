@@ -23,9 +23,15 @@ namespace TwinsRemoteHost
         public Host()
         {
             InitializeComponent();
+            AppendLog("Host: " + Properties.Settings.Default.Language);
             InitializeUi();
 
             FormClosing += Host_FormClosing;
+        }
+
+        private void Host_Load(object sender, EventArgs e)
+        {
+            
         }
 
         private void InitializeUi()
@@ -37,8 +43,26 @@ namespace TwinsRemoteHost
             comboBoxMode.Items.Add(new VideoPresetItem { DisplayName = "Mobile", Key = "mobile" });
             comboBoxMode.SelectedIndex = 0;
 
+            string language = Properties.Settings.Default.Language;
+            InitializeLanguageComboBox();
+            AppendLog("Host_Load: " + Properties.Settings.Default.Language);
+            comboBoxLanguage.SelectedIndex = comboBoxLanguage.FindStringExact(language);
+
             labelStatusValue.Text = "停止中";
             SetRunningState(false);
+        }
+
+        private void InitializeLanguageComboBox()
+        {
+            var languages = new[]
+            {
+                new { Name = "日本語", Code = "ja-JP" },
+                new { Name = "English", Code = "en-US" }
+            };
+
+            comboBoxLanguage.DisplayMember = "Name";
+            comboBoxLanguage.ValueMember = "Code";
+            comboBoxLanguage.DataSource = languages;
         }
 
         private void Host_FormClosing(object? sender, FormClosingEventArgs e)
@@ -338,8 +362,8 @@ namespace TwinsRemoteHost
 
             pSelector.Dispose();
             pSelector = null;
-            if (pId != "") 
-            {   
+            if (pId != "")
+            {
                 SendCommand(pId);
                 pId = "";
 
@@ -374,6 +398,24 @@ namespace TwinsRemoteHost
                 throw new Exception("host token response is empty");
 
             return body.Token;
+        }
+
+        private void comboBoxLanguage_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            string lang = comboBoxLanguage.Text.ToString() ?? "Japanese";
+
+            if (lang != string.Empty)
+            {
+                Properties.Settings.Default.Language = lang;
+                Properties.Settings.Default.Save();
+                AppendLog("Saved: " + lang);
+                AppendLog("Check: " + Properties.Settings.Default.Language);
+            }
+        }
+
+        private void ApplyLanguage()
+        {
+
         }
     }
 
