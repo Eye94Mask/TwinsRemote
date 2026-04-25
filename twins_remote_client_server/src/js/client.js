@@ -610,11 +610,16 @@ async function connect() {
 
         if (event.track.kind === "video") {
             console.log("[VIDEO] track received:", event.track.id);
+            const params = r.getParameters();
+            if (!params.degradationPreference) {
+                params.degradationPreference = "maintain-framerate";
+            }
+            event.setParameters(params);
 
             if (event.receiver) {
                 try {
                     if ("playoutDelayHint" in event.receiver) {
-                        event.receiver.playoutDelayHint = 0.0;
+                        event.receiver.playoutDelayHint = 0.03;
                     }
                     if ("jitterBufferTarget" in event.receiver) {
                         event.receiver.jitterBufferTarget = 0;
