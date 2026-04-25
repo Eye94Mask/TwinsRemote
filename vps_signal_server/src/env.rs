@@ -9,7 +9,9 @@ pub struct AppConfig {
     pub turn_shared_secret: String,
     pub turn_ttl_seconds: u64,
     pub allowed_origin: Option<String>,
-    pub session_ttl_seconds: u64
+    pub session_ttl_seconds: u64,
+    pub host_token_secret: String,
+    pub host_token_ttl_seconds: u64
 }
 
 impl AppConfig {
@@ -33,7 +35,13 @@ impl AppConfig {
             session_ttl_seconds: env::var("SESSION_TTL_SECONDS")
                 .ok()
                 .and_then(|v| v.parse::<u64>().ok())
-                .unwrap_or(3600)
+                .unwrap_or(3600),
+            host_token_secret: env::var("HOST_TOKEN_SECRET")
+                .expect("HOST_TOKEN_SECRET is not set"),
+            host_token_ttl_seconds: env::var("HOST_TOKEN_TTL_SECONDS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(300)
         }
     }
 }

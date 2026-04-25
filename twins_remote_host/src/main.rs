@@ -6,7 +6,7 @@ mod consts;
 mod env;
 
 use anyhow::{anyhow, Result};
-use std::io::{BufRead, Read, Write};
+use std::io::{Read, Write};
 use std::process::{Child, ChildStdout, Command, Stdio};
 use std::sync::{
     atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
@@ -14,8 +14,10 @@ use std::sync::{
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use clap::Parser;
 use bytes::Bytes;
 use rustls::crypto::ring::default_provider;
+use tokio::io::BufReader;
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 
@@ -29,54 +31,51 @@ use crate::controller::{Controller, GamepadState, VirtualPadType};
 use crate::env::IceConfig;
 use crate::webrtc_sender::WebRtcSender;
 
+#[derive(Parser, Debug)]
+#[command(author, version, about)]
+struct Args {
+    #[arg(long, default_value = "balanced")]
+    mode: String,
+
+    #[arg(long)]
+    session: String
+}
+
+#[derive(Debug)]
+enum HostCommand {
+    AudioOn,
+    AudioOff,
+    Quit
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     default_provider()
         .install_default()
         .expect("install rustls crypto provider");
+    
+    let args = Args::parse();
+    let preset = normalize_preset(&args.mode);
+    let session_id = args.session;
 
-    println!("Starting Remote Play Host");
-    println!("Please input session ID");
+    println!("[STATE] HOST_STARTING");
+    println!("[INFO] Starting Remote Play Host");
+    println!("[INFO] mode={}", preset);
+    println!("[INFO] session={}", session_id);
 
-    let input_mode = Arc::new(AtomicU32::new(0)); // 0=stream_mode, 1=session_id, 2=audio
-
-    let (stream_mode_tx, stream_mode_rx) = std::sync::mpsc::channel::<String>();
     let (audio_cmd_tx, audio_cmd_rx) = std::sync::mpsc::channel::<AudioCommand>();
-    let (session_id_tx, session_id_rx) = std::sync::mpsc::channel::<String>();
+    let (quit_tx, quit_rx) = std::sync::mpsc::channel::<()>();
+    spawn_stdin_router(audio_cmd_tx.clone(), quit_tx);
 
-    spawn_stdin_router(
-        input_mode.clone(),
-        stream_mode_tx,
-        session_id_tx,
-        audio_cmd_tx.clone(),
-    );
+    println!("[INFO] fetching IceConfig from server");
+    let ice = IceConfig::fetch_from_server(&session_id).await?;
+    println!("[INFO] IceConfig fetched");
 
-    println!(
-        "Please choose stream mode.\n\
-         1): balanced (default)\n\
-         2): stable\n\
-         3): quality\n\
-         4): mobile\n"
-    );
-
-    let preset = stream_mode_rx
-        .recv()
-        .map_err(|e| anyhow!("failed to receive stream_mode from stdin router: {:?}", e))?;
-
-    println!("choosed stream mode: {}", preset);
-
-    input_mode.store(1, Ordering::Release);
-
-    let session_id = session_id_rx
-        .recv()
-        .map_err(|e| anyhow!("failed to receive session_id from stdin router: {:?}", e))?;
-
-    let ice = IceConfig::load(&session_id);
-    let webrtc = WebRtcSender::new(ice.clone()).await?;
+    let webrtc = WebRtcSender::new(ice.clone(), &session_id).await?;
     let webrtc_clone = webrtc.clone();
-
     let controller = Arc::new(Mutex::new(Controller::new(VirtualPadType::Xbox360)?));
 
+    println!("[INFO] launching NvEnc.exe preset={}", preset);
     let mut child = Command::new("NvEnc.exe")
         .arg(&preset)
         .stdin(Stdio::piped())
@@ -134,24 +133,31 @@ async fn main() -> Result<()> {
                     AudioCommand::UsePid(pid) => match spawn_audio_helper(pid) {
                         Ok(h) => {
                             println!("[AUDIO] helper started for pid={}", pid);
+                            println!("[STATE] AUDIO_PID");
                             Some(h)
                         }
                         Err(e) => {
                             eprintln!("[AUDIO] failed to start helper: {:?}", e);
+                            println!("[STATE] AUDIO_ERROR");
                             None
                         }
                     },
                     AudioCommand::UseSystemMix => match spawn_system_mix_helper() {
                         Ok(h) => {
                             println!("[AUDIO] system mix helper started.");
+                            println!("[STATE] AUDIO_SYSTEM");
                             Some(h)
                         }
                         Err(e) => {
                             eprintln!("[AUDIO] failed to start system mix helper: {:?}", e);
+                            println!("[STATE] AUDIO_ERROR");
                             None
                         }
                     },
-                    AudioCommand::Stop => None,
+                    AudioCommand::Stop => {
+                        println!("[STATE] AUDIO_OFF");
+                        None
+                    }
                 };
             }
 
@@ -182,6 +188,7 @@ async fn main() -> Result<()> {
                         let _ = old.child.wait();
                     }
 
+                    println!("[STATE] AUDIO_ERROR");
                     std::thread::sleep(std::time::Duration::from_millis(100));
                 }
             }
@@ -346,24 +353,30 @@ async fn main() -> Result<()> {
 
     let ice_connected = Arc::new(AtomicBool::new(false));
     let ice_connected_for_cb = ice_connected.clone();
-    let input_mode_for_ice = input_mode.clone();
 
     webrtc.peer.on_ice_connection_state_change(Box::new(move |s| {
         println!("ICE: {:?}", s);
 
         if s == RTCIceConnectionState::Connected || s == RTCIceConnectionState::Completed {
             ice_connected_for_cb.store(true, Ordering::Release);
-            input_mode_for_ice.store(2, Ordering::Release);
 
+            println!("[STATE] ICE_CONNECTED");
             eprintln!("[HOST] audio command input enabled");
             eprintln!("[HOST] commands: pid <number> / audio_stop / system");
+        }
+
+        if s == RTCIceConnectionState::Disconnected
+            || s == RTCIceConnectionState::Failed
+            || s == RTCIceConnectionState::Closed
+        {
+            println!("[STATE] ICE_DISCONNECTED");
         }
 
         Box::pin(async {})
     }));
    
     // Offer / Answer Auto Exchange
-    println!("[HOST] waiting for offer...");
+    println!("[HOST] WAITING_FOR_OFFER");
     let offer_json = loop {
         match webrtc.fetch_offer().await {
             Ok(Some(offer)) => break offer,
@@ -377,33 +390,44 @@ async fn main() -> Result<()> {
         }
     };
 
-    println!("[HOST] offer received");
+    println!("[STATE] OFFER_RECEIVED");
 
     // Apply Offer
     webrtc.set_remote_offer(&offer_json).await?;
+    println!("[STATE] REMOTE_OFFER_SET");
 
     // Generate Answer
     let answer = webrtc.create_and_set_local_answer().await?;
+    println!("[STATE] LOCAL_ANSWER_CREATED");
 
     // Send Answer
     webrtc.post_answer(&answer).await?;
-
-    println!("[HOST] answer posted");
+    println!("[STATE] ANSWER_POSTED");
 
     // Start ICE Polling
     webrtc.start_client_candidate_polling().await;
 
-    println!("waiting ICE...");
+    println!("[STATE] ICE_WAITING");
 
     while !ice_connected.load(Ordering::Acquire) {
+        if quit_rx.try_recv().is_ok() {
+            println!("[STATE] EXITING");
+            return Ok(())
+        }
         sleep(Duration::from_millis(100)).await;
     }
 
-    println!("[HOST] ICE finished, switching stdin to audio command");
+    println!("[STATE] HOST_READY");
 
     loop {
-        sleep(Duration::from_secs(3600)).await;
+        if quit_rx.try_recv().is_ok() {
+            println!("[STATE] EXITING");
+            break;
+        }
+        sleep(Duration::from_secs(200)).await;
     }
+
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -422,6 +446,16 @@ enum AudioCommand {
     Stop,
 }
 
+fn normalize_preset(mode: &str) -> String {
+    match mode.trim().to_ascii_lowercase().as_str() {
+        "balanced" | "1" => "balanced".to_string(),
+        "stable" | "2" => "stable".to_string(),
+        "quality" | "3" => "quality".to_string(),
+        "mobile" | "4" => "mobile".to_string(),
+        _ => "balanced".to_string()
+    }
+}
+
 fn is_force_keyframe_message(text: &str) -> bool {
     let t = text.trim();
 
@@ -431,10 +465,8 @@ fn is_force_keyframe_message(text: &str) -> bool {
 }
 
 fn spawn_stdin_router(
-    input_mode: Arc<AtomicU32>,
-    stream_mode_tx: std::sync::mpsc::Sender<String>,
-    session_id_tx: std::sync::mpsc::Sender<String>,
-    audio_cmd_tx: std::sync::mpsc::Sender<AudioCommand>
+    audio_cmd_tx: std::sync::mpsc::Sender<AudioCommand>,
+    quit_tx: std::sync::mpsc::Sender<()>
 ) {
     std::thread::spawn(move || {
         use std::io::{self, BufRead};
@@ -442,53 +474,29 @@ fn spawn_stdin_router(
         let stdin = io::stdin();
         for line in stdin.lock().lines() {
             let Ok(line) = line else { break };
-            let line = line.trim().to_string();
+            let line = line.trim();
 
-            match input_mode.load(Ordering::Acquire) {
-                0 => {
-                    match &*line {
-                        "1" => {
-                            let _ = stream_mode_tx.send("balanced".to_string());
-                        }
-                        "2" => {
-                            let _ = stream_mode_tx.send("stable".to_string());
-                        }
-                        "3" => {
-                            let _ = stream_mode_tx.send("quality".to_string());
-                        }
-                        "4" => {
-                            let _ = stream_mode_tx.send("mobile".to_string());
-                        }
-                        _ => {
-                            let _ = stream_mode_tx.send("default".to_string());
-                        }
+            if let Some(rest) = line.strip_prefix("pid ") {
+                match rest.trim().parse::<u32>() {
+                    Ok(pid) => {
+                        let _ = audio_cmd_tx.send(AudioCommand::UsePid(pid));
+                        eprintln!("[HOST] requested audio switch to pid={}", pid);
+                    }
+                    Err(e) => {
+                        eprintln!("[HOST] invalid pid: {:?} ({})", e, line);
                     }
                 }
-                1 => {
-                    let _ = session_id_tx.send(line);
-                }
-                2 => {
-                    if let Some(rest) = line.strip_prefix("pid ") {
-                        match rest.trim().parse::<u32>() {
-                            Ok(pid) => {
-                                let _ = audio_cmd_tx.send(AudioCommand::UsePid(pid));
-                                eprintln!("[HOST] requested audio switch to pid={}", pid);
-                            }
-                            Err(e) => {
-                                eprintln!("[HOST] invalid pid: {:?} ({})", e, line);
-                            }
-                        }
-                    } else if line.eq_ignore_ascii_case("audio_stop") {
-                        let _ = audio_cmd_tx.send(AudioCommand::Stop);
-                        eprintln!("[HOST] requested audio stop");
-                    } else if line.eq_ignore_ascii_case("system") {
-                        let _ = audio_cmd_tx.send(AudioCommand::UseSystemMix);
-                        eprintln!("[HOST] requested audio switch to system mix");
-                    } else {
-                        eprintln!("[HOST] commands: pid <number> / audio_stop / system");
-                    }
-                }
-                _ => {}
+            } else if line.eq_ignore_ascii_case("audio_stop") {
+                let _ = audio_cmd_tx.send(AudioCommand::Stop);
+                eprintln!("[HOST] requested audio stop");
+            } else if line.eq_ignore_ascii_case("system") {
+                let _ = audio_cmd_tx.send(AudioCommand::UseSystemMix);
+                eprintln!("[HOST] requested audio switch to system mix");
+            } else if line.eq_ignore_ascii_case("quit") {
+                let _ = quit_tx.send(());
+                std::process::exit(0);
+            } else {
+                eprintln!("[HOST] commands: pid <number> / audio_stop / system / quit");
             }
         }
     });
@@ -599,7 +607,6 @@ fn rebuild_annexb_without_aud(data: &[u8]) -> Vec<u8> {
 
         let nal_type = nal[0] & 0x1f;
 
-        // AUD(9) を除外
         if nal_type == 9 {
             continue;
         }

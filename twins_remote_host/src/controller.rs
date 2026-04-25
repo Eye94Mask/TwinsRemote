@@ -71,7 +71,7 @@ pub struct Controller {
 
 impl Controller {
     pub fn new(pad_type: VirtualPadType) -> Result<Self> {
-        let client = Client::connect()?;
+        let client = Client::connect().expect("ViGEm Bus Driver is not installed");
 
         let kind = match pad_type {
             VirtualPadType::Xbox360 => {
