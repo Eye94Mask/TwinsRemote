@@ -610,11 +610,6 @@ async function connect() {
 
         if (event.track.kind === "video") {
             console.log("[VIDEO] track received:", event.track.id);
-            const params = r.getParameters();
-            if (!params.degradationPreference) {
-                params.degradationPreference = "maintain-framerate";
-            }
-            event.setParameters(params);
 
             if (event.receiver) {
                 try {
