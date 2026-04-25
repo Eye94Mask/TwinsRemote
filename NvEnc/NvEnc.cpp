@@ -190,12 +190,12 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
         return StreamConfig{
             1280, 720,
             30,
-            3 * 1000 * 1000,
             4 * 1000 * 1000,
-            3 * 1000 * 1000,
-            1500 * 1000,
-            30,
-            30,
+            5 * 1000 * 1000,
+            4 * 1000 * 1000,
+            2 * 1000 * 1000,
+            60,
+            60,
             true,
             false,
             1,
@@ -212,12 +212,12 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
         return StreamConfig{
             1920, 1080,
             30,
-            5 * 1000 * 1000,
             6 * 1000 * 1000,
-            5 * 1000 * 1000,
-            2 * 1000 * 1000,
+            8 * 1000 * 1000,
+            6 * 1000 * 1000,
+            3 * 1000 * 1000,
             60,
-            30,
+            60,
             true,
             false,
             1,
@@ -861,7 +861,7 @@ int main(int argc, char** argv) {
 
                     try {
                         DXGI_OUTDUPL_FRAME_INFO frameInfo{};
-                        HRESULT hr = dup.duplication->AcquireNextFrame(16, &frameInfo, &desktopResource);
+                        HRESULT hr = dup.duplication->AcquireNextFrame(5, &frameInfo, &desktopResource);
 
                         if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
                             continue;
