@@ -614,7 +614,7 @@ async function connect() {
             if (event.receiver) {
                 try {
                     if ("playoutDelayHint" in event.receiver) {
-                        event.receiver.playoutDelayHint = 0.03;
+                        event.receiver.playoutDelayHint = 0.02;
                     }
                     if ("jitterBufferTarget" in event.receiver) {
                         event.receiver.jitterBufferTarget = 0;
