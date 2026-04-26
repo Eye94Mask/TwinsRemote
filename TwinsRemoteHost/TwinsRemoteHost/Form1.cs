@@ -23,7 +23,6 @@ namespace TwinsRemoteHost
         public Host()
         {
             InitializeComponent();
-            AppendLog("Host: " + Properties.Settings.Default.Language);
             InitializeUi();
 
             FormClosing += Host_FormClosing;
@@ -45,7 +44,6 @@ namespace TwinsRemoteHost
 
             string language = Properties.Settings.Default.Language;
             InitializeLanguageComboBox();
-            AppendLog("Host_Load: " + Properties.Settings.Default.Language);
             comboBoxLanguage.SelectedIndex = comboBoxLanguage.FindStringExact(language);
 
             labelStatusValue.Text = "停止中";
@@ -408,14 +406,13 @@ namespace TwinsRemoteHost
             {
                 Properties.Settings.Default.Language = lang;
                 Properties.Settings.Default.Save();
-                AppendLog("Saved: " + lang);
-                AppendLog("Check: " + Properties.Settings.Default.Language);
             }
+
+            //ApplyLanguage(lang);
         }
 
-        private void ApplyLanguage()
+        private void ApplyLanguage(string lang)
         {
-
         }
     }
 
@@ -427,7 +424,7 @@ namespace TwinsRemoteHost
         public override string ToString() => DisplayName;
     }
 
-    class LocaleData
+    public class LocaleData
     {
         [JsonObject("Japanese")]
         public sealed class Japanese

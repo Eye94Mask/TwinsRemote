@@ -207,66 +207,76 @@ async fn main() -> Result<()> {
     // -------------------------------
     // DataChannel
     // -------------------------------
-    let dc = webrtc.peer.create_data_channel("input", None).await?;
-    println!("DataChannel label: {}", dc.label());
-
     let controller_clone = controller.clone();
     let nvenc_cmd_tx_clone = nvenc_cmd_tx.clone();
 
     let last_force_keyframe_at = Arc::new(AtomicU64::new(0));
     let last_force_keyframe_at_clone = last_force_keyframe_at.clone();
 
-    dc.on_message(Box::new(move |msg: DataChannelMessage| {
-        let controller = controller_clone.clone();
-        let nvenc_cmd_tx = nvenc_cmd_tx_clone.clone();
-        let last_force_keyframe_at = last_force_keyframe_at_clone.clone();
+    webrtc.peer.on_data_channel(Box::new(move |dc| {
+        println!("DataChannel accepted from client: {}", dc.label());
+
+        let controller_clone = controller_clone.clone();
+        let nvenc_cmd_tx_clone = nvenc_cmd_tx_clone.clone();
+        let last_force_keyframe_at_clone = last_force_keyframe_at_clone.clone();
 
         Box::pin(async move {
-            let data = &msg.data;
+            dc.on_open(Box::new(move || {
+                println!("[HOST] DataChannel OPEN");
+                Box::pin(async {})
+            }));
 
-            // Xbox controller input from client
-            if data.len() == 12 {
-                let buttons = u16::from_le_bytes([data[0], data[1]]);
-                let lt = data[2];
-                let rt = data[3];
-                let lx = i16::from_le_bytes([data[4], data[5]]);
-                let ly = i16::from_le_bytes([data[6], data[7]]);
-                let rx = i16::from_le_bytes([data[8], data[9]]);
-                let ry = i16::from_le_bytes([data[10], data[11]]);
+            dc.on_message(Box::new(move |msg: DataChannelMessage| {
+                let controller = controller_clone.clone();
+                let nvenc_cmd_tx = nvenc_cmd_tx_clone.clone();
+                let last_force_keyframe_at = last_force_keyframe_at_clone.clone();
 
-                if let Ok(mut ctrl) = controller.lock() {
-                    let report = GamepadState {
-                        buttons,
-                        lt,
-                        rt,
-                        lx,
-                        ly,
-                        rx,
-                        ry,
-                    };
-                    let _ = ctrl.update(report);
-                }
+                Box::pin(async move {
+                    let data = &msg.data;
 
-                return;
-            }
+                    if data.len() == 12 {
+                        let buttons = u16::from_le_bytes([data[0], data[1]]);
+                        let lt = data[2];
+                        let rt = data[3];
+                        let lx = i16::from_le_bytes([data[4], data[5]]);
+                        let ly = i16::from_le_bytes([data[6], data[7]]);
+                        let rx = i16::from_le_bytes([data[8], data[9]]);
+                        let ry = i16::from_le_bytes([data[10], data[11]]);
 
-            // Text control message from client
-            if let Ok(text) = std::str::from_utf8(data) {
-                if is_force_keyframe_message(text) {
-                    let now = now_millis();
-                    let prev = last_force_keyframe_at.load(Ordering::Relaxed);
+                        if let Ok(mut ctrl) = controller.lock() {
+                            let report = GamepadState {
+                                buttons,
+                                lt,
+                                rt,
+                                lx,
+                                ly,
+                                rx,
+                                ry,
+                            };
+                            let _ = ctrl.update(report);
+                        }
 
-                    if now.saturating_sub(prev) >= 1000 {
-                        last_force_keyframe_at.store(now, Ordering::Relaxed);
-                        let _ = nvenc_cmd_tx.send(NvencCommand::ForceIdr);
-                        println!("[HOST] force_keyframe requested from client: {}", text);
+                        return;
                     }
 
-                    return;
-                }
+                    if let Ok(text) = std::str::from_utf8(data) {
+                        if is_force_keyframe_message(text) {
+                            let now = now_millis();
+                            let prev = last_force_keyframe_at.load(Ordering::Relaxed);
 
-                println!("[HOST] text message on input dc: {}", text);
-            }
+                            if now.saturating_sub(prev) >= 1000 {
+                                last_force_keyframe_at.store(now, Ordering::Relaxed);
+                                let _ = nvenc_cmd_tx.send(NvencCommand::ForceIdr);
+                                println!("[HOST] force_keyframe requested from client: {}", text);
+                            }
+
+                            return;
+                        }
+
+                        println!("[HOST] text message on input dc: {}", text);
+                    }
+                })
+            }));
         })
     }));
 

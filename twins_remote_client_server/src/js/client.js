@@ -748,10 +748,23 @@ async function connect() {
         console.log("signalingState =", pc.signalingState);
     };
 
-    pc.createDataChannel("input", {
+    dc = pc.createDataChannel("input", {
         ordered: false,
         maxRetransmits: 0
     });
+
+    dc.onopen = () => {
+        log("[CLIENT] input DataChannel Open");
+        startGamepadLoop();
+    };
+
+    dc.onclose = () => {
+        log("[CLIENT] input DataChannel closed");
+    }
+
+    dc.onerror = (err) => {
+        console.error("[CLIENT] input DataChannel error", err);
+    }
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
