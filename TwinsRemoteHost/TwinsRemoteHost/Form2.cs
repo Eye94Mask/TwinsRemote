@@ -73,8 +73,14 @@ namespace TwinsRemoteHost
                 var radioButton = new RadioButton()
                 {
                     Name = "radioButton",
-                    Text = "",
+                    Text = " ",
+                    Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128),
                     Checked = false,
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    AutoSize = true,
+                    TabIndex = 0,
+                    TabStop = true,
+                    UseVisualStyleBackColor = true
                 };
                 radioButton.Click += Panel_Click;
 
