@@ -88,7 +88,6 @@
 
         #endregion
 
-        private ListView listView1;
         private FlowLayoutPanel flowLayoutPanel;
         private Button OkButton;
         private Button cancelButton;

@@ -44,41 +44,46 @@
             // 
             // labelMode
             // 
-            labelMode.AutoSize = true;
             labelMode.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            labelMode.Location = new Point(98, 44);
+            labelMode.ImageAlign = ContentAlignment.MiddleRight;
+            labelMode.Location = new Point(37, 49);
             labelMode.Name = "labelMode";
-            labelMode.Size = new Size(98, 42);
+            labelMode.RightToLeft = RightToLeft.Yes;
+            labelMode.Size = new Size(207, 42);
             labelMode.TabIndex = 0;
             labelMode.Text = "label1";
+            labelMode.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // labelSessionId
             // 
-            labelSessionId.AutoSize = true;
             labelSessionId.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            labelSessionId.Location = new Point(577, 44);
+            labelSessionId.ImageAlign = ContentAlignment.MiddleRight;
+            labelSessionId.Location = new Point(438, 49);
             labelSessionId.Name = "labelSessionId";
-            labelSessionId.Size = new Size(98, 42);
+            labelSessionId.RightToLeft = RightToLeft.Yes;
+            labelSessionId.Size = new Size(276, 42);
             labelSessionId.TabIndex = 1;
             labelSessionId.Text = "label1";
+            labelSessionId.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // labelStatusTitle
             // 
-            labelStatusTitle.AutoSize = true;
             labelStatusTitle.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            labelStatusTitle.Location = new Point(98, 358);
+            labelStatusTitle.ImageAlign = ContentAlignment.MiddleRight;
+            labelStatusTitle.Location = new Point(96, 360);
             labelStatusTitle.Name = "labelStatusTitle";
-            labelStatusTitle.Size = new Size(98, 42);
+            labelStatusTitle.RightToLeft = RightToLeft.No;
+            labelStatusTitle.Size = new Size(248, 42);
             labelStatusTitle.TabIndex = 2;
             labelStatusTitle.Text = "label1";
             // 
             // labelStatusValue
             // 
-            labelStatusValue.AutoSize = true;
             labelStatusValue.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            labelStatusValue.Location = new Point(279, 358);
+            labelStatusValue.ImageAlign = ContentAlignment.MiddleLeft;
+            labelStatusValue.Location = new Point(350, 360);
             labelStatusValue.Name = "labelStatusValue";
-            labelStatusValue.Size = new Size(98, 42);
+            labelStatusValue.Size = new Size(473, 42);
             labelStatusValue.TabIndex = 3;
             labelStatusValue.Text = "label1";
             // 
@@ -113,9 +118,9 @@
             // buttonAudioOn
             // 
             buttonAudioOn.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            buttonAudioOn.Location = new Point(98, 228);
+            buttonAudioOn.Location = new Point(100, 228);
             buttonAudioOn.Name = "buttonAudioOn";
-            buttonAudioOn.Size = new Size(162, 59);
+            buttonAudioOn.Size = new Size(222, 59);
             buttonAudioOn.TabIndex = 7;
             buttonAudioOn.Text = "button1";
             buttonAudioOn.UseVisualStyleBackColor = true;
@@ -124,9 +129,9 @@
             // buttonAudioOff
             // 
             buttonAudioOff.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            buttonAudioOff.Location = new Point(333, 228);
+            buttonAudioOff.Location = new Point(600, 228);
             buttonAudioOff.Name = "buttonAudioOff";
-            buttonAudioOff.Size = new Size(162, 59);
+            buttonAudioOff.Size = new Size(222, 59);
             buttonAudioOff.TabIndex = 8;
             buttonAudioOff.Text = "button1";
             buttonAudioOff.UseVisualStyleBackColor = true;
@@ -135,9 +140,9 @@
             // buttonAudioSystem
             // 
             buttonAudioSystem.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            buttonAudioSystem.Location = new Point(577, 228);
+            buttonAudioSystem.Location = new Point(350, 228);
             buttonAudioSystem.Name = "buttonAudioSystem";
-            buttonAudioSystem.Size = new Size(162, 59);
+            buttonAudioSystem.Size = new Size(222, 59);
             buttonAudioSystem.TabIndex = 9;
             buttonAudioSystem.Text = "button1";
             buttonAudioSystem.UseVisualStyleBackColor = true;
