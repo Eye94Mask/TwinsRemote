@@ -236,10 +236,10 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
         return StreamConfig{
             1920, 1080,
             30,
+            10 * 1000 * 1000,
+            12 * 1000 * 1000,
+            10 * 1000 * 1000,
             6 * 1000 * 1000,
-            8 * 1000 * 1000,
-            6 * 1000 * 1000,
-            3 * 1000 * 1000,
             60,
             60,
             true,
