@@ -78,6 +78,8 @@
             disableIadaptCheckBox = new CheckBox();
             disableBadaptLabel = new Label();
             disableBadaptCheckBox = new CheckBox();
+            Save = new Button();
+            cancelButton = new Button();
             detailSettingsFlowLayoutPanel.SuspendLayout();
             flowLayoutPanel1.SuspendLayout();
             SuspendLayout();
@@ -591,11 +593,33 @@
             disableBadaptCheckBox.Text = " ";
             disableBadaptCheckBox.UseVisualStyleBackColor = true;
             // 
+            // Save
+            // 
+            Save.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            Save.Location = new Point(1099, 1196);
+            Save.Name = "Save";
+            Save.Size = new Size(131, 52);
+            Save.TabIndex = 33;
+            Save.Text = "Save";
+            Save.UseVisualStyleBackColor = true;
+            // 
+            // cancelButton
+            // 
+            cancelButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            cancelButton.Location = new Point(936, 1196);
+            cancelButton.Name = "cancelButton";
+            cancelButton.Size = new Size(131, 52);
+            cancelButton.TabIndex = 34;
+            cancelButton.Text = "Cancel";
+            cancelButton.UseVisualStyleBackColor = true;
+            // 
             // ModeCreator
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1258, 1260);
+            Controls.Add(cancelButton);
+            Controls.Add(Save);
             Controls.Add(detailSettingsFlowLayoutPanel);
             Controls.Add(detailSettingLabel);
             Controls.Add(mobileButton);
@@ -685,5 +709,7 @@
         private Label enableLookAheadLabel;
         private Label lookAheadDepthLabel;
         private TextBox lookAheadDepthTextBox;
+        private Button Save;
+        private Button cancelButton;
     }
 }
