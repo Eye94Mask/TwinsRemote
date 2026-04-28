@@ -44,9 +44,10 @@
             // 
             // OkButton
             // 
-            OkButton.Location = new Point(719, 950);
+            OkButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            OkButton.Location = new Point(719, 945);
             OkButton.Name = "OkButton";
-            OkButton.Size = new Size(112, 42);
+            OkButton.Size = new Size(112, 51);
             OkButton.TabIndex = 2;
             OkButton.Text = "OK";
             OkButton.UseVisualStyleBackColor = true;
@@ -54,9 +55,10 @@
             // 
             // cancelButton
             // 
-            cancelButton.Location = new Point(586, 950);
+            cancelButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            cancelButton.Location = new Point(580, 945);
             cancelButton.Name = "cancelButton";
-            cancelButton.Size = new Size(112, 42);
+            cancelButton.Size = new Size(122, 51);
             cancelButton.TabIndex = 3;
             cancelButton.Text = "Cancel";
             cancelButton.UseVisualStyleBackColor = true;
@@ -64,9 +66,10 @@
             // 
             // reloadButton
             // 
-            reloadButton.Location = new Point(12, 950);
+            reloadButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            reloadButton.Location = new Point(12, 945);
             reloadButton.Name = "reloadButton";
-            reloadButton.Size = new Size(112, 42);
+            reloadButton.Size = new Size(135, 51);
             reloadButton.TabIndex = 4;
             reloadButton.Text = "Reload";
             reloadButton.UseVisualStyleBackColor = true;
@@ -88,7 +91,6 @@
 
         #endregion
 
-        private ListView listView1;
         private FlowLayoutPanel flowLayoutPanel;
         private Button OkButton;
         private Button cancelButton;

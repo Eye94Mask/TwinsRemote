@@ -130,7 +130,8 @@ enum class StreamPreset {
     Stable,
     Balanced,
     Quality,
-    Mobile
+    Mobile,
+    IPv4
 };
 
 struct StreamConfig {
@@ -169,6 +170,7 @@ static StreamPreset ParseStreamPreset(int argc, char** argv) {
     if (arg == "balanced") return StreamPreset::Balanced;
     if (arg == "quality")  return StreamPreset::Quality;
     if (arg == "mobile")   return StreamPreset::Mobile;
+    if (arg == "ipv4") return StreamPreset::IPv4;
 
     std::cerr << "[WARN] Unknown preset: " << arg << " (fallback to balanced)\n";
     return StreamPreset::Balanced;
@@ -180,12 +182,34 @@ static const char* StreamPresetToString(StreamPreset preset) {
     case StreamPreset::Balanced: return "balanced";
     case StreamPreset::Quality:  return "quality";
     case StreamPreset::Mobile:   return "mobile";
+    case StreamPreset::IPv4:     return "ipv4";
     default:                     return "unknown";
     }
 }
 
 static StreamConfig GetStreamConfig(StreamPreset preset) {
     switch (preset) {
+    case StreamPreset::IPv4:
+        return StreamConfig{
+            960, 540,
+            30,
+            1400 * 1000,
+            1800 * 1000,
+            1400 * 1000,
+            700 * 1000,
+            30,
+            30,
+            true,
+            false,
+            1,
+            NV_ENC_H264_PROFILE_BASELINE_GUID,
+            NV_ENC_PRESET_P3_GUID,
+            NV_ENC_TUNING_INFO_LOW_LATENCY,
+            false,
+            0,
+            true,
+            true
+        };
     case StreamPreset::Stable:
         return StreamConfig{
             1280, 720,
@@ -212,10 +236,10 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
         return StreamConfig{
             1920, 1080,
             30,
+            10 * 1000 * 1000,
+            12 * 1000 * 1000,
+            10 * 1000 * 1000,
             6 * 1000 * 1000,
-            8 * 1000 * 1000,
-            6 * 1000 * 1000,
-            3 * 1000 * 1000,
             60,
             60,
             true,

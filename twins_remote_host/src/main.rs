@@ -55,7 +55,9 @@ async fn main() -> Result<()> {
         .expect("install rustls crypto provider");
     
     let args = Args::parse();
-    let preset = normalize_preset(&args.mode);
+    let mode = args.mode.trim().to_ascii_lowercase();
+
+    let preset = mode.as_str();
     let session_id = args.session;
 
     println!("[STATE] HOST_STARTING");
@@ -454,16 +456,6 @@ enum AudioCommand {
     UsePid(u32),
     UseSystemMix,
     Stop,
-}
-
-fn normalize_preset(mode: &str) -> String {
-    match mode.trim().to_ascii_lowercase().as_str() {
-        "balanced" | "1" => "balanced".to_string(),
-        "stable" | "2" => "stable".to_string(),
-        "quality" | "3" => "quality".to_string(),
-        "mobile" | "4" => "mobile".to_string(),
-        _ => "balanced".to_string()
-    }
 }
 
 fn is_force_keyframe_message(text: &str) -> bool {
