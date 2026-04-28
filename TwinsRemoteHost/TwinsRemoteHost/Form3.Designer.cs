@@ -74,13 +74,13 @@
             disableIadaptCheckBox = new CheckBox();
             disableBadaptLabel = new Label();
             disableBadaptCheckBox = new CheckBox();
-            Save = new Button();
+            saveButton = new Button();
             cancelButton = new Button();
             resolutionWidthTextBox = new TextBox();
             fpsTextBox = new TextBox();
-            resolutionXLabel = new Label();
             resolutionHeightTextBox = new TextBox();
             detailSettingsContainerFlowLayoutPanel = new FlowLayoutPanel();
+            resolutionXLabel = new Label();
             detailSettingsFlowLayoutPanel1.SuspendLayout();
             detailSettingsFlowLayoutPanel2.SuspendLayout();
             detailSettingsContainerFlowLayoutPanel.SuspendLayout();
@@ -143,7 +143,6 @@
             modeNameTextBox.Name = "modeNameTextBox";
             modeNameTextBox.Size = new Size(440, 49);
             modeNameTextBox.TabIndex = 7;
-            modeNameTextBox.TabStop = false;
             // 
             // qualityButton
             // 
@@ -556,16 +555,16 @@
             disableBadaptCheckBox.Text = " ";
             disableBadaptCheckBox.UseVisualStyleBackColor = true;
             // 
-            // Save
+            // saveButton
             // 
-            Save.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            Save.Location = new Point(1099, 1196);
-            Save.Name = "Save";
-            Save.Size = new Size(131, 52);
-            Save.TabIndex = 33;
-            Save.Text = "Save";
-            Save.UseVisualStyleBackColor = true;
-            Save.Click += Save_Click;
+            saveButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            saveButton.Location = new Point(1099, 1196);
+            saveButton.Name = "saveButton";
+            saveButton.Size = new Size(131, 52);
+            saveButton.TabIndex = 33;
+            saveButton.Text = "Save";
+            saveButton.UseVisualStyleBackColor = true;
+            saveButton.Click += saveButton_Click;
             // 
             // cancelButton
             // 
@@ -576,6 +575,7 @@
             cancelButton.TabIndex = 34;
             cancelButton.Text = "Cancel";
             cancelButton.UseVisualStyleBackColor = true;
+            cancelButton.Click += cancelButton_Click;
             // 
             // resolutionWidthTextBox
             // 
@@ -584,7 +584,6 @@
             resolutionWidthTextBox.Name = "resolutionWidthTextBox";
             resolutionWidthTextBox.Size = new Size(139, 49);
             resolutionWidthTextBox.TabIndex = 35;
-            resolutionWidthTextBox.TabStop = false;
             // 
             // fpsTextBox
             // 
@@ -593,17 +592,6 @@
             fpsTextBox.Name = "fpsTextBox";
             fpsTextBox.Size = new Size(139, 49);
             fpsTextBox.TabIndex = 36;
-            fpsTextBox.TabStop = false;
-            // 
-            // resolutionXLabel
-            // 
-            resolutionXLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            resolutionXLabel.Location = new Point(331, 112);
-            resolutionXLabel.Name = "resolutionXLabel";
-            resolutionXLabel.RightToLeft = RightToLeft.Yes;
-            resolutionXLabel.Size = new Size(35, 38);
-            resolutionXLabel.TabIndex = 37;
-            resolutionXLabel.Text = "x";
             // 
             // resolutionHeightTextBox
             // 
@@ -612,7 +600,6 @@
             resolutionHeightTextBox.Name = "resolutionHeightTextBox";
             resolutionHeightTextBox.Size = new Size(139, 49);
             resolutionHeightTextBox.TabIndex = 38;
-            resolutionHeightTextBox.TabStop = false;
             // 
             // detailSettingsContainerFlowLayoutPanel
             // 
@@ -625,6 +612,16 @@
             detailSettingsContainerFlowLayoutPanel.TabIndex = 39;
             detailSettingsContainerFlowLayoutPanel.Visible = false;
             // 
+            // resolutionXLabel
+            // 
+            resolutionXLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            resolutionXLabel.Location = new Point(331, 112);
+            resolutionXLabel.Name = "resolutionXLabel";
+            resolutionXLabel.RightToLeft = RightToLeft.Yes;
+            resolutionXLabel.Size = new Size(35, 38);
+            resolutionXLabel.TabIndex = 37;
+            resolutionXLabel.Text = "x";
+            // 
             // ModeCreator
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
@@ -636,7 +633,7 @@
             Controls.Add(fpsTextBox);
             Controls.Add(resolutionWidthTextBox);
             Controls.Add(cancelButton);
-            Controls.Add(Save);
+            Controls.Add(saveButton);
             Controls.Add(detailSettingLabel);
             Controls.Add(mobileButton);
             Controls.Add(stableButton);
@@ -719,12 +716,12 @@
         private Label enableLookAheadLabel;
         private Label lookAheadDepthLabel;
         private TextBox lookAheadDepthTextBox;
-        private Button Save;
+        private Button saveButton;
         private Button cancelButton;
         private TextBox resolutionWidthTextBox;
         private TextBox fpsTextBox;
-        private Label resolutionXLabel;
         private TextBox resolutionHeightTextBox;
         private FlowLayoutPanel detailSettingsContainerFlowLayoutPanel;
+        private Label resolutionXLabel;
     }
 }

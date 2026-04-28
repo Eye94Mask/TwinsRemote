@@ -59,8 +59,8 @@
   "profileGuidLabelDescription": "",
   "presetGuidDescription": "",
   "tuningInfoDescription": "",
-  "enableLookAheadDescription": "",
-  "lookAheadDepthDescription": "",
+  "enableLookaheadDescription": "",
+  "lookaheadDepthDescription": "",
   "disableIadaptDescription": "",
   "disableBadaptDescription": "",
   "alretNoModeName": "",
@@ -75,7 +75,7 @@
   "alertNoMaxRefFrames": "",
   "alertNoPresetGuid": "",
   "alertNoTuningInfo": "",
-  "alertNoLookAheadDepth": "",
+  "alertNoLookaheadDepth": "",
   "alretInvalidModeName": "",
   "alertInvalidResolution": "",
   "alertInvalidFps": "",
@@ -88,6 +88,6 @@
   "alertInvalidMaxRefFrames": "",
   "alertInvalidPresetGuid": "",
   "alertInvalidTuningInfo": "",
-  "alertInvalidLookAheadDepth": "",
+  "alertInvalidLookaheadDepth": "",
   "customModeSaved": ""
 }

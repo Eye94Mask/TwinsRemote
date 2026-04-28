@@ -1,6 +1,7 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http.Json;
@@ -249,40 +250,10 @@ namespace TwinsRemoteHost
             ApplyLanguage();
         }
 
-        private bool isValidLanguage(string code)
-        {
-            switch (code)
-            {
-                case "ja-JP":
-                case "en-US":
-                    {
-                        return true;
-                    }
-            }
-
-            return false;
-        }
-
         private void SetLocale()
         {
-            AppendLog("Test: " + languageComboBox.SelectedItem.ToString());
             if (languageComboBox.SelectedItem == null) { return; }
-            string? language = languageComboBox.SelectedItem.ToString();
-            if (language == null) { return; }
-
-            string[] words = language.Split(' ');
-            if (words.Length != 8 && words[4] != "Code")
-            {
-                AppendLog(this.locale.InvalidLanguage);
-                return;
-            }
-
-            string code = words[6];
-            if (!isValidLanguage(code))
-            {
-                AppendLog(this.locale.InvalidLanguage);
-                return;
-            }
+            string code = languageComboBox.SelectedValue.ToString();
 
             string localeFile = $"{code}.json";
             string localePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "locales", localeFile);
@@ -701,11 +672,11 @@ namespace TwinsRemoteHost
         [JsonProperty("tuningInfoDescription")]
         public required string TuningInfoDescription { get; set; }
 
-        [JsonProperty("enableLookAheadDescription")]
-        public required string EnableLookAheadDescription { get; set; }
+        [JsonProperty("enableLookaheadDescription")]
+        public required string EnableLookaheadDescription { get; set; }
 
-        [JsonProperty("lookAheadDepthDescription")]
-        public required string LookAheadDepthDescription { get; set; }
+        [JsonProperty("lookaheadDepthDescription")]
+        public required string LookaheadDepthDescription { get; set; }
 
         [JsonProperty("disableIadaptDescription")]
         public required string DisableIadaptDescription { get; set; }
@@ -746,8 +717,8 @@ namespace TwinsRemoteHost
         [JsonProperty("alertNoTuningInfo")]
         public required string AlertNoTuningInfo { get; set; }
 
-        [JsonProperty("alertNoLookAheadDepth")]
-        public required string AlertNoLookAheadDepth { get; set; }
+        [JsonProperty("alertNoLookaheadDepth")]
+        public required string AlertNoLookaheadDepth { get; set; }
 
         [JsonProperty("alertInvalidModeName")]
         public required string AlertInvalidModeName { get; set; }
@@ -785,8 +756,8 @@ namespace TwinsRemoteHost
         [JsonProperty("alertInvalidTuningInfo")]
         public required string AlertInvalidTuningInfo { get; set; }
 
-        [JsonProperty("alertInvalidLookAheadDepth")]
-        public required string AlertInvalidLookAheadDepth { get; set; }
+        [JsonProperty("alertInvalidLookaheadDepth")]
+        public required string AlertInvalidLookaheadDepth { get; set; }
 
         [JsonProperty("customModeSaved")]
         public required string CustomModeSaved { get; set; }

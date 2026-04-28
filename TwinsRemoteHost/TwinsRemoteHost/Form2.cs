@@ -13,7 +13,7 @@ namespace TwinsRemoteHost
     public partial class ProcessSelector : Form
     {
         private FlowLayoutPanel? selectedPanel;
-        private String processId = "";
+        private string processId = "";
 
         public ProcessSelector()
         {
@@ -48,7 +48,7 @@ namespace TwinsRemoteHost
             return audioProcesses;
         }
 
-        private Process? GetProcessFromId(int processId)
+        private static Process? GetProcessFromId(int processId)
         {
             try
             {
@@ -133,9 +133,7 @@ namespace TwinsRemoteHost
 
             foreach (FlowLayoutPanel panel in flowLayoutPanel.Controls.OfType<FlowLayoutPanel>())
             {
-                Label? idLabel = panel.Controls["pId"] as Label;
-
-                if (idLabel == null) { continue; }
+                if (panel.Controls["pId"] is not Label idLabel) { continue; }
                 string pidStr = idLabel.Text.Replace("pid ", "");
                 
                 try
