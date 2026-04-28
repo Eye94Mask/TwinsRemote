@@ -19,6 +19,7 @@ namespace TwinsRemoteHost
         private Process? _hostProcess;
         private Locale locale;
         private ProcessSelector? pSelector = null;
+        private ModeCreator? mCreator = null;
         private string pId = "";
         private Status status = Status.Stop;
 
@@ -122,6 +123,217 @@ namespace TwinsRemoteHost
         private void SetStatus(string status)
         {
             labelStatusValue.Text = status;
+        }
+
+        private void HostProcess_Exited(object? sender, EventArgs e)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke(new Action(() => HostProcess_Exited(sender, e)));
+                return;
+            }
+
+            AppendLog(locale.HostExeExit);
+            SetStatus(locale.StatusStopped);
+            SetRunningState(false);
+        }
+
+        private async Task ReadOutputLoop(Process process)
+        {
+            try
+            {
+                while (true)
+                {
+                    string? line = await process.StandardOutput.ReadLineAsync();
+                    if (line == null) break;
+                    if (line.Contains("ICE_CONNECTED"))
+                    {
+                        this.status = Status.Connected;
+                        labelStatusValue.Text = locale.StatusConnected;
+                    }
+                    if (line.Contains("ICE_DISCONNECTED"))
+                    {
+                        this.status = Status.Disconnected;
+                        labelStatusValue.Text = locale.StatusDisconnected;
+                    }
+
+                    BeginInvoke(new Action(() =>
+                    {
+                        AppendLog("[OUT] " + line);
+                    }));
+                }
+            }
+            catch (Exception ex)
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    AppendLog(locale.ReadLineFailed + ex.Message);
+                }));
+            }
+        }
+
+        private async Task ReadErrorLoop(Process process)
+        {
+            try
+            {
+                while (true)
+                {
+                    string? line = await process.StandardError.ReadLineAsync();
+                    if (line == null) break;
+
+                    BeginInvoke(new Action(() =>
+                    {
+                        AppendLog("[ERR] " + line);
+                    }));
+                }
+            }
+            catch (Exception ex)
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    AppendLog(locale.ReadErrorFailed + ex.Message);
+                }));
+            }
+        }
+
+        public void SendCommand(string command)
+        {
+            if (_hostProcess == null || _hostProcess.HasExited)
+            {
+                AppendLog(locale.HostExeNotStarted);
+                return;
+            }
+
+            try
+            {
+                _hostProcess.StandardInput.WriteLine(command);
+                _hostProcess.StandardInput.Flush();
+                AppendLog("[CMD] " + command);
+            }
+            catch (Exception ex)
+            {
+                AppendLog(locale.SendCommandFailed + ex.Message);
+            }
+        }
+
+        private async Task<string> IssueHostTokenAsync(string signalBaseUrl, string sessionId)
+        {
+            using var http = new HttpClient();
+
+            string url = signalBaseUrl.TrimEnd('/') + "/issue-host-token";
+
+            var resp = await http.PostAsJsonAsync(url, new IssueHostTokenRequest
+            {
+                SessionId = sessionId
+            });
+
+            resp.EnsureSuccessStatusCode();
+
+            var body = await resp.Content.ReadFromJsonAsync<IssueHostTokenResponse>();
+            if (body == null || string.IsNullOrWhiteSpace(body.Token))
+                throw new Exception("host token response is empty");
+
+            return body.Token;
+        }
+
+        private void comboBoxLanguage_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            string lang = comboBoxLanguage.Text.ToString() ?? "Japanese";
+
+            if (lang != string.Empty)
+            {
+                Properties.Settings.Default.Language = lang;
+                Properties.Settings.Default.Save();
+            }
+
+            ApplyLanguage();
+        }
+
+        private bool isValidLanguage(string code)
+        {
+            switch (code)
+            {
+                case "ja-JP":
+                case "en-US":
+                    {
+                        return true;
+                    }
+            }
+
+            return false;
+        }
+
+        private void SetLocale()
+        {
+            if (comboBoxLanguage.SelectedItem == null) { return; }
+            string? language = comboBoxLanguage.SelectedItem.ToString();
+            if (language == null) { return; }
+
+            string[] words = language.Split(' ');
+            if (words.Length != 8 && words[4] != "Code")
+            {
+                AppendLog(locale.InvalidLanguage);
+                return;
+            }
+
+            string code = words[6];
+            if (!isValidLanguage(code))
+            {
+                AppendLog(locale.InvalidLanguage);
+                return;
+            }
+
+            string localeFile = $"{code}.json";
+            string localePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "locales", localeFile);
+            if (!File.Exists(localePath))
+            {
+                AppendLog(locale.LocaleNotFound + localeFile);
+                return;
+            }
+
+            try
+            {
+                string jsonStr;
+                using (var sr = new StreamReader(localePath, Encoding.GetEncoding("utf-8")))
+                {
+                    jsonStr = sr.ReadToEnd();
+                }
+
+                this.locale = JsonConvert.DeserializeObject<Locale>(jsonStr);
+            }
+            catch (Exception ex)
+            {
+                AppendLog(locale.ReadLocaleFailed + ex);
+            }
+
+            return;
+        }
+
+        private string GetCurrentStatus()
+        {
+            switch (this.status)
+            {
+                case Status.Stop: return locale.StatusStopped;
+                case Status.Start: return locale.StatusStart;
+                case Status.Connected: return locale.StatusConnected;
+                case Status.Disconnected: return locale.StatusDisconnected;
+            }
+
+            return "";
+        }
+
+        private void ApplyLanguage()
+        {
+            SetLocale();
+
+            labelMode.Text = locale.LabelModeText;
+            labelSessionId.Text = locale.LabelSessionIdText;
+            labelStatusTitle.Text = locale.LabelStatusTitleText;
+            labelStatusValue.Text = GetCurrentStatus();
+            buttonStart.Text = locale.ButtonStartText;
+            buttonAudioOn.Text = locale.ButtonAudioOnText;
+            buttonAudioOff.Text = locale.ButtonAudioOffText;
+            buttonAudioSystem.Text = locale.ButtonAudioSystemText;
         }
 
         private async void buttonStart_Click(object sender, EventArgs e)
@@ -228,97 +440,6 @@ namespace TwinsRemoteHost
             }
         }
 
-        private void HostProcess_Exited(object? sender, EventArgs e)
-        {
-            if (InvokeRequired)
-            {
-                BeginInvoke(new Action(() => HostProcess_Exited(sender, e)));
-                return;
-            }
-
-            AppendLog(locale.HostExeExit);
-            SetStatus(locale.StatusStopped);
-            SetRunningState(false);
-        }
-
-        private async Task ReadOutputLoop(Process process)
-        {
-            try
-            {
-                while (true)
-                {
-                    string? line = await process.StandardOutput.ReadLineAsync();
-                    if (line == null) break;
-                    if (line.Contains("ICE_CONNECTED"))
-                    {
-                        this.status = Status.Connected;
-                        labelStatusValue.Text = locale.StatusConnected;
-                    }
-                    if (line.Contains("ICE_DISCONNECTED"))
-                    {
-                        this.status = Status.Disconnected;
-                        labelStatusValue.Text = locale.StatusDisconnected;
-                    }
-
-                    BeginInvoke(new Action(() =>
-                    {
-                        AppendLog("[OUT] " + line);
-                    }));
-                }
-            }
-            catch (Exception ex)
-            {
-                BeginInvoke(new Action(() =>
-                {
-                    AppendLog(locale.ReadLineFailed + ex.Message);
-                }));
-            }
-        }
-
-        private async Task ReadErrorLoop(Process process)
-        {
-            try
-            {
-                while (true)
-                {
-                    string? line = await process.StandardError.ReadLineAsync();
-                    if (line == null) break;
-
-                    BeginInvoke(new Action(() =>
-                    {
-                        AppendLog("[ERR] " + line);
-                    }));
-                }
-            }
-            catch (Exception ex)
-            {
-                BeginInvoke(new Action(() =>
-                {
-                    AppendLog(locale.ReadErrorFailed + ex.Message);
-                }));
-            }
-        }
-
-        public void SendCommand(string command)
-        {
-            if (_hostProcess == null || _hostProcess.HasExited)
-            {
-                AppendLog(locale.HostExeNotStarted);
-                return;
-            }
-
-            try
-            {
-                _hostProcess.StandardInput.WriteLine(command);
-                _hostProcess.StandardInput.Flush();
-                AppendLog("[CMD] " + command);
-            }
-            catch (Exception ex)
-            {
-                AppendLog(locale.SendCommandFailed + ex.Message);
-            }
-        }
-
         private void buttonAudioOn_Click(object sender, EventArgs e)
         {
             if (pSelector == null || pSelector.IsDisposed)
@@ -356,123 +477,24 @@ namespace TwinsRemoteHost
             SendCommand("system");
         }
 
-        private async Task<string> IssueHostTokenAsync(string signalBaseUrl, string sessionId)
+        private void createMode_Click(object sender, EventArgs e)
         {
-            using var http = new HttpClient();
-
-            string url = signalBaseUrl.TrimEnd('/') + "/issue-host-token";
-
-            var resp = await http.PostAsJsonAsync(url, new IssueHostTokenRequest
+            if (mCreator == null || mCreator.IsDisposed)
             {
-                SessionId = sessionId
-            });
-
-            resp.EnsureSuccessStatusCode();
-
-            var body = await resp.Content.ReadFromJsonAsync<IssueHostTokenResponse>();
-            if (body == null || string.IsNullOrWhiteSpace(body.Token))
-                throw new Exception("host token response is empty");
-
-            return body.Token;
-        }
-
-        private void comboBoxLanguage_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            string lang = comboBoxLanguage.Text.ToString() ?? "Japanese";
-
-            if (lang != string.Empty)
+                mCreator = new ModeCreator();
+                mCreator.Left = this.Left + 200;
+                mCreator.Top = this.Top + 200;
+                mCreator.StartPosition = FormStartPosition.Manual;
+                mCreator.Show();
+            }
+            else
             {
-                Properties.Settings.Default.Language = lang;
-                Properties.Settings.Default.Save();
+                mCreator.WindowState = FormWindowState.Normal;
+                mCreator.Activate();
             }
 
-            ApplyLanguage();
-        }
-
-        private bool isValidLanguage(string code)
-        {
-            switch (code) {
-                case "ja-JP":
-                case "en-US":
-                    {
-                        return true;
-                    }
-            }
-
-            return false;
-        }
-
-        private void SetLocale()
-        {
-            if (comboBoxLanguage.SelectedItem == null) { return; }
-            string? language = comboBoxLanguage.SelectedItem.ToString();
-            if (language == null) { return; }
-
-            string[] words = language.Split(' ');
-            if (words.Length != 8 && words[4] != "Code")
-            {
-                AppendLog(locale.InvalidLanguage);
-                return;
-            }
-
-            string code = words[6];
-            if (!isValidLanguage(code))
-            {
-                AppendLog(locale.InvalidLanguage);
-                return;
-            }
-
-            string localeFile = $"{code}.json";
-            string localePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "locales", localeFile);
-            if (!File.Exists(localePath))
-            {
-                AppendLog(locale.LocaleNotFound + localeFile);
-                return;
-            }
-
-            try
-            {
-                string jsonStr;
-                using (var sr = new StreamReader(localePath, Encoding.GetEncoding("utf-8")))
-                {
-                    jsonStr = sr.ReadToEnd();
-                }
-
-                this.locale = JsonConvert.DeserializeObject<Locale>(jsonStr);
-            }
-            catch (Exception ex)
-            {
-                AppendLog(locale.ReadLocaleFailed + ex);
-            }
-
-            return;
-        }
-
-        private string GetCurrentStatus()
-        {
-            switch (this.status)
-            {
-                case Status.Stop: return locale.StatusStopped;
-                case Status.Start: return locale.StatusStart;
-                case Status.Connected: return locale.StatusConnected;
-                case Status.Disconnected: return locale.StatusDisconnected;
-            }
-
-            return "";
-        }
-
-        private void ApplyLanguage()
-        {
-            SetLocale();
-
-            labelMode.Text = locale.LabelModeText;
-            labelSessionId.Text = locale.LabelSessionIdText;
-            labelStatusTitle.Text = locale.LabelStatusTitleText;
-            labelStatusValue.Text = GetCurrentStatus();
-            buttonStart.Text = locale.ButtonStartText;
-            buttonAudioOn.Text = locale.ButtonAudioOnText;
-            buttonAudioOff.Text = locale.ButtonAudioOffText;
-            buttonAudioSystem.Text = locale.ButtonAudioSystemText;
+            mCreator.Dispose();
+            mCreator = null;
         }
     }
 

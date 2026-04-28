@@ -40,6 +40,7 @@
             buttonAudioSystem = new Button();
             textBoxLog = new TextBox();
             comboBoxLanguage = new ComboBox();
+            createMode = new Button();
             SuspendLayout();
             // 
             // labelMode
@@ -167,11 +168,23 @@
             comboBoxLanguage.TabIndex = 11;
             comboBoxLanguage.SelectedIndexChanged += comboBoxLanguage_SelectedIndexChanged;
             // 
+            // createMode
+            // 
+            createMode.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            createMode.Location = new Point(1885, 7);
+            createMode.Name = "createMode";
+            createMode.Size = new Size(162, 59);
+            createMode.TabIndex = 12;
+            createMode.Text = "button1";
+            createMode.UseVisualStyleBackColor = true;
+            createMode.Click += createMode_Click;
+            // 
             // Host
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(2304, 1014);
+            Controls.Add(createMode);
             Controls.Add(comboBoxLanguage);
             Controls.Add(textBoxLog);
             Controls.Add(buttonAudioSystem);
@@ -205,5 +218,6 @@
         private Button buttonAudioSystem;
         private TextBox textBoxLog;
         private ComboBox comboBoxLanguage;
+        private Button createMode;
     }
 }
