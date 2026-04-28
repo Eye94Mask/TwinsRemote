@@ -70,9 +70,9 @@ namespace TwinsRemoteHost
             {
                 if (IsExcludeFromList(audioProcess.Item1, audioProcess.Item2)) { continue; }
 
-                var radioButton = new RadioButton()
+                var pIdRadioButton = new RadioButton()
                 {
-                    Name = "radioButton",
+                    Name = "pIdRadioButton",
                     Text = " ",
                     Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128),
                     Checked = false,
@@ -82,27 +82,27 @@ namespace TwinsRemoteHost
                     TabStop = true,
                     UseVisualStyleBackColor = true
                 };
-                radioButton.Click += Panel_Click;
+                pIdRadioButton.Click += Panel_Click;
 
-                var idLabel = new Label
+                var pIdLabel = new Label
                 {
-                    Name = "pId",
+                    Name = "pIdLabel",
                     Text = $"pid {audioProcess.Item1}",
                     Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128),
                     AutoSize = true,
                     TextAlign = ContentAlignment.MiddleLeft
                 };
-                idLabel.Click += Panel_Click;
+                pIdLabel.Click += Panel_Click;
 
-                var nameLabel = new Label
+                var appNameLabel = new Label
                 {
-                    Name = "appName",
+                    Name = "appNameLabel",
                     Text = $"{audioProcess.Item2}",
                     Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128),
                     AutoSize = true,
                     TextAlign = ContentAlignment.MiddleLeft
                 };
-                nameLabel.Click += Panel_Click;
+                appNameLabel.Click += Panel_Click;
 
 
                 var panel = new FlowLayoutPanel
@@ -114,9 +114,9 @@ namespace TwinsRemoteHost
                     Width = flowLayoutPanel.Width - 25,
                     Height = 60
                 };
-                panel.Controls.Add(radioButton);
-                panel.Controls.Add(idLabel);
-                panel.Controls.Add(nameLabel);
+                panel.Controls.Add(pIdRadioButton);
+                panel.Controls.Add(pIdLabel);
+                panel.Controls.Add(appNameLabel);
                 panel.Click += Panel_Click;
                 flowLayoutPanel.Controls.Add(panel);
             }
@@ -124,6 +124,13 @@ namespace TwinsRemoteHost
 
         private bool IsExcludeFromList(int audioProcessId, string audioProcessName)
         {
+            // TwinsRemoteのアプリは除外
+            if (audioProcessName == "SystemMixCapture"
+                || audioProcessName == "ProcessAudioCapture")
+            {
+                return true;
+            }
+
             foreach (FlowLayoutPanel panel in flowLayoutPanel.Controls.OfType<FlowLayoutPanel>())
             {
                 Label? idLabel = panel.Controls["pId"] as Label;
@@ -139,13 +146,6 @@ namespace TwinsRemoteHost
                 catch
                 {
                     continue;
-                }
-
-                // TwinsRemoteのアプリは除外
-                if (audioProcessName == "SystemMixCapture"
-                    || audioProcessName == "ProcessAudioCapture")
-                {
-                    return true;
                 }
             }
 
@@ -170,21 +170,21 @@ namespace TwinsRemoteHost
             }
             if (panel == null) { return; }
 
-            RadioButton? RadioBtn = panel.Controls["radioButton"] as RadioButton;
-            Label? PIdLabel = panel.Controls["pId"] as Label;
-            if (RadioBtn != null && PIdLabel != null)
+            RadioButton? pIdRadioBtn = panel.Controls["pIdRadioButton"] as RadioButton;
+            Label? PIdLabel = panel.Controls["pIdLabel"] as Label;
+            if (pIdRadioBtn != null && PIdLabel != null)
             {
-                ResetAllRadioButton();
-                RadioBtn.Checked = true;
+                ResetAllpIdRadioButton();
+                pIdRadioBtn.Checked = true;
                 this.processId = PIdLabel.Text;
             }
         }
 
-        private void ResetAllRadioButton()
+        private void ResetAllpIdRadioButton()
         {
             foreach(FlowLayoutPanel panel in flowLayoutPanel.Controls.OfType<FlowLayoutPanel>())
             {
-                RadioButton? btn = panel.Controls["radioButton"] as RadioButton;
+                RadioButton? btn = panel.Controls["pIdRadioButton"] as RadioButton;
                 
                 if (btn == null) { continue; }
                 btn.Checked = false;

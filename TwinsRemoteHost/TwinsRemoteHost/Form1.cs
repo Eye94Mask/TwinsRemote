@@ -48,10 +48,10 @@ namespace TwinsRemoteHost
 
             string language = Properties.Settings.Default.Language;
             InitializeLanguageComboBox();
-            comboBoxLanguage.SelectedIndex = comboBoxLanguage.FindStringExact(language);
+            languageComboBox.SelectedIndex = languageComboBox.FindStringExact(language);
             ApplyLanguage();
 
-            labelStatusValue.Text = locale.StatusStopped;
+            statusValueLabel.Text = locale.StatusStopped;
             SetRunningState(false);
         }
 
@@ -62,9 +62,9 @@ namespace TwinsRemoteHost
                 new { Name = "日本語", Code = "ja-JP" },
                 new { Name = "English", Code = "en-US" }
             };
-            comboBoxLanguage.DisplayMember = "Name";
-            comboBoxLanguage.ValueMember = "Code";
-            comboBoxLanguage.DataSource = languages;
+            languageComboBox.DisplayMember = "Name";
+            languageComboBox.ValueMember = "Code";
+            languageComboBox.DataSource = languages;
         }
 
         private void Host_FormClosing(object? sender, FormClosingEventArgs e)
@@ -93,7 +93,7 @@ namespace TwinsRemoteHost
                 }
                 catch (Exception ex)
                 {
-                    AppendLog(locale.ProcessExitError + ex.Message);
+                    AppendLog(this.locale.ProcessExitError + ex.Message);
                 }
                 finally
                 {
@@ -106,23 +106,23 @@ namespace TwinsRemoteHost
         {
             comboBoxMode.Enabled = !running;
             textBoxSessionId.Enabled = !running;
-            buttonStart.Enabled = !running;
+            connectButton.Enabled = !running;
 
-            buttonAudioOn.Enabled = running;
-            buttonAudioOff.Enabled = running;
-            buttonAudioSystem.Enabled = running;
+            audioOnButton.Enabled = running;
+            audioOffButton.Enabled = running;
+            audioSystemButton.Enabled = running;
         }
 
         private void AppendLog(string message)
         {
-            textBoxLog.AppendText(
+            logTextBox.AppendText(
                 $"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}"
             );
         }
 
         private void SetStatus(string status)
         {
-            labelStatusValue.Text = status;
+            statusValueLabel.Text = status;
         }
 
         private void HostProcess_Exited(object? sender, EventArgs e)
@@ -133,7 +133,7 @@ namespace TwinsRemoteHost
                 return;
             }
 
-            AppendLog(locale.HostExeExit);
+            AppendLog(this.locale.HostExeExit);
             SetStatus(locale.StatusStopped);
             SetRunningState(false);
         }
@@ -149,12 +149,12 @@ namespace TwinsRemoteHost
                     if (line.Contains("ICE_CONNECTED"))
                     {
                         this.status = Status.Connected;
-                        labelStatusValue.Text = locale.StatusConnected;
+                        statusValueLabel.Text = locale.StatusConnected;
                     }
                     if (line.Contains("ICE_DISCONNECTED"))
                     {
                         this.status = Status.Disconnected;
-                        labelStatusValue.Text = locale.StatusDisconnected;
+                        statusValueLabel.Text = locale.StatusDisconnected;
                     }
 
                     BeginInvoke(new Action(() =>
@@ -167,7 +167,7 @@ namespace TwinsRemoteHost
             {
                 BeginInvoke(new Action(() =>
                 {
-                    AppendLog(locale.ReadLineFailed + ex.Message);
+                    AppendLog(this.locale.ReadLineFailed + ex.Message);
                 }));
             }
         }
@@ -191,7 +191,7 @@ namespace TwinsRemoteHost
             {
                 BeginInvoke(new Action(() =>
                 {
-                    AppendLog(locale.ReadErrorFailed + ex.Message);
+                    AppendLog(this.locale.ReadErrorFailed + ex.Message);
                 }));
             }
         }
@@ -200,7 +200,7 @@ namespace TwinsRemoteHost
         {
             if (_hostProcess == null || _hostProcess.HasExited)
             {
-                AppendLog(locale.HostExeNotStarted);
+                AppendLog(this.locale.HostExeNotStarted);
                 return;
             }
 
@@ -212,7 +212,7 @@ namespace TwinsRemoteHost
             }
             catch (Exception ex)
             {
-                AppendLog(locale.SendCommandFailed + ex.Message);
+                AppendLog(this.locale.SendCommandFailed + ex.Message);
             }
         }
 
@@ -238,7 +238,7 @@ namespace TwinsRemoteHost
 
         private void comboBoxLanguage_SelectedIndexChanged(object sender, EventArgs e)
         {
-            string lang = comboBoxLanguage.Text.ToString() ?? "Japanese";
+            string lang = languageComboBox.Text.ToString() ?? "Japanese";
 
             if (lang != string.Empty)
             {
@@ -265,21 +265,21 @@ namespace TwinsRemoteHost
 
         private void SetLocale()
         {
-            if (comboBoxLanguage.SelectedItem == null) { return; }
-            string? language = comboBoxLanguage.SelectedItem.ToString();
+            if (languageComboBox.SelectedItem == null) { return; }
+            string? language = languageComboBox.SelectedItem.ToString();
             if (language == null) { return; }
 
             string[] words = language.Split(' ');
             if (words.Length != 8 && words[4] != "Code")
             {
-                AppendLog(locale.InvalidLanguage);
+                AppendLog(this.locale.InvalidLanguage);
                 return;
             }
 
             string code = words[6];
             if (!isValidLanguage(code))
             {
-                AppendLog(locale.InvalidLanguage);
+                AppendLog(this.locale.InvalidLanguage);
                 return;
             }
 
@@ -287,7 +287,7 @@ namespace TwinsRemoteHost
             string localePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "locales", localeFile);
             if (!File.Exists(localePath))
             {
-                AppendLog(locale.LocaleNotFound + localeFile);
+                AppendLog(this.locale.LocaleNotFound + localeFile);
                 return;
             }
 
@@ -303,7 +303,7 @@ namespace TwinsRemoteHost
             }
             catch (Exception ex)
             {
-                AppendLog(locale.ReadLocaleFailed + ex);
+                AppendLog(this.locale.ReadLocaleFailed + ex);
             }
 
             return;
@@ -326,21 +326,22 @@ namespace TwinsRemoteHost
         {
             SetLocale();
 
-            labelMode.Text = locale.LabelModeText;
-            labelSessionId.Text = locale.LabelSessionIdText;
-            labelStatusTitle.Text = locale.LabelStatusTitleText;
-            labelStatusValue.Text = GetCurrentStatus();
-            buttonStart.Text = locale.ButtonStartText;
-            buttonAudioOn.Text = locale.ButtonAudioOnText;
-            buttonAudioOff.Text = locale.ButtonAudioOffText;
-            buttonAudioSystem.Text = locale.ButtonAudioSystemText;
+            modeLabel.Text = locale.LabelModeText;
+            sessionIdLabel.Text = locale.LabelSessionIdText;
+            statusTitleLabel.Text = locale.LabelStatusTitleText;
+            statusValueLabel.Text = GetCurrentStatus();
+            connectButton.Text = locale.ButtonStartText;
+            audioOnButton.Text = locale.ButtonAudioOnText;
+            audioOffButton.Text = locale.ButtonAudioOffText;
+            audioSystemButton.Text = locale.ButtonAudioSystemText;
+            createCustomModeButton.Text = locale.CreateCustomMode;
         }
 
         private async void buttonStart_Click(object sender, EventArgs e)
         {
             if (_hostProcess != null && !_hostProcess.HasExited)
             {
-                AppendLog(locale.HostExeAlreadyStarted);
+                AppendLog(this.locale.HostExeAlreadyStarted);
                 return;
             }
 
@@ -420,7 +421,7 @@ namespace TwinsRemoteHost
                 bool started = _hostProcess.Start();
                 if (!started)
                 {
-                    AppendLog(locale.HostExeFailedToStart);
+                    AppendLog(this.locale.HostExeFailedToStart);
                     return;
                 }
 
@@ -434,7 +435,7 @@ namespace TwinsRemoteHost
             }
             catch (Exception ex)
             {
-                AppendLog(locale.statusStartException + ex.Message);
+                AppendLog(this.locale.statusStartException + ex.Message);
                 SetStatus(locale.StatusFailed);
                 SetRunningState(false);
             }
@@ -481,11 +482,11 @@ namespace TwinsRemoteHost
         {
             if (mCreator == null || mCreator.IsDisposed)
             {
-                mCreator = new ModeCreator();
+                mCreator = new ModeCreator(this.locale);
                 mCreator.Left = this.Left + 200;
                 mCreator.Top = this.Top + 200;
                 mCreator.StartPosition = FormStartPosition.Manual;
-                mCreator.Show();
+                mCreator.ShowDialog();
             }
             else
             {
@@ -617,6 +618,147 @@ namespace TwinsRemoteHost
 
         [JsonProperty("error")]
         public required string Error { get; set; }
+
+        [JsonProperty("createCustomMode")]
+        public required string CreateCustomMode { get; set; }
+
+        [JsonProperty("modeName")]
+        public required string ModeName { get; set; }
+
+        [JsonProperty("resolution")]
+        public required string Resolution { get; set; }
+
+        [JsonProperty("presets")]
+        public required string Presets { get; set; }
+
+        [JsonProperty("balancedMode")]
+        public required string BalancedMode { get; set; }
+
+        [JsonProperty("qualityMode")]
+        public required string QualityMode { get; set; }
+
+        [JsonProperty("stableMode")]
+        public required string StableMode { get; set; }
+
+        [JsonProperty("mobileMode")]
+        public required string MobileMode { get; set; }
+
+        [JsonProperty("resolutionDescription")]
+        public required string ResolutionDescription { get; set; }
+
+        [JsonProperty("fpsDescription")]
+        public required string FpsDescription { get; set; }
+
+        [JsonProperty("balancedModeDescription")]
+        public required string BalancedModeDescription { get; set; }
+
+        [JsonProperty("qualityModeDescription")]
+        public required string QualityModeDescription { get; set; }
+
+        [JsonProperty("stableModeDescription")]
+        public required string StableModeDescription { get; set; }
+
+        [JsonProperty("mobileModeDescription")]
+        public required string MobileModeDescription { get; set; }
+
+        [JsonProperty("toggleDescriptionClose")]
+        public required string ToggleDescriptionClose { get; set; }
+
+        [JsonProperty("toggleDescriptionOpen")]
+        public required string ToggleDescriptionOpen { get; set; }
+
+        [JsonProperty("averageBitrateDescription")]
+        public required string AverageBitrateDescription { get; set; }
+
+        [JsonProperty("maxBitrateDescription")]
+        public required string MaxBitrateDescription { get; set; }
+
+        [JsonProperty("vbvBufferSizeDescription")]
+        public required string VbvBufferSizeDescription { get; set; }
+
+        [JsonProperty("vbvInitialDelayDescription")]
+        public required string VbvInitialDelayDescription { get; set; }
+
+        [JsonProperty("gopLengthDescription")]
+        public required string GopLengthDescription { get; set; }
+
+        [JsonProperty("idrPeriodDescription")]
+        public required string IdrPeriodDescription { get; set; }
+
+        [JsonProperty("repeatSpsPpsDescription")]
+        public required string RepeatSpsPpsDescription { get; set; }
+
+        [JsonProperty("outputAudDescription")]
+        public required string OutputAudDescription { get; set; }
+
+        [JsonProperty("maxRefFramesDescription")]
+        public required string MaxRefFramesDescription { get; set; }
+
+        [JsonProperty("profileGuidLabelDescription")]
+        public required string ProfileGuidLabelDescription { get; set; }
+
+        [JsonProperty("presetGuidDescription")]
+        public required string PresetGuidDescription { get; set; }
+
+        [JsonProperty("tuningInfoDescription")]
+        public required string TuningInfoDescription { get; set; }
+
+        [JsonProperty("enableLookAheadDescription")]
+        public required string EnableLookAheadDescription { get; set; }
+
+        [JsonProperty("lookAheadDepthDescription")]
+        public required string LookAheadDepthDescription { get; set; }
+
+        [JsonProperty("disableIadaptDescription")]
+        public required string DisableIadaptDescription { get; set; }
+
+        [JsonProperty("disableBadaptDescription")]
+        public required string DisableBadaptDescription { get; set; }
+
+        [JsonProperty("alretNoModeName")]
+        public required string AlretNoModeName { get; set; }
+
+        [JsonProperty("alertInvalidResolution")]
+        public required string AlertInvalidResolution { get; set; }
+
+        [JsonProperty("alertInvalidFps")]
+        public required string AlertInvalidFps { get; set; }
+
+        [JsonProperty("alertInvalidAverageBitrate")]
+        public required string AlertInvalidAverageBitrate { get; set; }
+
+        [JsonProperty("alertInvalidMaxBitrate")]
+        public required string AlertInvalidMaxBitrate { get; set; }
+
+        [JsonProperty("alertVbvBufferSize")]
+        public required string AlertVbvBufferSize { get; set; }
+
+        [JsonProperty("alertVbvInitialDelay")]
+        public required string AlertVbvInitialDelay { get; set; }
+
+        [JsonProperty("alertGopLength")]
+        public required string AlertGopLength { get; set; }
+
+        [JsonProperty("alertInvalidIdrPeriod")]
+        public required string AlertInvalidIdrPeriod { get; set; }
+
+        [JsonProperty("alertInvalidMaxRefFrames")]
+        public required string AlertInvalidMaxRefFrames { get; set; }
+
+        [JsonProperty("alertInvalidProfileGuid")]
+        public required string AlertInvalidProfileGuid { get; set; }
+
+        [JsonProperty("alertInvalidPresetGuid")]
+        public required string AlertInvalidPresetGuid { get; set; }
+
+        [JsonProperty("alertInvalidTuningInfo")]
+        public required string AlertInvalidTuningInfo { get; set; }
+
+        [JsonProperty("alertLookAheadDepth")]
+        public required string AlertLookAheadDepth { get; set; }
+
+        [JsonProperty("customModeSaved")]
+        public required string CustomModeSaved { get; set; }
     }
 
     public class IssueHostTokenRequest

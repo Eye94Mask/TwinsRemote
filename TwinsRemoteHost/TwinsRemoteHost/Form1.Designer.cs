@@ -28,65 +28,65 @@
         /// </summary>
         private void InitializeComponent()
         {
-            labelMode = new Label();
-            labelSessionId = new Label();
-            labelStatusTitle = new Label();
-            labelStatusValue = new Label();
+            modeLabel = new Label();
+            sessionIdLabel = new Label();
+            statusTitleLabel = new Label();
+            statusValueLabel = new Label();
             comboBoxMode = new ComboBox();
             textBoxSessionId = new TextBox();
-            buttonStart = new Button();
-            buttonAudioOn = new Button();
-            buttonAudioOff = new Button();
-            buttonAudioSystem = new Button();
-            textBoxLog = new TextBox();
-            comboBoxLanguage = new ComboBox();
-            createMode = new Button();
+            connectButton = new Button();
+            audioOnButton = new Button();
+            audioOffButton = new Button();
+            audioSystemButton = new Button();
+            logTextBox = new TextBox();
+            languageComboBox = new ComboBox();
+            createCustomModeButton = new Button();
             SuspendLayout();
             // 
-            // labelMode
+            // modeLabel
             // 
-            labelMode.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            labelMode.ImageAlign = ContentAlignment.MiddleRight;
-            labelMode.Location = new Point(37, 49);
-            labelMode.Name = "labelMode";
-            labelMode.RightToLeft = RightToLeft.Yes;
-            labelMode.Size = new Size(207, 42);
-            labelMode.TabIndex = 0;
-            labelMode.Text = "label1";
-            labelMode.TextAlign = ContentAlignment.MiddleLeft;
+            modeLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            modeLabel.ImageAlign = ContentAlignment.MiddleRight;
+            modeLabel.Location = new Point(37, 49);
+            modeLabel.Name = "modeLabel";
+            modeLabel.RightToLeft = RightToLeft.Yes;
+            modeLabel.Size = new Size(207, 42);
+            modeLabel.TabIndex = 0;
+            modeLabel.Text = "label1";
+            modeLabel.TextAlign = ContentAlignment.MiddleLeft;
             // 
-            // labelSessionId
+            // sessionIdLabel
             // 
-            labelSessionId.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            labelSessionId.ImageAlign = ContentAlignment.MiddleRight;
-            labelSessionId.Location = new Point(438, 49);
-            labelSessionId.Name = "labelSessionId";
-            labelSessionId.RightToLeft = RightToLeft.Yes;
-            labelSessionId.Size = new Size(276, 42);
-            labelSessionId.TabIndex = 1;
-            labelSessionId.Text = "label1";
-            labelSessionId.TextAlign = ContentAlignment.MiddleLeft;
+            sessionIdLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            sessionIdLabel.ImageAlign = ContentAlignment.MiddleRight;
+            sessionIdLabel.Location = new Point(438, 49);
+            sessionIdLabel.Name = "sessionIdLabel";
+            sessionIdLabel.RightToLeft = RightToLeft.Yes;
+            sessionIdLabel.Size = new Size(276, 42);
+            sessionIdLabel.TabIndex = 1;
+            sessionIdLabel.Text = "label1";
+            sessionIdLabel.TextAlign = ContentAlignment.MiddleLeft;
             // 
-            // labelStatusTitle
+            // statusTitleLabel
             // 
-            labelStatusTitle.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            labelStatusTitle.ImageAlign = ContentAlignment.MiddleRight;
-            labelStatusTitle.Location = new Point(96, 360);
-            labelStatusTitle.Name = "labelStatusTitle";
-            labelStatusTitle.RightToLeft = RightToLeft.No;
-            labelStatusTitle.Size = new Size(248, 42);
-            labelStatusTitle.TabIndex = 2;
-            labelStatusTitle.Text = "label1";
+            statusTitleLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            statusTitleLabel.ImageAlign = ContentAlignment.MiddleRight;
+            statusTitleLabel.Location = new Point(96, 360);
+            statusTitleLabel.Name = "statusTitleLabel";
+            statusTitleLabel.RightToLeft = RightToLeft.No;
+            statusTitleLabel.Size = new Size(248, 42);
+            statusTitleLabel.TabIndex = 2;
+            statusTitleLabel.Text = "label1";
             // 
-            // labelStatusValue
+            // statusValueLabel
             // 
-            labelStatusValue.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            labelStatusValue.ImageAlign = ContentAlignment.MiddleLeft;
-            labelStatusValue.Location = new Point(350, 360);
-            labelStatusValue.Name = "labelStatusValue";
-            labelStatusValue.Size = new Size(473, 42);
-            labelStatusValue.TabIndex = 3;
-            labelStatusValue.Text = "label1";
+            statusValueLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            statusValueLabel.ImageAlign = ContentAlignment.MiddleLeft;
+            statusValueLabel.Location = new Point(350, 360);
+            statusValueLabel.Name = "statusValueLabel";
+            statusValueLabel.Size = new Size(473, 42);
+            statusValueLabel.TabIndex = 3;
+            statusValueLabel.Text = "label1";
             // 
             // comboBoxMode
             // 
@@ -105,98 +105,98 @@
             textBoxSessionId.Size = new Size(182, 49);
             textBoxSessionId.TabIndex = 5;
             // 
-            // buttonStart
+            // connectButton
             // 
-            buttonStart.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            buttonStart.Location = new Point(1114, 41);
-            buttonStart.Name = "buttonStart";
-            buttonStart.Size = new Size(162, 59);
-            buttonStart.TabIndex = 6;
-            buttonStart.Text = "button1";
-            buttonStart.UseVisualStyleBackColor = true;
-            buttonStart.Click += buttonStart_Click;
+            connectButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            connectButton.Location = new Point(1114, 41);
+            connectButton.Name = "connectButton";
+            connectButton.Size = new Size(162, 59);
+            connectButton.TabIndex = 6;
+            connectButton.Text = "button1";
+            connectButton.UseVisualStyleBackColor = true;
+            connectButton.Click += buttonStart_Click;
             // 
-            // buttonAudioOn
+            // audioOnButton
             // 
-            buttonAudioOn.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            buttonAudioOn.Location = new Point(100, 228);
-            buttonAudioOn.Name = "buttonAudioOn";
-            buttonAudioOn.Size = new Size(222, 59);
-            buttonAudioOn.TabIndex = 7;
-            buttonAudioOn.Text = "button1";
-            buttonAudioOn.UseVisualStyleBackColor = true;
-            buttonAudioOn.Click += buttonAudioOn_Click;
+            audioOnButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            audioOnButton.Location = new Point(100, 228);
+            audioOnButton.Name = "audioOnButton";
+            audioOnButton.Size = new Size(222, 59);
+            audioOnButton.TabIndex = 7;
+            audioOnButton.Text = "button1";
+            audioOnButton.UseVisualStyleBackColor = true;
+            audioOnButton.Click += buttonAudioOn_Click;
             // 
-            // buttonAudioOff
+            // audioOffButton
             // 
-            buttonAudioOff.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            buttonAudioOff.Location = new Point(600, 228);
-            buttonAudioOff.Name = "buttonAudioOff";
-            buttonAudioOff.Size = new Size(222, 59);
-            buttonAudioOff.TabIndex = 8;
-            buttonAudioOff.Text = "button1";
-            buttonAudioOff.UseVisualStyleBackColor = true;
-            buttonAudioOff.Click += buttonAudioOff_Click;
+            audioOffButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            audioOffButton.Location = new Point(600, 228);
+            audioOffButton.Name = "audioOffButton";
+            audioOffButton.Size = new Size(222, 59);
+            audioOffButton.TabIndex = 8;
+            audioOffButton.Text = "button1";
+            audioOffButton.UseVisualStyleBackColor = true;
+            audioOffButton.Click += buttonAudioOff_Click;
             // 
-            // buttonAudioSystem
+            // audioSystemButton
             // 
-            buttonAudioSystem.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            buttonAudioSystem.Location = new Point(350, 228);
-            buttonAudioSystem.Name = "buttonAudioSystem";
-            buttonAudioSystem.Size = new Size(222, 59);
-            buttonAudioSystem.TabIndex = 9;
-            buttonAudioSystem.Text = "button1";
-            buttonAudioSystem.UseVisualStyleBackColor = true;
-            buttonAudioSystem.Click += buttonAudioSystem_Click;
+            audioSystemButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            audioSystemButton.Location = new Point(350, 228);
+            audioSystemButton.Name = "audioSystemButton";
+            audioSystemButton.Size = new Size(222, 59);
+            audioSystemButton.TabIndex = 9;
+            audioSystemButton.Text = "button1";
+            audioSystemButton.UseVisualStyleBackColor = true;
+            audioSystemButton.Click += buttonAudioSystem_Click;
             // 
-            // textBoxLog
+            // logTextBox
             // 
-            textBoxLog.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            textBoxLog.Location = new Point(98, 497);
-            textBoxLog.Multiline = true;
-            textBoxLog.Name = "textBoxLog";
-            textBoxLog.Size = new Size(2074, 464);
-            textBoxLog.TabIndex = 10;
+            logTextBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            logTextBox.Location = new Point(98, 497);
+            logTextBox.Multiline = true;
+            logTextBox.Name = "logTextBox";
+            logTextBox.Size = new Size(2074, 464);
+            logTextBox.TabIndex = 10;
             // 
-            // comboBoxLanguage
+            // languageComboBox
             // 
-            comboBoxLanguage.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            comboBoxLanguage.FormattingEnabled = true;
-            comboBoxLanguage.Location = new Point(2110, 12);
-            comboBoxLanguage.Name = "comboBoxLanguage";
-            comboBoxLanguage.Size = new Size(182, 50);
-            comboBoxLanguage.TabIndex = 11;
-            comboBoxLanguage.SelectedIndexChanged += comboBoxLanguage_SelectedIndexChanged;
+            languageComboBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            languageComboBox.FormattingEnabled = true;
+            languageComboBox.Location = new Point(2110, 12);
+            languageComboBox.Name = "languageComboBox";
+            languageComboBox.Size = new Size(182, 50);
+            languageComboBox.TabIndex = 11;
+            languageComboBox.SelectedIndexChanged += comboBoxLanguage_SelectedIndexChanged;
             // 
-            // createMode
+            // createCustomModeButton
             // 
-            createMode.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            createMode.Location = new Point(1885, 7);
-            createMode.Name = "createMode";
-            createMode.Size = new Size(162, 59);
-            createMode.TabIndex = 12;
-            createMode.Text = "button1";
-            createMode.UseVisualStyleBackColor = true;
-            createMode.Click += createMode_Click;
+            createCustomModeButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            createCustomModeButton.Location = new Point(1887, 88);
+            createCustomModeButton.Name = "createCustomModeButton";
+            createCustomModeButton.Size = new Size(405, 59);
+            createCustomModeButton.TabIndex = 12;
+            createCustomModeButton.Text = "button1";
+            createCustomModeButton.UseVisualStyleBackColor = true;
+            createCustomModeButton.Click += createMode_Click;
             // 
             // Host
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(2304, 1014);
-            Controls.Add(createMode);
-            Controls.Add(comboBoxLanguage);
-            Controls.Add(textBoxLog);
-            Controls.Add(buttonAudioSystem);
-            Controls.Add(buttonAudioOff);
-            Controls.Add(buttonAudioOn);
-            Controls.Add(buttonStart);
+            Controls.Add(createCustomModeButton);
+            Controls.Add(languageComboBox);
+            Controls.Add(logTextBox);
+            Controls.Add(audioSystemButton);
+            Controls.Add(audioOffButton);
+            Controls.Add(audioOnButton);
+            Controls.Add(connectButton);
             Controls.Add(textBoxSessionId);
             Controls.Add(comboBoxMode);
-            Controls.Add(labelStatusValue);
-            Controls.Add(labelStatusTitle);
-            Controls.Add(labelSessionId);
-            Controls.Add(labelMode);
+            Controls.Add(statusValueLabel);
+            Controls.Add(statusTitleLabel);
+            Controls.Add(sessionIdLabel);
+            Controls.Add(modeLabel);
             Name = "Host";
             Text = "TwinsRemote Host";
             Load += Host_Load;
@@ -206,18 +206,18 @@
 
         #endregion
 
-        private Label labelMode;
-        private Label labelSessionId;
-        private Label labelStatusTitle;
-        private Label labelStatusValue;
+        private Label modeLabel;
+        private Label sessionIdLabel;
+        private Label statusTitleLabel;
+        private Label statusValueLabel;
         private ComboBox comboBoxMode;
         private TextBox textBoxSessionId;
-        private Button buttonStart;
-        private Button buttonAudioOn;
-        private Button buttonAudioOff;
-        private Button buttonAudioSystem;
-        private TextBox textBoxLog;
-        private ComboBox comboBoxLanguage;
-        private Button createMode;
+        private Button connectButton;
+        private Button audioOnButton;
+        private Button audioOffButton;
+        private Button audioSystemButton;
+        private TextBox logTextBox;
+        private ComboBox languageComboBox;
+        private Button createCustomModeButton;
     }
 }

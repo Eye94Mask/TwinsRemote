@@ -30,8 +30,6 @@
         {
             resolusionLabel = new Label();
             fpsLabel = new Label();
-            resolusionComboBox = new ComboBox();
-            fpsComboBox = new ComboBox();
             presetModeLabel = new Label();
             balancedButton = new Button();
             modeNameLabel = new Label();
@@ -41,7 +39,7 @@
             mobileButton = new Button();
             detailSettingLabel = new Label();
             averageBitrateLabel = new Label();
-            detailSettingsFlowLayoutPanel = new FlowLayoutPanel();
+            detailSettingsFlowLayoutPanel1 = new FlowLayoutPanel();
             averageBitrateTextBox = new TextBox();
             averageBitrateUnitLabel = new Label();
             maxBitrateLabel = new Label();
@@ -61,7 +59,7 @@
             repeatSpsPpsCheckBox = new CheckBox();
             outputAudLabel = new Label();
             outputAudCheckBox = new CheckBox();
-            flowLayoutPanel1 = new FlowLayoutPanel();
+            detailSettingsFlowLayoutPanel2 = new FlowLayoutPanel();
             maxRefFramesLabel = new Label();
             maxRefFramesTextBox = new TextBox();
             profileGuidLabel = new Label();
@@ -80,8 +78,12 @@
             disableBadaptCheckBox = new CheckBox();
             Save = new Button();
             cancelButton = new Button();
-            detailSettingsFlowLayoutPanel.SuspendLayout();
-            flowLayoutPanel1.SuspendLayout();
+            resolutionWidthTextBox = new TextBox();
+            fpsTextBox = new TextBox();
+            resolutionXLabel = new Label();
+            ResolutionHeightTextBox = new TextBox();
+            detailSettingsFlowLayoutPanel1.SuspendLayout();
+            detailSettingsFlowLayoutPanel2.SuspendLayout();
             SuspendLayout();
             // 
             // resolusionLabel
@@ -103,24 +105,6 @@
             fpsLabel.Size = new Size(167, 38);
             fpsLabel.TabIndex = 1;
             fpsLabel.Text = "FPS";
-            // 
-            // resolusionComboBox
-            // 
-            resolusionComboBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            resolusionComboBox.FormattingEnabled = true;
-            resolusionComboBox.Location = new Point(186, 109);
-            resolusionComboBox.Name = "resolusionComboBox";
-            resolusionComboBox.Size = new Size(284, 50);
-            resolusionComboBox.TabIndex = 2;
-            // 
-            // fpsComboBox
-            // 
-            fpsComboBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            fpsComboBox.FormattingEnabled = true;
-            fpsComboBox.Location = new Point(186, 191);
-            fpsComboBox.Name = "fpsComboBox";
-            fpsComboBox.Size = new Size(284, 50);
-            fpsComboBox.TabIndex = 3;
             // 
             // presetModeLabel
             // 
@@ -157,7 +141,7 @@
             ModeNametextBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             ModeNametextBox.Location = new Point(186, 34);
             ModeNametextBox.Name = "ModeNametextBox";
-            ModeNametextBox.Size = new Size(284, 49);
+            ModeNametextBox.Size = new Size(440, 49);
             ModeNametextBox.TabIndex = 7;
             ModeNametextBox.TabStop = false;
             // 
@@ -193,12 +177,14 @@
             // 
             // detailSettingLabel
             // 
+            detailSettingLabel.BackColor = SystemColors.Control;
             detailSettingLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             detailSettingLabel.Location = new Point(81, 685);
             detailSettingLabel.Name = "detailSettingLabel";
             detailSettingLabel.Size = new Size(190, 38);
             detailSettingLabel.TabIndex = 11;
             detailSettingLabel.Text = "label1";
+            detailSettingLabel.Click += detailSettingLabel_Click;
             // 
             // averageBitrateLabel
             // 
@@ -210,33 +196,34 @@
             averageBitrateLabel.Text = "averageBitrate";
             averageBitrateLabel.TextAlign = ContentAlignment.MiddleLeft;
             // 
-            // detailSettingsFlowLayoutPanel
+            // detailSettingsFlowLayoutPanel1
             // 
-            detailSettingsFlowLayoutPanel.BorderStyle = BorderStyle.FixedSingle;
-            detailSettingsFlowLayoutPanel.Controls.Add(averageBitrateLabel);
-            detailSettingsFlowLayoutPanel.Controls.Add(averageBitrateTextBox);
-            detailSettingsFlowLayoutPanel.Controls.Add(averageBitrateUnitLabel);
-            detailSettingsFlowLayoutPanel.Controls.Add(maxBitrateLabel);
-            detailSettingsFlowLayoutPanel.Controls.Add(maxBitrateTextBox);
-            detailSettingsFlowLayoutPanel.Controls.Add(maxBitrateUnitLabel);
-            detailSettingsFlowLayoutPanel.Controls.Add(vbvBufferSizeLabel);
-            detailSettingsFlowLayoutPanel.Controls.Add(vbvBufferSizeTextBox);
-            detailSettingsFlowLayoutPanel.Controls.Add(vbvBufferSizeUnitLabel);
-            detailSettingsFlowLayoutPanel.Controls.Add(vbvInitialDelayLabel);
-            detailSettingsFlowLayoutPanel.Controls.Add(vbvInitialDelayTextBox);
-            detailSettingsFlowLayoutPanel.Controls.Add(vbvInitialDelayUnitLabel);
-            detailSettingsFlowLayoutPanel.Controls.Add(gopLengthLabel);
-            detailSettingsFlowLayoutPanel.Controls.Add(textBox1);
-            detailSettingsFlowLayoutPanel.Controls.Add(idrPeriodLabel);
-            detailSettingsFlowLayoutPanel.Controls.Add(idrPeriodTextBox);
-            detailSettingsFlowLayoutPanel.Controls.Add(repeatSpsPpsLabel);
-            detailSettingsFlowLayoutPanel.Controls.Add(repeatSpsPpsCheckBox);
-            detailSettingsFlowLayoutPanel.Controls.Add(outputAudLabel);
-            detailSettingsFlowLayoutPanel.Controls.Add(outputAudCheckBox);
-            detailSettingsFlowLayoutPanel.Location = new Point(81, 732);
-            detailSettingsFlowLayoutPanel.Name = "detailSettingsFlowLayoutPanel";
-            detailSettingsFlowLayoutPanel.Size = new Size(562, 441);
-            detailSettingsFlowLayoutPanel.TabIndex = 16;
+            detailSettingsFlowLayoutPanel1.BorderStyle = BorderStyle.FixedSingle;
+            detailSettingsFlowLayoutPanel1.Controls.Add(averageBitrateLabel);
+            detailSettingsFlowLayoutPanel1.Controls.Add(averageBitrateTextBox);
+            detailSettingsFlowLayoutPanel1.Controls.Add(averageBitrateUnitLabel);
+            detailSettingsFlowLayoutPanel1.Controls.Add(maxBitrateLabel);
+            detailSettingsFlowLayoutPanel1.Controls.Add(maxBitrateTextBox);
+            detailSettingsFlowLayoutPanel1.Controls.Add(maxBitrateUnitLabel);
+            detailSettingsFlowLayoutPanel1.Controls.Add(vbvBufferSizeLabel);
+            detailSettingsFlowLayoutPanel1.Controls.Add(vbvBufferSizeTextBox);
+            detailSettingsFlowLayoutPanel1.Controls.Add(vbvBufferSizeUnitLabel);
+            detailSettingsFlowLayoutPanel1.Controls.Add(vbvInitialDelayLabel);
+            detailSettingsFlowLayoutPanel1.Controls.Add(vbvInitialDelayTextBox);
+            detailSettingsFlowLayoutPanel1.Controls.Add(vbvInitialDelayUnitLabel);
+            detailSettingsFlowLayoutPanel1.Controls.Add(gopLengthLabel);
+            detailSettingsFlowLayoutPanel1.Controls.Add(textBox1);
+            detailSettingsFlowLayoutPanel1.Controls.Add(idrPeriodLabel);
+            detailSettingsFlowLayoutPanel1.Controls.Add(idrPeriodTextBox);
+            detailSettingsFlowLayoutPanel1.Controls.Add(repeatSpsPpsLabel);
+            detailSettingsFlowLayoutPanel1.Controls.Add(repeatSpsPpsCheckBox);
+            detailSettingsFlowLayoutPanel1.Controls.Add(outputAudLabel);
+            detailSettingsFlowLayoutPanel1.Controls.Add(outputAudCheckBox);
+            detailSettingsFlowLayoutPanel1.Location = new Point(81, 732);
+            detailSettingsFlowLayoutPanel1.Name = "detailSettingsFlowLayoutPanel1";
+            detailSettingsFlowLayoutPanel1.Size = new Size(562, 441);
+            detailSettingsFlowLayoutPanel1.TabIndex = 16;
+            detailSettingsFlowLayoutPanel1.Visible = false;
             // 
             // averageBitrateTextBox
             // 
@@ -416,29 +403,30 @@
             outputAudCheckBox.Text = " ";
             outputAudCheckBox.UseVisualStyleBackColor = true;
             // 
-            // flowLayoutPanel1
+            // detailSettingsFlowLayoutPanel2
             // 
-            flowLayoutPanel1.BorderStyle = BorderStyle.FixedSingle;
-            flowLayoutPanel1.Controls.Add(maxRefFramesLabel);
-            flowLayoutPanel1.Controls.Add(maxRefFramesTextBox);
-            flowLayoutPanel1.Controls.Add(profileGuidLabel);
-            flowLayoutPanel1.Controls.Add(profileGuidComboBox);
-            flowLayoutPanel1.Controls.Add(presetGuidLabel);
-            flowLayoutPanel1.Controls.Add(presetGuidComboBox);
-            flowLayoutPanel1.Controls.Add(tuningInfoLabel);
-            flowLayoutPanel1.Controls.Add(tuningInfoComboBox);
-            flowLayoutPanel1.Controls.Add(enableLookAheadLabel);
-            flowLayoutPanel1.Controls.Add(enableLookAheadCheckBox);
-            flowLayoutPanel1.Controls.Add(lookAheadDepthLabel);
-            flowLayoutPanel1.Controls.Add(lookAheadDepthTextBox);
-            flowLayoutPanel1.Controls.Add(disableIadaptLabel);
-            flowLayoutPanel1.Controls.Add(disableIadaptCheckBox);
-            flowLayoutPanel1.Controls.Add(disableBadaptLabel);
-            flowLayoutPanel1.Controls.Add(disableBadaptCheckBox);
-            flowLayoutPanel1.Location = new Point(668, 732);
-            flowLayoutPanel1.Name = "flowLayoutPanel1";
-            flowLayoutPanel1.Size = new Size(562, 441);
-            flowLayoutPanel1.TabIndex = 32;
+            detailSettingsFlowLayoutPanel2.BorderStyle = BorderStyle.FixedSingle;
+            detailSettingsFlowLayoutPanel2.Controls.Add(maxRefFramesLabel);
+            detailSettingsFlowLayoutPanel2.Controls.Add(maxRefFramesTextBox);
+            detailSettingsFlowLayoutPanel2.Controls.Add(profileGuidLabel);
+            detailSettingsFlowLayoutPanel2.Controls.Add(profileGuidComboBox);
+            detailSettingsFlowLayoutPanel2.Controls.Add(presetGuidLabel);
+            detailSettingsFlowLayoutPanel2.Controls.Add(presetGuidComboBox);
+            detailSettingsFlowLayoutPanel2.Controls.Add(tuningInfoLabel);
+            detailSettingsFlowLayoutPanel2.Controls.Add(tuningInfoComboBox);
+            detailSettingsFlowLayoutPanel2.Controls.Add(enableLookAheadLabel);
+            detailSettingsFlowLayoutPanel2.Controls.Add(enableLookAheadCheckBox);
+            detailSettingsFlowLayoutPanel2.Controls.Add(lookAheadDepthLabel);
+            detailSettingsFlowLayoutPanel2.Controls.Add(lookAheadDepthTextBox);
+            detailSettingsFlowLayoutPanel2.Controls.Add(disableIadaptLabel);
+            detailSettingsFlowLayoutPanel2.Controls.Add(disableIadaptCheckBox);
+            detailSettingsFlowLayoutPanel2.Controls.Add(disableBadaptLabel);
+            detailSettingsFlowLayoutPanel2.Controls.Add(disableBadaptCheckBox);
+            detailSettingsFlowLayoutPanel2.Location = new Point(668, 732);
+            detailSettingsFlowLayoutPanel2.Name = "detailSettingsFlowLayoutPanel2";
+            detailSettingsFlowLayoutPanel2.Size = new Size(562, 441);
+            detailSettingsFlowLayoutPanel2.TabIndex = 32;
+            detailSettingsFlowLayoutPanel2.Visible = false;
             // 
             // maxRefFramesLabel
             // 
@@ -465,7 +453,7 @@
             profileGuidLabel.Name = "profileGuidLabel";
             profileGuidLabel.Size = new Size(258, 52);
             profileGuidLabel.TabIndex = 15;
-            profileGuidLabel.Text = "profileGuidLabel";
+            profileGuidLabel.Text = "profileGuid";
             profileGuidLabel.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // profileGuidComboBox
@@ -613,14 +601,55 @@
             cancelButton.Text = "Cancel";
             cancelButton.UseVisualStyleBackColor = true;
             // 
+            // resolutionWidthTextBox
+            // 
+            resolutionWidthTextBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            resolutionWidthTextBox.Location = new Point(186, 109);
+            resolutionWidthTextBox.Name = "resolutionWidthTextBox";
+            resolutionWidthTextBox.Size = new Size(139, 49);
+            resolutionWidthTextBox.TabIndex = 35;
+            resolutionWidthTextBox.TabStop = false;
+            // 
+            // fpsTextBox
+            // 
+            fpsTextBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            fpsTextBox.Location = new Point(186, 191);
+            fpsTextBox.Name = "fpsTextBox";
+            fpsTextBox.Size = new Size(139, 49);
+            fpsTextBox.TabIndex = 36;
+            fpsTextBox.TabStop = false;
+            // 
+            // resolutionXLabel
+            // 
+            resolutionXLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            resolutionXLabel.Location = new Point(331, 112);
+            resolutionXLabel.Name = "resolutionXLabel";
+            resolutionXLabel.RightToLeft = RightToLeft.Yes;
+            resolutionXLabel.Size = new Size(35, 38);
+            resolutionXLabel.TabIndex = 37;
+            resolutionXLabel.Text = "x";
+            // 
+            // ResolutionHeightTextBox
+            // 
+            ResolutionHeightTextBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            ResolutionHeightTextBox.Location = new Point(372, 109);
+            ResolutionHeightTextBox.Name = "ResolutionHeightTextBox";
+            ResolutionHeightTextBox.Size = new Size(139, 49);
+            ResolutionHeightTextBox.TabIndex = 38;
+            ResolutionHeightTextBox.TabStop = false;
+            // 
             // ModeCreator
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1258, 1260);
+            Controls.Add(ResolutionHeightTextBox);
+            Controls.Add(resolutionXLabel);
+            Controls.Add(fpsTextBox);
+            Controls.Add(resolutionWidthTextBox);
             Controls.Add(cancelButton);
             Controls.Add(Save);
-            Controls.Add(detailSettingsFlowLayoutPanel);
+            Controls.Add(detailSettingsFlowLayoutPanel1);
             Controls.Add(detailSettingLabel);
             Controls.Add(mobileButton);
             Controls.Add(stableButton);
@@ -629,17 +658,15 @@
             Controls.Add(modeNameLabel);
             Controls.Add(balancedButton);
             Controls.Add(presetModeLabel);
-            Controls.Add(fpsComboBox);
-            Controls.Add(resolusionComboBox);
             Controls.Add(fpsLabel);
             Controls.Add(resolusionLabel);
-            Controls.Add(flowLayoutPanel1);
+            Controls.Add(detailSettingsFlowLayoutPanel2);
             Name = "ModeCreator";
             Text = "ModeCreator";
-            detailSettingsFlowLayoutPanel.ResumeLayout(false);
-            detailSettingsFlowLayoutPanel.PerformLayout();
-            flowLayoutPanel1.ResumeLayout(false);
-            flowLayoutPanel1.PerformLayout();
+            detailSettingsFlowLayoutPanel1.ResumeLayout(false);
+            detailSettingsFlowLayoutPanel1.PerformLayout();
+            detailSettingsFlowLayoutPanel2.ResumeLayout(false);
+            detailSettingsFlowLayoutPanel2.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -648,8 +675,6 @@
 
         private Label resolusionLabel;
         private Label fpsLabel;
-        private ComboBox resolusionComboBox;
-        private ComboBox fpsComboBox;
         private Label presetModeLabel;
         private Button balancedButton;
         private Label modeNameLabel;
@@ -659,7 +684,7 @@
         private Button mobileButton;
         private Label detailSettingLabel;
         private Label averageBitrateLabel;
-        private FlowLayoutPanel detailSettingsFlowLayoutPanel;
+        private FlowLayoutPanel detailSettingsFlowLayoutPanel1;
         private TextBox averageBitrateTextBox;
         private Label averageBitrateUnitLabel;
         private Label maxBitrateLabel;
@@ -679,7 +704,7 @@
         private CheckBox repeatSpsPpsCheckBox;
         private Label outputAudLabel;
         private CheckBox outputAudCheckBox;
-        private FlowLayoutPanel flowLayoutPanel1;
+        private FlowLayoutPanel detailSettingsFlowLayoutPanel2;
         private Label maxRefFramesLabel;
         private TextBox maxRefFramesTextBox;
         private Label label2;
@@ -711,5 +736,9 @@
         private TextBox lookAheadDepthTextBox;
         private Button Save;
         private Button cancelButton;
+        private TextBox resolutionWidthTextBox;
+        private TextBox fpsTextBox;
+        private Label resolutionXLabel;
+        private TextBox ResolutionHeightTextBox;
     }
 }
