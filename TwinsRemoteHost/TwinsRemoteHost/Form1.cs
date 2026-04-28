@@ -265,6 +265,7 @@ namespace TwinsRemoteHost
 
         private void SetLocale()
         {
+            AppendLog("Test: " + languageComboBox.SelectedItem.ToString());
             if (languageComboBox.SelectedItem == null) { return; }
             string? language = languageComboBox.SelectedItem.ToString();
             if (language == null) { return; }
@@ -613,7 +614,7 @@ namespace TwinsRemoteHost
         [JsonProperty("readLocaleFailed")]
         public required string ReadLocaleFailed { get; set; }
 
-        [JsonProperty("confim")]
+        [JsonProperty("confirm")]
         public required string Confirm { get; set; }
 
         [JsonProperty("error")]
@@ -694,9 +695,6 @@ namespace TwinsRemoteHost
         [JsonProperty("maxRefFramesDescription")]
         public required string MaxRefFramesDescription { get; set; }
 
-        [JsonProperty("profileGuidLabelDescription")]
-        public required string ProfileGuidLabelDescription { get; set; }
-
         [JsonProperty("presetGuidDescription")]
         public required string PresetGuidDescription { get; set; }
 
@@ -718,6 +716,42 @@ namespace TwinsRemoteHost
         [JsonProperty("alretNoModeName")]
         public required string AlretNoModeName { get; set; }
 
+        [JsonProperty("alertNoResolution")]
+        public required string AlertNoResolution { get; set; }
+
+        [JsonProperty("alertNoFps")]
+        public required string AlertNoFps { get; set; }
+
+        [JsonProperty("alertNoAverageBitrate")]
+        public required string AlertNoAverageBitrate { get; set; }
+
+        [JsonProperty("alertNoMaxBitrate")]
+        public required string AlertNoMaxBitrate { get; set; }
+
+        [JsonProperty("alertNoVbvBufferSize")]
+        public required string AlertNoVbvBufferSize { get; set; }
+
+        [JsonProperty("alertNoVbvInitialDelay")]
+        public required string AlertNoVbvInitialDelay { get; set; }
+
+        [JsonProperty("alertNoGopLength")]
+        public required string AlertNoGopLength { get; set; }
+
+        [JsonProperty("alertNoIdrPeriod")]
+        public required string AlertNoIdrPeriod { get; set; }
+
+        [JsonProperty("alertNoPresetGuid")]
+        public required string AlertNoPresetGuid { get; set; }
+
+        [JsonProperty("alertNoTuningInfo")]
+        public required string AlertNoTuningInfo { get; set; }
+
+        [JsonProperty("alertNoLookAheadDepth")]
+        public required string AlertNoLookAheadDepth { get; set; }
+
+        [JsonProperty("alertInvalidModeName")]
+        public required string AlertInvalidModeName { get; set; }
+
         [JsonProperty("alertInvalidResolution")]
         public required string AlertInvalidResolution { get; set; }
 
@@ -730,14 +764,14 @@ namespace TwinsRemoteHost
         [JsonProperty("alertInvalidMaxBitrate")]
         public required string AlertInvalidMaxBitrate { get; set; }
 
-        [JsonProperty("alertVbvBufferSize")]
-        public required string AlertVbvBufferSize { get; set; }
+        [JsonProperty("alertInvalidVbvBufferSize")]
+        public required string AlertInvalidVbvBufferSize { get; set; }
 
-        [JsonProperty("alertVbvInitialDelay")]
-        public required string AlertVbvInitialDelay { get; set; }
+        [JsonProperty("alertInvalidVbvInitialDelay")]
+        public required string AlertInvalidVbvInitialDelay { get; set; }
 
-        [JsonProperty("alertGopLength")]
-        public required string AlertGopLength { get; set; }
+        [JsonProperty("alertInvalidGopLength")]
+        public required string AlertInvalidGopLength { get; set; }
 
         [JsonProperty("alertInvalidIdrPeriod")]
         public required string AlertInvalidIdrPeriod { get; set; }
@@ -745,17 +779,14 @@ namespace TwinsRemoteHost
         [JsonProperty("alertInvalidMaxRefFrames")]
         public required string AlertInvalidMaxRefFrames { get; set; }
 
-        [JsonProperty("alertInvalidProfileGuid")]
-        public required string AlertInvalidProfileGuid { get; set; }
-
         [JsonProperty("alertInvalidPresetGuid")]
         public required string AlertInvalidPresetGuid { get; set; }
 
         [JsonProperty("alertInvalidTuningInfo")]
         public required string AlertInvalidTuningInfo { get; set; }
 
-        [JsonProperty("alertLookAheadDepth")]
-        public required string AlertLookAheadDepth { get; set; }
+        [JsonProperty("alertInvalidLookAheadDepth")]
+        public required string AlertInvalidLookAheadDepth { get; set; }
 
         [JsonProperty("customModeSaved")]
         public required string CustomModeSaved { get; set; }

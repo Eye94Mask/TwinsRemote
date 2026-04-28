@@ -33,7 +33,7 @@
             presetModeLabel = new Label();
             balancedButton = new Button();
             modeNameLabel = new Label();
-            ModeNametextBox = new TextBox();
+            modeNameTextBox = new TextBox();
             qualityButton = new Button();
             stableButton = new Button();
             mobileButton = new Button();
@@ -52,7 +52,7 @@
             vbvInitialDelayTextBox = new TextBox();
             vbvInitialDelayUnitLabel = new Label();
             gopLengthLabel = new Label();
-            textBox1 = new TextBox();
+            gopLengthTextBox = new TextBox();
             idrPeriodLabel = new Label();
             idrPeriodTextBox = new TextBox();
             repeatSpsPpsLabel = new Label();
@@ -62,8 +62,6 @@
             detailSettingsFlowLayoutPanel2 = new FlowLayoutPanel();
             maxRefFramesLabel = new Label();
             maxRefFramesTextBox = new TextBox();
-            profileGuidLabel = new Label();
-            profileGuidComboBox = new ComboBox();
             presetGuidLabel = new Label();
             presetGuidComboBox = new ComboBox();
             tuningInfoLabel = new Label();
@@ -81,9 +79,11 @@
             resolutionWidthTextBox = new TextBox();
             fpsTextBox = new TextBox();
             resolutionXLabel = new Label();
-            ResolutionHeightTextBox = new TextBox();
+            resolutionHeightTextBox = new TextBox();
+            detailSettingsContainerFlowLayoutPanel = new FlowLayoutPanel();
             detailSettingsFlowLayoutPanel1.SuspendLayout();
             detailSettingsFlowLayoutPanel2.SuspendLayout();
+            detailSettingsContainerFlowLayoutPanel.SuspendLayout();
             SuspendLayout();
             // 
             // resolusionLabel
@@ -136,14 +136,14 @@
             modeNameLabel.TabIndex = 6;
             modeNameLabel.Text = "label1";
             // 
-            // ModeNametextBox
+            // modeNameTextBox
             // 
-            ModeNametextBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            ModeNametextBox.Location = new Point(186, 34);
-            ModeNametextBox.Name = "ModeNametextBox";
-            ModeNametextBox.Size = new Size(440, 49);
-            ModeNametextBox.TabIndex = 7;
-            ModeNametextBox.TabStop = false;
+            modeNameTextBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            modeNameTextBox.Location = new Point(186, 34);
+            modeNameTextBox.Name = "modeNameTextBox";
+            modeNameTextBox.Size = new Size(440, 49);
+            modeNameTextBox.TabIndex = 7;
+            modeNameTextBox.TabStop = false;
             // 
             // qualityButton
             // 
@@ -179,7 +179,7 @@
             // 
             detailSettingLabel.BackColor = SystemColors.Control;
             detailSettingLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            detailSettingLabel.Location = new Point(81, 685);
+            detailSettingLabel.Location = new Point(12, 665);
             detailSettingLabel.Name = "detailSettingLabel";
             detailSettingLabel.Size = new Size(190, 38);
             detailSettingLabel.TabIndex = 11;
@@ -198,7 +198,6 @@
             // 
             // detailSettingsFlowLayoutPanel1
             // 
-            detailSettingsFlowLayoutPanel1.BorderStyle = BorderStyle.FixedSingle;
             detailSettingsFlowLayoutPanel1.Controls.Add(averageBitrateLabel);
             detailSettingsFlowLayoutPanel1.Controls.Add(averageBitrateTextBox);
             detailSettingsFlowLayoutPanel1.Controls.Add(averageBitrateUnitLabel);
@@ -212,18 +211,17 @@
             detailSettingsFlowLayoutPanel1.Controls.Add(vbvInitialDelayTextBox);
             detailSettingsFlowLayoutPanel1.Controls.Add(vbvInitialDelayUnitLabel);
             detailSettingsFlowLayoutPanel1.Controls.Add(gopLengthLabel);
-            detailSettingsFlowLayoutPanel1.Controls.Add(textBox1);
+            detailSettingsFlowLayoutPanel1.Controls.Add(gopLengthTextBox);
             detailSettingsFlowLayoutPanel1.Controls.Add(idrPeriodLabel);
             detailSettingsFlowLayoutPanel1.Controls.Add(idrPeriodTextBox);
             detailSettingsFlowLayoutPanel1.Controls.Add(repeatSpsPpsLabel);
             detailSettingsFlowLayoutPanel1.Controls.Add(repeatSpsPpsCheckBox);
             detailSettingsFlowLayoutPanel1.Controls.Add(outputAudLabel);
             detailSettingsFlowLayoutPanel1.Controls.Add(outputAudCheckBox);
-            detailSettingsFlowLayoutPanel1.Location = new Point(81, 732);
+            detailSettingsFlowLayoutPanel1.Location = new Point(3, 3);
             detailSettingsFlowLayoutPanel1.Name = "detailSettingsFlowLayoutPanel1";
-            detailSettingsFlowLayoutPanel1.Size = new Size(562, 441);
+            detailSettingsFlowLayoutPanel1.Size = new Size(542, 471);
             detailSettingsFlowLayoutPanel1.TabIndex = 16;
-            detailSettingsFlowLayoutPanel1.Visible = false;
             // 
             // averageBitrateTextBox
             // 
@@ -337,13 +335,13 @@
             gopLengthLabel.Text = "gopLength";
             gopLengthLabel.TextAlign = ContentAlignment.MiddleLeft;
             // 
-            // textBox1
+            // gopLengthTextBox
             // 
-            textBox1.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            textBox1.Location = new Point(249, 223);
-            textBox1.Name = "textBox1";
-            textBox1.Size = new Size(148, 49);
-            textBox1.TabIndex = 25;
+            gopLengthTextBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            gopLengthTextBox.Location = new Point(249, 223);
+            gopLengthTextBox.Name = "gopLengthTextBox";
+            gopLengthTextBox.Size = new Size(148, 49);
+            gopLengthTextBox.TabIndex = 25;
             // 
             // idrPeriodLabel
             // 
@@ -405,11 +403,8 @@
             // 
             // detailSettingsFlowLayoutPanel2
             // 
-            detailSettingsFlowLayoutPanel2.BorderStyle = BorderStyle.FixedSingle;
             detailSettingsFlowLayoutPanel2.Controls.Add(maxRefFramesLabel);
             detailSettingsFlowLayoutPanel2.Controls.Add(maxRefFramesTextBox);
-            detailSettingsFlowLayoutPanel2.Controls.Add(profileGuidLabel);
-            detailSettingsFlowLayoutPanel2.Controls.Add(profileGuidComboBox);
             detailSettingsFlowLayoutPanel2.Controls.Add(presetGuidLabel);
             detailSettingsFlowLayoutPanel2.Controls.Add(presetGuidComboBox);
             detailSettingsFlowLayoutPanel2.Controls.Add(tuningInfoLabel);
@@ -422,11 +417,10 @@
             detailSettingsFlowLayoutPanel2.Controls.Add(disableIadaptCheckBox);
             detailSettingsFlowLayoutPanel2.Controls.Add(disableBadaptLabel);
             detailSettingsFlowLayoutPanel2.Controls.Add(disableBadaptCheckBox);
-            detailSettingsFlowLayoutPanel2.Location = new Point(668, 732);
+            detailSettingsFlowLayoutPanel2.Location = new Point(551, 3);
             detailSettingsFlowLayoutPanel2.Name = "detailSettingsFlowLayoutPanel2";
-            detailSettingsFlowLayoutPanel2.Size = new Size(562, 441);
+            detailSettingsFlowLayoutPanel2.Size = new Size(666, 471);
             detailSettingsFlowLayoutPanel2.TabIndex = 32;
-            detailSettingsFlowLayoutPanel2.Visible = false;
             // 
             // maxRefFramesLabel
             // 
@@ -443,32 +437,13 @@
             maxRefFramesTextBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             maxRefFramesTextBox.Location = new Point(267, 3);
             maxRefFramesTextBox.Name = "maxRefFramesTextBox";
-            maxRefFramesTextBox.Size = new Size(148, 49);
+            maxRefFramesTextBox.Size = new Size(182, 49);
             maxRefFramesTextBox.TabIndex = 13;
-            // 
-            // profileGuidLabel
-            // 
-            profileGuidLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            profileGuidLabel.Location = new Point(3, 55);
-            profileGuidLabel.Name = "profileGuidLabel";
-            profileGuidLabel.Size = new Size(258, 52);
-            profileGuidLabel.TabIndex = 15;
-            profileGuidLabel.Text = "profileGuid";
-            profileGuidLabel.TextAlign = ContentAlignment.MiddleLeft;
-            // 
-            // profileGuidComboBox
-            // 
-            profileGuidComboBox.Font = new Font("Yu Gothic UI", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            profileGuidComboBox.FormattingEnabled = true;
-            profileGuidComboBox.Location = new Point(267, 58);
-            profileGuidComboBox.Name = "profileGuidComboBox";
-            profileGuidComboBox.Size = new Size(246, 46);
-            profileGuidComboBox.TabIndex = 32;
             // 
             // presetGuidLabel
             // 
             presetGuidLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            presetGuidLabel.Location = new Point(3, 107);
+            presetGuidLabel.Location = new Point(3, 55);
             presetGuidLabel.Name = "presetGuidLabel";
             presetGuidLabel.Size = new Size(258, 52);
             presetGuidLabel.TabIndex = 18;
@@ -479,9 +454,9 @@
             // 
             presetGuidComboBox.Font = new Font("Yu Gothic UI", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             presetGuidComboBox.FormattingEnabled = true;
-            presetGuidComboBox.Location = new Point(267, 110);
+            presetGuidComboBox.Location = new Point(3, 110);
             presetGuidComboBox.Name = "presetGuidComboBox";
-            presetGuidComboBox.Size = new Size(246, 46);
+            presetGuidComboBox.Size = new Size(653, 46);
             presetGuidComboBox.TabIndex = 33;
             // 
             // tuningInfoLabel
@@ -498,15 +473,15 @@
             // 
             tuningInfoComboBox.Font = new Font("Yu Gothic UI", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             tuningInfoComboBox.FormattingEnabled = true;
-            tuningInfoComboBox.Location = new Point(267, 162);
+            tuningInfoComboBox.Location = new Point(3, 214);
             tuningInfoComboBox.Name = "tuningInfoComboBox";
-            tuningInfoComboBox.Size = new Size(246, 46);
+            tuningInfoComboBox.Size = new Size(653, 46);
             tuningInfoComboBox.TabIndex = 34;
             // 
             // enableLookAheadLabel
             // 
             enableLookAheadLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            enableLookAheadLabel.Location = new Point(3, 211);
+            enableLookAheadLabel.Location = new Point(3, 263);
             enableLookAheadLabel.Name = "enableLookAheadLabel";
             enableLookAheadLabel.Size = new Size(258, 52);
             enableLookAheadLabel.TabIndex = 24;
@@ -516,7 +491,7 @@
             // enableLookAheadCheckBox
             // 
             enableLookAheadCheckBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            enableLookAheadCheckBox.Location = new Point(267, 214);
+            enableLookAheadCheckBox.Location = new Point(267, 266);
             enableLookAheadCheckBox.Name = "enableLookAheadCheckBox";
             enableLookAheadCheckBox.Size = new Size(182, 44);
             enableLookAheadCheckBox.TabIndex = 35;
@@ -526,7 +501,7 @@
             // lookAheadDepthLabel
             // 
             lookAheadDepthLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            lookAheadDepthLabel.Location = new Point(3, 263);
+            lookAheadDepthLabel.Location = new Point(3, 315);
             lookAheadDepthLabel.Name = "lookAheadDepthLabel";
             lookAheadDepthLabel.Size = new Size(258, 52);
             lookAheadDepthLabel.TabIndex = 26;
@@ -536,15 +511,15 @@
             // lookAheadDepthTextBox
             // 
             lookAheadDepthTextBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            lookAheadDepthTextBox.Location = new Point(267, 266);
+            lookAheadDepthTextBox.Location = new Point(267, 318);
             lookAheadDepthTextBox.Name = "lookAheadDepthTextBox";
-            lookAheadDepthTextBox.Size = new Size(148, 49);
+            lookAheadDepthTextBox.Size = new Size(182, 49);
             lookAheadDepthTextBox.TabIndex = 27;
             // 
             // disableIadaptLabel
             // 
             disableIadaptLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            disableIadaptLabel.Location = new Point(3, 318);
+            disableIadaptLabel.Location = new Point(3, 370);
             disableIadaptLabel.Name = "disableIadaptLabel";
             disableIadaptLabel.Size = new Size(258, 52);
             disableIadaptLabel.TabIndex = 28;
@@ -554,7 +529,7 @@
             // disableIadaptCheckBox
             // 
             disableIadaptCheckBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            disableIadaptCheckBox.Location = new Point(267, 321);
+            disableIadaptCheckBox.Location = new Point(267, 373);
             disableIadaptCheckBox.Name = "disableIadaptCheckBox";
             disableIadaptCheckBox.Size = new Size(182, 44);
             disableIadaptCheckBox.TabIndex = 29;
@@ -564,7 +539,7 @@
             // disableBadaptLabel
             // 
             disableBadaptLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            disableBadaptLabel.Location = new Point(3, 370);
+            disableBadaptLabel.Location = new Point(3, 422);
             disableBadaptLabel.Name = "disableBadaptLabel";
             disableBadaptLabel.Size = new Size(258, 52);
             disableBadaptLabel.TabIndex = 30;
@@ -574,7 +549,7 @@
             // disableBadaptCheckBox
             // 
             disableBadaptCheckBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            disableBadaptCheckBox.Location = new Point(267, 373);
+            disableBadaptCheckBox.Location = new Point(267, 425);
             disableBadaptCheckBox.Name = "disableBadaptCheckBox";
             disableBadaptCheckBox.Size = new Size(182, 44);
             disableBadaptCheckBox.TabIndex = 31;
@@ -590,6 +565,7 @@
             Save.TabIndex = 33;
             Save.Text = "Save";
             Save.UseVisualStyleBackColor = true;
+            Save.Click += Save_Click;
             // 
             // cancelButton
             // 
@@ -629,44 +605,55 @@
             resolutionXLabel.TabIndex = 37;
             resolutionXLabel.Text = "x";
             // 
-            // ResolutionHeightTextBox
+            // resolutionHeightTextBox
             // 
-            ResolutionHeightTextBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            ResolutionHeightTextBox.Location = new Point(372, 109);
-            ResolutionHeightTextBox.Name = "ResolutionHeightTextBox";
-            ResolutionHeightTextBox.Size = new Size(139, 49);
-            ResolutionHeightTextBox.TabIndex = 38;
-            ResolutionHeightTextBox.TabStop = false;
+            resolutionHeightTextBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            resolutionHeightTextBox.Location = new Point(372, 109);
+            resolutionHeightTextBox.Name = "resolutionHeightTextBox";
+            resolutionHeightTextBox.Size = new Size(139, 49);
+            resolutionHeightTextBox.TabIndex = 38;
+            resolutionHeightTextBox.TabStop = false;
+            // 
+            // detailSettingsContainerFlowLayoutPanel
+            // 
+            detailSettingsContainerFlowLayoutPanel.BorderStyle = BorderStyle.FixedSingle;
+            detailSettingsContainerFlowLayoutPanel.Controls.Add(detailSettingsFlowLayoutPanel1);
+            detailSettingsContainerFlowLayoutPanel.Controls.Add(detailSettingsFlowLayoutPanel2);
+            detailSettingsContainerFlowLayoutPanel.Location = new Point(12, 706);
+            detailSettingsContainerFlowLayoutPanel.Name = "detailSettingsContainerFlowLayoutPanel";
+            detailSettingsContainerFlowLayoutPanel.Size = new Size(1234, 484);
+            detailSettingsContainerFlowLayoutPanel.TabIndex = 39;
+            detailSettingsContainerFlowLayoutPanel.Visible = false;
             // 
             // ModeCreator
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1258, 1260);
-            Controls.Add(ResolutionHeightTextBox);
+            Controls.Add(detailSettingsContainerFlowLayoutPanel);
+            Controls.Add(resolutionHeightTextBox);
             Controls.Add(resolutionXLabel);
             Controls.Add(fpsTextBox);
             Controls.Add(resolutionWidthTextBox);
             Controls.Add(cancelButton);
             Controls.Add(Save);
-            Controls.Add(detailSettingsFlowLayoutPanel1);
             Controls.Add(detailSettingLabel);
             Controls.Add(mobileButton);
             Controls.Add(stableButton);
             Controls.Add(qualityButton);
-            Controls.Add(ModeNametextBox);
+            Controls.Add(modeNameTextBox);
             Controls.Add(modeNameLabel);
             Controls.Add(balancedButton);
             Controls.Add(presetModeLabel);
             Controls.Add(fpsLabel);
             Controls.Add(resolusionLabel);
-            Controls.Add(detailSettingsFlowLayoutPanel2);
             Name = "ModeCreator";
             Text = "ModeCreator";
             detailSettingsFlowLayoutPanel1.ResumeLayout(false);
             detailSettingsFlowLayoutPanel1.PerformLayout();
             detailSettingsFlowLayoutPanel2.ResumeLayout(false);
             detailSettingsFlowLayoutPanel2.PerformLayout();
+            detailSettingsContainerFlowLayoutPanel.ResumeLayout(false);
             ResumeLayout(false);
             PerformLayout();
         }
@@ -678,7 +665,7 @@
         private Label presetModeLabel;
         private Button balancedButton;
         private Label modeNameLabel;
-        private TextBox ModeNametextBox;
+        private TextBox modeNameTextBox;
         private Button qualityButton;
         private Button stableButton;
         private Button mobileButton;
@@ -697,7 +684,7 @@
         private TextBox vbvInitialDelayTextBox;
         private Label vbvInitialDelayUnitLabel;
         private Label gopLengthLabel;
-        private TextBox textBox1;
+        private TextBox gopLengthTextBox;
         private Label idrPeriodLabel;
         private TextBox idrPeriodTextBox;
         private Label repeatSpsPpsLabel;
@@ -725,11 +712,9 @@
         private CheckBox disableIadaptCheckBox;
         private Label disableBadaptLabel;
         private CheckBox disableBadaptCheckBox;
-        private ComboBox profileGuidComboBox;
         private ComboBox presetGuidComboBox;
         private ComboBox tuningInfoComboBox;
         private CheckBox enableLookAheadCheckBox;
-        private Label profileGuidLabel;
         private Label presetGuidLabel;
         private Label enableLookAheadLabel;
         private Label lookAheadDepthLabel;
@@ -739,6 +724,7 @@
         private TextBox resolutionWidthTextBox;
         private TextBox fpsTextBox;
         private Label resolutionXLabel;
-        private TextBox ResolutionHeightTextBox;
+        private TextBox resolutionHeightTextBox;
+        private FlowLayoutPanel detailSettingsContainerFlowLayoutPanel;
     }
 }
