@@ -20,3 +20,5 @@ update_client.bat
 
 bin/
 obj/
+
+.editorconfig
