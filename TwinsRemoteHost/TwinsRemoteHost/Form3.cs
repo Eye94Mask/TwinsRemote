@@ -87,7 +87,6 @@ namespace TwinsRemoteHost
             UInt32 lookaheadDepth
             )
         {
-            this.customMode.ModeName = modeNameTextBox.Text;
             this.customMode.Width = width;
             this.customMode.Height = height;
             this.customMode.Fps = fps;
@@ -342,9 +341,6 @@ namespace TwinsRemoteHost
     [JsonObject("customModes")]
     class CustomMode
     {
-        [JsonProperty("modeName")]
-        public string ModeName { get; set; }
-
         [JsonProperty("width")]
         public UInt32 Width { get; set; }
 
