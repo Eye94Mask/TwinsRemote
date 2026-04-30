@@ -104,22 +104,24 @@ namespace TwinsRemoteHost
             this.customMode.TuningInfo = tuningInfoComboBox.SelectedValue.ToString();
             this.customMode.EnableLookahead = enableLookAheadCheckBox.Checked;
             this.customMode.LookaheadDepth = lookaheadDepth;
+            this.customMode.DisableIadapt = disableIadaptCheckBox.Checked;
+            this.customMode.DisableBadapt = disableBadaptCheckBox.Checked;
         }
 
         private bool ValidateCustomMode()
         {
             string message = "";
-            decimal width = 0;
-            decimal height = 0;
-            decimal fps = 0;
-            decimal averageBitrate = 0;
-            decimal maxBitrate = 0;
-            decimal vbvBufferSize = 0;
-            decimal vbvInitialDelay = 0;
-            decimal gopLength = 0;
-            decimal idrPeriod = 0;
-            decimal maxRefFrames = 0;
-            decimal lookaheadDepth = 0;
+            UInt32 width = 0;
+            UInt32 height = 0;
+            UInt32 fps = 0;
+            UInt32 customAverageBitrate = 0;
+            UInt32 customMaxBitrate = 0;
+            UInt32 customVbvBufferSize = 0;
+            UInt32 customVbvInitialDelay = 0;
+            UInt32 gopLength = 0;
+            UInt32 idrPeriod = 0;
+            UInt32 maxRefFrames = 0;
+            UInt32 lookaheadDepth = 0;
 
             // Custom Mode Name
             if (modeNameTextBox.Text == string.Empty)
@@ -139,17 +141,17 @@ namespace TwinsRemoteHost
             {
                 message += this.locale.AlertNoResolution + "\n";
             }
-            else if (
-                (!decimal.TryParse(resolutionWidthTextBox.Text, out width) &&
-                width <= UInt32.MaxValue && width >= UInt32.MinValue
-                )
-                ||
-                (!decimal.TryParse(resolutionHeightTextBox.Text, out height) &&
-                height <= UInt32.MaxValue && height >= UInt32.MinValue
-                )
-                )
+            else
             {
-                message += this.locale.AlertInvalidResolution + "\n";
+                try
+                {
+                    width = UInt32.Parse(resolutionWidthTextBox.Text );
+                    height = UInt32.Parse(resolutionHeightTextBox.Text );
+                }
+                catch (Exception)
+                {
+                    message += this.locale.AlertInvalidResolution + "\n";
+                }
             }
 
             // FPS
@@ -157,12 +159,16 @@ namespace TwinsRemoteHost
             {
                 message += this.locale.AlertNoFps + "\n";
             }
-            else if (
-                !decimal.TryParse(fpsTextBox.Text, out fps) &&
-                fps <= UInt32.MaxValue && fps >= UInt32.MinValue
-                )
+            else
             {
-                message += this.locale.AlertInvalidFps + "\n";
+                try
+                {
+                    fps = UInt32.Parse(fpsTextBox.Text);
+                }
+                catch (Exception)
+                {
+                    message += this.locale.AlertInvalidFps + "\n";
+                }
             }
 
             // averageBitrate
@@ -170,12 +176,17 @@ namespace TwinsRemoteHost
             {
                 message += this.locale.AlertNoAverageBitrate + "\n";
             }
-            else if (
-                !decimal.TryParse(averageBitrateTextBox.Text, out averageBitrate) &&
-                averageBitrate <= UInt32.MaxValue && averageBitrate >= UInt32.MinValue
-                )
+            else
             {
-                message += this.locale.AlertInvalidAverageBitrate + "\n";
+                try
+                {
+                    float averageBitrate = float.Parse(averageBitrateTextBox.Text);
+                    customAverageBitrate = (UInt32)(averageBitrate * 1000 * 1000);
+                }
+                catch (Exception)
+                {
+                    message += this.locale.AlertInvalidAverageBitrate + "\n";
+                }
             }
 
             // maxBitrate
@@ -183,12 +194,17 @@ namespace TwinsRemoteHost
             {
                 message += this.locale.AlertNoMaxBitrate + "\n";
             }
-            else if (
-                !decimal.TryParse(maxBitrateTextBox.Text, out maxBitrate) &&
-                maxBitrate <= UInt32.MaxValue && maxBitrate >= UInt32.MinValue
-                )
+            else
             {
-                message += this.locale.AlertInvalidMaxBitrate + "\n";
+                try
+                {
+                    float maxBitrate = float.Parse(maxBitrateTextBox.Text);
+                    customMaxBitrate = (UInt32)(maxBitrate * 1000 * 1000);
+                }
+                catch (Exception)
+                {
+                    message += this.locale.AlertInvalidMaxBitrate + "\n";
+                }
             }
 
             // vbvBufferSize
@@ -196,12 +212,34 @@ namespace TwinsRemoteHost
             {
                 message += this.locale.AlertNoVbvBufferSize + "\n";
             }
-            else if (
-                !decimal.TryParse(vbvBufferSizeTextBox.Text, out vbvBufferSize) &&
-                vbvBufferSize <= UInt32.MaxValue && vbvBufferSize >= UInt32.MinValue
-                )
+            else
             {
-                message += this.locale.AlertInvalidVbvBufferSize + "\n";
+                try
+                {
+                    float vbvBufferSize = float.Parse(vbvBufferSizeTextBox.Text);
+                    customVbvBufferSize = (UInt32)(vbvBufferSize * 1000 * 1000);
+                }
+                catch (Exception)
+                {
+                    message += this.locale.AlertInvalidVbvBufferSize + "\n";
+                }
+            }
+
+            if (vbvInitialDelayTextBox.Text == string.Empty)
+            {
+                message += this.locale.AlertNoVbvInitialDelay + "\n";
+            }
+            else
+            {
+                try
+                {
+                    float vbvInitialDelay = float.Parse(vbvInitialDelayTextBox.Text);
+                    customVbvInitialDelay = (UInt32)(vbvInitialDelay * 1000 * 1000);
+                }
+                catch (Exception)
+                {
+                    message += this.locale.AlertInvalidVbvInitialDelay + "\n";
+                }
             }
 
             // gopLength
@@ -209,12 +247,16 @@ namespace TwinsRemoteHost
             {
                 message += this.locale.AlertNoGopLength + "\n";
             }
-            else if (
-                !decimal.TryParse(gopLengthTextBox.Text, out gopLength) &&
-                gopLength <= UInt32.MaxValue && gopLength >= UInt32.MinValue
-                )
+            else
             {
-                message += this.locale.AlertInvalidGopLength + "\n";
+                try
+                {
+                    gopLength = UInt32.Parse(gopLengthTextBox.Text);
+                }
+                catch (Exception)
+                {
+                    message += this.locale.AlertInvalidGopLength + "\n";
+                }
             }
 
             // idrPeriod
@@ -222,12 +264,16 @@ namespace TwinsRemoteHost
             {
                 message += this.locale.AlertNoIdrPeriod + "\n";
             }
-            else if (
-                !decimal.TryParse(idrPeriodTextBox.Text, out idrPeriod) &&
-                idrPeriod <= UInt32.MaxValue && idrPeriod >= UInt32.MinValue
-                )
+            else
             {
-                message += this.locale.AlertInvalidIdrPeriod + "\n";
+                try
+                {
+                    idrPeriod = UInt32.Parse(idrPeriodTextBox.Text);
+                }
+                catch (Exception)
+                {
+                    message += this.locale.AlertInvalidIdrPeriod + "\n";
+                }
             }
 
             // maxRefFrames
@@ -235,12 +281,16 @@ namespace TwinsRemoteHost
             {
                 message += this.locale.AlertInvalidMaxRefFrames + "\n";
             }
-            else if (
-                !decimal.TryParse(maxRefFramesTextBox.Text, out maxRefFrames) &&
-                maxRefFrames <= UInt32.MaxValue && maxRefFrames <= UInt32.MinValue
-                )
+            else
             {
-                message += this.locale.AlertInvalidMaxRefFrames + "\n";
+                try
+                {
+                    maxRefFrames = UInt32.Parse(maxRefFramesTextBox.Text);
+                }
+                catch (Exception)
+                {
+                    message += this.locale.AlertInvalidMaxRefFrames + "\n";
+                }
             }
 
             // presetGuid
@@ -255,17 +305,21 @@ namespace TwinsRemoteHost
                 message += this.locale.AlertInvalidTuningInfo + "\n";
             }
 
-            // lookAheadDepth
-            if (lookAheadDepthTextBox.Text == string.Empty)
+            // lookaheadDepth
+            if (lookaheadDepthTextBox.Text == string.Empty)
             {
                 message += this.locale.AlertNoLookaheadDepth + "\n";
             }
-            else if (
-                !decimal.TryParse(lookAheadDepthTextBox.Text, out lookaheadDepth) &&
-                lookaheadDepth <= UInt32.MaxValue && lookaheadDepth >= UInt32.MinValue
-                )
+            else
             {
-                message += this.locale.AlertInvalidLookaheadDepth + "\n";
+                try
+                {
+                    lookaheadDepth = UInt32.Parse(lookaheadDepthTextBox.Text);
+                }
+                catch (Exception)
+                {
+                    message += this.locale.AlertInvalidLookaheadDepth + "\n";
+                }
             }
 
             // 入力に不正な値があった場合
@@ -277,17 +331,17 @@ namespace TwinsRemoteHost
             }
 
             CreateCustomMode(
-                decimal.ToUInt32(width),
-                decimal.ToUInt32(height),
-                decimal.ToUInt32(fps),
-                decimal.ToUInt32(averageBitrate),
-                decimal.ToUInt32(maxBitrate),
-                decimal.ToUInt32(vbvInitialDelay),
-                decimal.ToUInt32(vbvInitialDelay),
-                decimal.ToUInt32(gopLength),
-                decimal.ToUInt32(idrPeriod),
-                decimal.ToUInt32(maxRefFrames),
-                decimal.ToUInt32(lookaheadDepth)
+                width,
+                height,
+                fps,
+                customAverageBitrate,
+                customMaxBitrate,
+                customVbvBufferSize,
+                customVbvInitialDelay,
+                gopLength,
+                idrPeriod,
+                maxRefFrames,
+                lookaheadDepth
             );
             return true;
         }
@@ -391,5 +445,11 @@ namespace TwinsRemoteHost
 
         [JsonProperty("lookaheadDepth")]
         public UInt32 LookaheadDepth { get; set; }
+
+        [JsonProperty("disableIadapt")]
+        public bool DisableIadapt { get; set; }
+
+        [JsonProperty("disableBadapt")]
+        public bool DisableBadapt { get; set; }
     }
 }

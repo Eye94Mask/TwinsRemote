@@ -68,8 +68,8 @@
             tuningInfoComboBox = new ComboBox();
             enableLookAheadLabel = new Label();
             enableLookAheadCheckBox = new CheckBox();
-            lookAheadDepthLabel = new Label();
-            lookAheadDepthTextBox = new TextBox();
+            lookaheadDepthLabel = new Label();
+            lookaheadDepthTextBox = new TextBox();
             disableIadaptLabel = new Label();
             disableIadaptCheckBox = new CheckBox();
             disableBadaptLabel = new Label();
@@ -142,7 +142,7 @@
             modeNameTextBox.Location = new Point(186, 34);
             modeNameTextBox.Name = "modeNameTextBox";
             modeNameTextBox.Size = new Size(440, 49);
-            modeNameTextBox.TabIndex = 7;
+            modeNameTextBox.TabIndex = 1;
             // 
             // qualityButton
             // 
@@ -150,7 +150,7 @@
             qualityButton.Location = new Point(81, 435);
             qualityButton.Name = "qualityButton";
             qualityButton.Size = new Size(243, 47);
-            qualityButton.TabIndex = 8;
+            qualityButton.TabIndex = 6;
             qualityButton.Text = "button1";
             qualityButton.UseVisualStyleBackColor = true;
             // 
@@ -160,7 +160,7 @@
             stableButton.Location = new Point(81, 515);
             stableButton.Name = "stableButton";
             stableButton.Size = new Size(243, 47);
-            stableButton.TabIndex = 9;
+            stableButton.TabIndex = 8;
             stableButton.Text = "button1";
             stableButton.UseVisualStyleBackColor = true;
             // 
@@ -170,7 +170,7 @@
             mobileButton.Location = new Point(81, 594);
             mobileButton.Name = "mobileButton";
             mobileButton.Size = new Size(243, 47);
-            mobileButton.TabIndex = 10;
+            mobileButton.TabIndex = 9;
             mobileButton.Text = "button1";
             mobileButton.UseVisualStyleBackColor = true;
             // 
@@ -228,7 +228,7 @@
             averageBitrateTextBox.Location = new Point(249, 3);
             averageBitrateTextBox.Name = "averageBitrateTextBox";
             averageBitrateTextBox.Size = new Size(148, 49);
-            averageBitrateTextBox.TabIndex = 13;
+            averageBitrateTextBox.TabIndex = 20;
             // 
             // averageBitrateUnitLabel
             // 
@@ -256,7 +256,7 @@
             maxBitrateTextBox.Location = new Point(249, 58);
             maxBitrateTextBox.Name = "maxBitrateTextBox";
             maxBitrateTextBox.Size = new Size(148, 49);
-            maxBitrateTextBox.TabIndex = 16;
+            maxBitrateTextBox.TabIndex = 21;
             // 
             // maxBitrateUnitLabel
             // 
@@ -284,7 +284,7 @@
             vbvBufferSizeTextBox.Location = new Point(249, 113);
             vbvBufferSizeTextBox.Name = "vbvBufferSizeTextBox";
             vbvBufferSizeTextBox.Size = new Size(148, 49);
-            vbvBufferSizeTextBox.TabIndex = 19;
+            vbvBufferSizeTextBox.TabIndex = 22;
             // 
             // vbvBufferSizeUnitLabel
             // 
@@ -312,7 +312,7 @@
             vbvInitialDelayTextBox.Location = new Point(249, 168);
             vbvInitialDelayTextBox.Name = "vbvInitialDelayTextBox";
             vbvInitialDelayTextBox.Size = new Size(148, 49);
-            vbvInitialDelayTextBox.TabIndex = 22;
+            vbvInitialDelayTextBox.TabIndex = 23;
             // 
             // vbvInitialDelayUnitLabel
             // 
@@ -340,7 +340,7 @@
             gopLengthTextBox.Location = new Point(249, 223);
             gopLengthTextBox.Name = "gopLengthTextBox";
             gopLengthTextBox.Size = new Size(148, 49);
-            gopLengthTextBox.TabIndex = 25;
+            gopLengthTextBox.TabIndex = 24;
             // 
             // idrPeriodLabel
             // 
@@ -358,7 +358,7 @@
             idrPeriodTextBox.Location = new Point(249, 278);
             idrPeriodTextBox.Name = "idrPeriodTextBox";
             idrPeriodTextBox.Size = new Size(148, 49);
-            idrPeriodTextBox.TabIndex = 27;
+            idrPeriodTextBox.TabIndex = 25;
             // 
             // repeatSpsPpsLabel
             // 
@@ -376,7 +376,7 @@
             repeatSpsPpsCheckBox.Location = new Point(249, 333);
             repeatSpsPpsCheckBox.Name = "repeatSpsPpsCheckBox";
             repeatSpsPpsCheckBox.Size = new Size(182, 44);
-            repeatSpsPpsCheckBox.TabIndex = 29;
+            repeatSpsPpsCheckBox.TabIndex = 26;
             repeatSpsPpsCheckBox.Text = " ";
             repeatSpsPpsCheckBox.UseVisualStyleBackColor = true;
             // 
@@ -396,7 +396,7 @@
             outputAudCheckBox.Location = new Point(249, 385);
             outputAudCheckBox.Name = "outputAudCheckBox";
             outputAudCheckBox.Size = new Size(182, 44);
-            outputAudCheckBox.TabIndex = 31;
+            outputAudCheckBox.TabIndex = 27;
             outputAudCheckBox.Text = " ";
             outputAudCheckBox.UseVisualStyleBackColor = true;
             // 
@@ -410,8 +410,8 @@
             detailSettingsFlowLayoutPanel2.Controls.Add(tuningInfoComboBox);
             detailSettingsFlowLayoutPanel2.Controls.Add(enableLookAheadLabel);
             detailSettingsFlowLayoutPanel2.Controls.Add(enableLookAheadCheckBox);
-            detailSettingsFlowLayoutPanel2.Controls.Add(lookAheadDepthLabel);
-            detailSettingsFlowLayoutPanel2.Controls.Add(lookAheadDepthTextBox);
+            detailSettingsFlowLayoutPanel2.Controls.Add(lookaheadDepthLabel);
+            detailSettingsFlowLayoutPanel2.Controls.Add(lookaheadDepthTextBox);
             detailSettingsFlowLayoutPanel2.Controls.Add(disableIadaptLabel);
             detailSettingsFlowLayoutPanel2.Controls.Add(disableIadaptCheckBox);
             detailSettingsFlowLayoutPanel2.Controls.Add(disableBadaptLabel);
@@ -437,7 +437,7 @@
             maxRefFramesTextBox.Location = new Point(267, 3);
             maxRefFramesTextBox.Name = "maxRefFramesTextBox";
             maxRefFramesTextBox.Size = new Size(182, 49);
-            maxRefFramesTextBox.TabIndex = 13;
+            maxRefFramesTextBox.TabIndex = 28;
             // 
             // presetGuidLabel
             // 
@@ -456,7 +456,7 @@
             presetGuidComboBox.Location = new Point(3, 110);
             presetGuidComboBox.Name = "presetGuidComboBox";
             presetGuidComboBox.Size = new Size(653, 46);
-            presetGuidComboBox.TabIndex = 33;
+            presetGuidComboBox.TabIndex = 29;
             // 
             // tuningInfoLabel
             // 
@@ -475,7 +475,7 @@
             tuningInfoComboBox.Location = new Point(3, 214);
             tuningInfoComboBox.Name = "tuningInfoComboBox";
             tuningInfoComboBox.Size = new Size(653, 46);
-            tuningInfoComboBox.TabIndex = 34;
+            tuningInfoComboBox.TabIndex = 30;
             // 
             // enableLookAheadLabel
             // 
@@ -493,27 +493,27 @@
             enableLookAheadCheckBox.Location = new Point(267, 266);
             enableLookAheadCheckBox.Name = "enableLookAheadCheckBox";
             enableLookAheadCheckBox.Size = new Size(182, 44);
-            enableLookAheadCheckBox.TabIndex = 35;
+            enableLookAheadCheckBox.TabIndex = 31;
             enableLookAheadCheckBox.Text = " ";
             enableLookAheadCheckBox.UseVisualStyleBackColor = true;
             // 
-            // lookAheadDepthLabel
+            // lookaheadDepthLabel
             // 
-            lookAheadDepthLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            lookAheadDepthLabel.Location = new Point(3, 315);
-            lookAheadDepthLabel.Name = "lookAheadDepthLabel";
-            lookAheadDepthLabel.Size = new Size(258, 52);
-            lookAheadDepthLabel.TabIndex = 26;
-            lookAheadDepthLabel.Text = "lookAheadDepth";
-            lookAheadDepthLabel.TextAlign = ContentAlignment.MiddleLeft;
+            lookaheadDepthLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            lookaheadDepthLabel.Location = new Point(3, 315);
+            lookaheadDepthLabel.Name = "lookaheadDepthLabel";
+            lookaheadDepthLabel.Size = new Size(258, 52);
+            lookaheadDepthLabel.TabIndex = 26;
+            lookaheadDepthLabel.Text = "lookaheadDepth";
+            lookaheadDepthLabel.TextAlign = ContentAlignment.MiddleLeft;
             // 
-            // lookAheadDepthTextBox
+            // lookaheadDepthTextBox
             // 
-            lookAheadDepthTextBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            lookAheadDepthTextBox.Location = new Point(267, 318);
-            lookAheadDepthTextBox.Name = "lookAheadDepthTextBox";
-            lookAheadDepthTextBox.Size = new Size(182, 49);
-            lookAheadDepthTextBox.TabIndex = 27;
+            lookaheadDepthTextBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            lookaheadDepthTextBox.Location = new Point(267, 318);
+            lookaheadDepthTextBox.Name = "lookaheadDepthTextBox";
+            lookaheadDepthTextBox.Size = new Size(182, 49);
+            lookaheadDepthTextBox.TabIndex = 32;
             // 
             // disableIadaptLabel
             // 
@@ -531,7 +531,7 @@
             disableIadaptCheckBox.Location = new Point(267, 373);
             disableIadaptCheckBox.Name = "disableIadaptCheckBox";
             disableIadaptCheckBox.Size = new Size(182, 44);
-            disableIadaptCheckBox.TabIndex = 29;
+            disableIadaptCheckBox.TabIndex = 33;
             disableIadaptCheckBox.Text = " ";
             disableIadaptCheckBox.UseVisualStyleBackColor = true;
             // 
@@ -551,7 +551,7 @@
             disableBadaptCheckBox.Location = new Point(267, 425);
             disableBadaptCheckBox.Name = "disableBadaptCheckBox";
             disableBadaptCheckBox.Size = new Size(182, 44);
-            disableBadaptCheckBox.TabIndex = 31;
+            disableBadaptCheckBox.TabIndex = 34;
             disableBadaptCheckBox.Text = " ";
             disableBadaptCheckBox.UseVisualStyleBackColor = true;
             // 
@@ -561,7 +561,7 @@
             saveButton.Location = new Point(1099, 1196);
             saveButton.Name = "saveButton";
             saveButton.Size = new Size(131, 52);
-            saveButton.TabIndex = 33;
+            saveButton.TabIndex = 7;
             saveButton.Text = "Save";
             saveButton.UseVisualStyleBackColor = true;
             saveButton.Click += saveButton_Click;
@@ -583,7 +583,7 @@
             resolutionWidthTextBox.Location = new Point(186, 109);
             resolutionWidthTextBox.Name = "resolutionWidthTextBox";
             resolutionWidthTextBox.Size = new Size(139, 49);
-            resolutionWidthTextBox.TabIndex = 35;
+            resolutionWidthTextBox.TabIndex = 2;
             // 
             // fpsTextBox
             // 
@@ -591,7 +591,7 @@
             fpsTextBox.Location = new Point(186, 191);
             fpsTextBox.Name = "fpsTextBox";
             fpsTextBox.Size = new Size(139, 49);
-            fpsTextBox.TabIndex = 36;
+            fpsTextBox.TabIndex = 4;
             // 
             // resolutionHeightTextBox
             // 
@@ -599,7 +599,7 @@
             resolutionHeightTextBox.Location = new Point(372, 109);
             resolutionHeightTextBox.Name = "resolutionHeightTextBox";
             resolutionHeightTextBox.Size = new Size(139, 49);
-            resolutionHeightTextBox.TabIndex = 38;
+            resolutionHeightTextBox.TabIndex = 3;
             // 
             // detailSettingsContainerFlowLayoutPanel
             // 
@@ -714,8 +714,8 @@
         private CheckBox enableLookAheadCheckBox;
         private Label presetGuidLabel;
         private Label enableLookAheadLabel;
-        private Label lookAheadDepthLabel;
-        private TextBox lookAheadDepthTextBox;
+        private Label lookaheadDepthLabel;
+        private TextBox lookaheadDepthTextBox;
         private Button saveButton;
         private Button cancelButton;
         private TextBox resolutionWidthTextBox;
