@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.IO;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace TwinsRemoteHost
 {
@@ -800,6 +801,108 @@ namespace TwinsRemoteHost
 
             disableIadaptCheckBox.Checked = this.restrictedIpv4.DisableIadapt;
             disableBadaptCheckBox.Checked = this.restrictedIpv4.DisableBadapt;
+        }
+
+        private void casualPresetLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(casualPresetLabel, this.locale.CasualModeDescription);
+        }
+
+        private void lowLatencyLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(lowLatencyLabel, this.locale.LowLatencyModeDescription);
+        }
+
+        private void qualityLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(qualityLabel, this.locale.QualityModeDescription);
+        }
+
+        private void reducingNetworkLoadLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(reducingNetworkLoadLabel, this.locale.ReducingNetworkLoadModeDescription);
+        }
+
+        private void averageBitrateLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(averageBitrateLabel, this.locale.AverageBitrateDescription);
+        }
+
+        private void maxBitrateLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(maxBitrateLabel, this.locale.MaxBitrateDescription);
+        }
+
+        private void vbvBufferSizeLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(vbvBufferSizeLabel, this.locale.VbvBufferSizeDescription);
+        }
+
+        private void vbvInitialDelayLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(vbvInitialDelayLabel, this.locale.VbvInitialDelayDescription);
+        }
+
+        private void gopLengthLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(gopLengthLabel, this.locale.GopLengthDescription);
+        }
+
+        private void idrPeriodLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(idrPeriodLabel, this.locale.IdrPeriodDescription);
+        }
+
+        private void repeatSpsPpsLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(repeatSpsPpsLabel, this.locale.RepeatSpsPpsDescription);
+        }
+
+        private void outputAudLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(outputAudLabel, this.locale.OutputAudDescription);
+        }
+
+        private void maxRefFramesLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(maxRefFramesLabel, this.locale.MaxRefFramesDescription);
+        }
+
+        private void presetGuidLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(presetGuidLabel, this.locale.PresetGuidDescription);
+        }
+
+        private void tuningInfoLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(tuningInfoLabel, this.locale.TuningInfoDescription);
+        }
+
+        private void enableLookaheadLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(enableLookaheadLabel, this.locale.EnableLookaheadDescription);
+        }
+
+        private void lookaheadDepthLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(lookaheadDepthLabel, this.locale.LookaheadDepthDescription);
+        }
+
+        private void disableIadaptLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(disableIadaptLabel, this.locale.DisableIadaptDescription);
+        }
+
+        private void disableBadaptLabel_MouseHover(object sender, EventArgs e)
+        {
+            toolTip1.SetToolTip(disableBadaptLabel, this.locale.DisableBadaptDescription);
+        }
+
+        // ToolTipが表示されないバグの回避策
+        private void common_MouseLeave(object sender, EventArgs e)
+        {
+            toolTip1.Active = false;
+            toolTip1.Active = true;
         }
     }
 

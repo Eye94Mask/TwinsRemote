@@ -667,8 +667,8 @@ namespace TwinsRemoteHost
         [JsonProperty("fpsDescription")]
         public required string FpsDescription { get; set; }
 
-        [JsonProperty("balancedModeDescription")]
-        public required string BalancedModeDescription { get; set; }
+        [JsonProperty("casualModeDescription")]
+        public required string CasualModeDescription { get; set; }
 
         [JsonProperty("lowLatencyModeDescription")]
         public required string LowLatencyModeDescription { get; set; }

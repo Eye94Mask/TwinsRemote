@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            components = new System.ComponentModel.Container();
             resolusionLabel = new Label();
             fpsLabel = new Label();
             presetModeLabel = new Label();
@@ -90,6 +91,7 @@
             ultraLowLatencyButton = new Button();
             restrictedIpv4Button = new Button();
             mobileButton = new Button();
+            toolTip1 = new ToolTip(components);
             detailSettingsFlowLayoutPanel1.SuspendLayout();
             detailSettingsFlowLayoutPanel2.SuspendLayout();
             detailSettingsContainerFlowLayoutPanel.SuspendLayout();
@@ -163,6 +165,8 @@
             averageBitrateLabel.TabIndex = 12;
             averageBitrateLabel.Text = "averageBitrate";
             averageBitrateLabel.TextAlign = ContentAlignment.MiddleLeft;
+            averageBitrateLabel.MouseLeave += common_MouseLeave;
+            averageBitrateLabel.MouseHover += averageBitrateLabel_MouseHover;
             // 
             // detailSettingsFlowLayoutPanel1
             // 
@@ -218,6 +222,8 @@
             maxBitrateLabel.TabIndex = 15;
             maxBitrateLabel.Text = "maxBitrate";
             maxBitrateLabel.TextAlign = ContentAlignment.MiddleLeft;
+            maxBitrateLabel.MouseLeave += common_MouseLeave;
+            maxBitrateLabel.MouseHover += maxBitrateLabel_MouseHover;
             // 
             // maxBitrateTextBox
             // 
@@ -246,6 +252,8 @@
             vbvBufferSizeLabel.TabIndex = 18;
             vbvBufferSizeLabel.Text = "vbvBufferSize";
             vbvBufferSizeLabel.TextAlign = ContentAlignment.MiddleLeft;
+            vbvBufferSizeLabel.MouseLeave += common_MouseLeave;
+            vbvBufferSizeLabel.MouseHover += vbvBufferSizeLabel_MouseHover;
             // 
             // vbvBufferSizeTextBox
             // 
@@ -274,6 +282,8 @@
             vbvInitialDelayLabel.TabIndex = 21;
             vbvInitialDelayLabel.Text = "vbvInitialDelay";
             vbvInitialDelayLabel.TextAlign = ContentAlignment.MiddleLeft;
+            vbvInitialDelayLabel.MouseLeave += common_MouseLeave;
+            vbvInitialDelayLabel.MouseHover += vbvInitialDelayLabel_MouseHover;
             // 
             // vbvInitialDelayTextBox
             // 
@@ -302,6 +312,8 @@
             gopLengthLabel.TabIndex = 24;
             gopLengthLabel.Text = "gopLength";
             gopLengthLabel.TextAlign = ContentAlignment.MiddleLeft;
+            gopLengthLabel.MouseLeave += common_MouseLeave;
+            gopLengthLabel.MouseHover += gopLengthLabel_MouseHover;
             // 
             // gopLengthTextBox
             // 
@@ -320,6 +332,8 @@
             idrPeriodLabel.TabIndex = 26;
             idrPeriodLabel.Text = "idrPeriod";
             idrPeriodLabel.TextAlign = ContentAlignment.MiddleLeft;
+            idrPeriodLabel.MouseLeave += common_MouseLeave;
+            idrPeriodLabel.MouseHover += idrPeriodLabel_MouseHover;
             // 
             // idrPeriodTextBox
             // 
@@ -338,6 +352,8 @@
             repeatSpsPpsLabel.TabIndex = 28;
             repeatSpsPpsLabel.Text = "repeatSpsPps";
             repeatSpsPpsLabel.TextAlign = ContentAlignment.MiddleLeft;
+            repeatSpsPpsLabel.MouseLeave += common_MouseLeave;
+            repeatSpsPpsLabel.MouseHover += repeatSpsPpsLabel_MouseHover;
             // 
             // repeatSpsPpsCheckBox
             // 
@@ -358,6 +374,8 @@
             outputAudLabel.TabIndex = 30;
             outputAudLabel.Text = "outputAud";
             outputAudLabel.TextAlign = ContentAlignment.MiddleLeft;
+            outputAudLabel.MouseLeave += common_MouseLeave;
+            outputAudLabel.MouseHover += outputAudLabel_MouseHover;
             // 
             // outputAudCheckBox
             // 
@@ -399,6 +417,8 @@
             maxRefFramesLabel.TabIndex = 12;
             maxRefFramesLabel.Text = "maxRefFrames";
             maxRefFramesLabel.TextAlign = ContentAlignment.MiddleLeft;
+            maxRefFramesLabel.MouseLeave += common_MouseLeave;
+            maxRefFramesLabel.MouseHover += maxRefFramesLabel_MouseHover;
             // 
             // maxRefFramesTextBox
             // 
@@ -417,6 +437,8 @@
             presetGuidLabel.TabIndex = 18;
             presetGuidLabel.Text = "presetGuid";
             presetGuidLabel.TextAlign = ContentAlignment.MiddleLeft;
+            presetGuidLabel.MouseLeave += common_MouseLeave;
+            presetGuidLabel.MouseHover += presetGuidLabel_MouseHover;
             // 
             // presetGuidComboBox
             // 
@@ -436,6 +458,8 @@
             tuningInfoLabel.TabIndex = 21;
             tuningInfoLabel.Text = "tuningInfo";
             tuningInfoLabel.TextAlign = ContentAlignment.MiddleLeft;
+            tuningInfoLabel.MouseLeave += common_MouseLeave;
+            tuningInfoLabel.MouseHover += tuningInfoLabel_MouseHover;
             // 
             // tuningInfoComboBox
             // 
@@ -455,6 +479,8 @@
             enableLookaheadLabel.TabIndex = 24;
             enableLookaheadLabel.Text = "enableLookahead";
             enableLookaheadLabel.TextAlign = ContentAlignment.MiddleLeft;
+            enableLookaheadLabel.MouseLeave += common_MouseLeave;
+            enableLookaheadLabel.MouseHover += enableLookaheadLabel_MouseHover;
             // 
             // enableLookaheadCheckBox
             // 
@@ -475,6 +501,8 @@
             lookaheadDepthLabel.TabIndex = 26;
             lookaheadDepthLabel.Text = "lookaheadDepth";
             lookaheadDepthLabel.TextAlign = ContentAlignment.MiddleLeft;
+            lookaheadDepthLabel.MouseLeave += common_MouseLeave;
+            lookaheadDepthLabel.MouseHover += lookaheadDepthLabel_MouseHover;
             // 
             // lookaheadDepthTextBox
             // 
@@ -493,6 +521,8 @@
             disableIadaptLabel.TabIndex = 28;
             disableIadaptLabel.Text = "disableIadpt";
             disableIadaptLabel.TextAlign = ContentAlignment.MiddleLeft;
+            disableIadaptLabel.MouseLeave += common_MouseLeave;
+            disableIadaptLabel.MouseHover += disableIadaptLabel_MouseHover;
             // 
             // disableIadaptCheckBox
             // 
@@ -513,6 +543,8 @@
             disableBadaptLabel.TabIndex = 30;
             disableBadaptLabel.Text = "disableBadapt";
             disableBadaptLabel.TextAlign = ContentAlignment.MiddleLeft;
+            disableBadaptLabel.MouseLeave += common_MouseLeave;
+            disableBadaptLabel.MouseHover += disableBadaptLabel_MouseHover;
             // 
             // disableBadaptCheckBox
             // 
@@ -527,7 +559,7 @@
             // saveButton
             // 
             saveButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            saveButton.Location = new Point(1099, 1196);
+            saveButton.Location = new Point(1099, 1205);
             saveButton.Name = "saveButton";
             saveButton.Size = new Size(131, 52);
             saveButton.TabIndex = 7;
@@ -538,7 +570,7 @@
             // cancelButton
             // 
             cancelButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            cancelButton.Location = new Point(936, 1196);
+            cancelButton.Location = new Point(936, 1205);
             cancelButton.Name = "cancelButton";
             cancelButton.Size = new Size(131, 52);
             cancelButton.TabIndex = 34;
@@ -577,7 +609,7 @@
             detailSettingsContainerFlowLayoutPanel.Controls.Add(detailSettingsFlowLayoutPanel2);
             detailSettingsContainerFlowLayoutPanel.Location = new Point(12, 706);
             detailSettingsContainerFlowLayoutPanel.Name = "detailSettingsContainerFlowLayoutPanel";
-            detailSettingsContainerFlowLayoutPanel.Size = new Size(1234, 484);
+            detailSettingsContainerFlowLayoutPanel.Size = new Size(1234, 493);
             detailSettingsContainerFlowLayoutPanel.TabIndex = 39;
             detailSettingsContainerFlowLayoutPanel.Visible = false;
             // 
@@ -645,6 +677,7 @@
             casualPresetLabel.TabIndex = 40;
             casualPresetLabel.Text = "label1";
             casualPresetLabel.TextAlign = ContentAlignment.MiddleCenter;
+            casualPresetLabel.MouseHover += casualPresetLabel_MouseHover;
             // 
             // lowLatencyLabel
             // 
@@ -656,6 +689,7 @@
             lowLatencyLabel.TabIndex = 41;
             lowLatencyLabel.Text = "label1";
             lowLatencyLabel.TextAlign = ContentAlignment.MiddleCenter;
+            lowLatencyLabel.MouseHover += lowLatencyLabel_MouseHover;
             // 
             // reducingNetworkLoadLabel
             // 
@@ -667,6 +701,7 @@
             reducingNetworkLoadLabel.TabIndex = 42;
             reducingNetworkLoadLabel.Text = "label1";
             reducingNetworkLoadLabel.TextAlign = ContentAlignment.MiddleCenter;
+            reducingNetworkLoadLabel.MouseHover += reducingNetworkLoadLabel_MouseHover;
             // 
             // qualityLabel
             // 
@@ -678,6 +713,7 @@
             qualityLabel.TabIndex = 43;
             qualityLabel.Text = "label1";
             qualityLabel.TextAlign = ContentAlignment.MiddleCenter;
+            qualityLabel.MouseHover += qualityLabel_MouseHover;
             // 
             // lowLatencyButton
             // 
@@ -853,5 +889,6 @@
         private Button ultraLowLatencyButton;
         private Button restrictedIpv4Button;
         private Button mobileButton;
+        private ToolTip toolTip1;
     }
 }
