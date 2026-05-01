@@ -32,8 +32,8 @@
             sessionIdLabel = new Label();
             statusTitleLabel = new Label();
             statusValueLabel = new Label();
-            comboBoxMode = new ComboBox();
-            textBoxSessionId = new TextBox();
+            modeComboBox = new ComboBox();
+            sessionIdTextBox = new TextBox();
             connectButton = new Button();
             audioOnButton = new Button();
             audioOffButton = new Button();
@@ -59,7 +59,7 @@
             // 
             sessionIdLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             sessionIdLabel.ImageAlign = ContentAlignment.MiddleRight;
-            sessionIdLabel.Location = new Point(438, 49);
+            sessionIdLabel.Location = new Point(508, 49);
             sessionIdLabel.Name = "sessionIdLabel";
             sessionIdLabel.RightToLeft = RightToLeft.Yes;
             sessionIdLabel.Size = new Size(276, 42);
@@ -88,27 +88,27 @@
             statusValueLabel.TabIndex = 3;
             statusValueLabel.Text = "label1";
             // 
-            // comboBoxMode
+            // modeComboBox
             // 
-            comboBoxMode.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            comboBoxMode.FormattingEnabled = true;
-            comboBoxMode.Location = new Point(250, 41);
-            comboBoxMode.Name = "comboBoxMode";
-            comboBoxMode.Size = new Size(182, 50);
-            comboBoxMode.TabIndex = 4;
+            modeComboBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            modeComboBox.FormattingEnabled = true;
+            modeComboBox.Location = new Point(250, 41);
+            modeComboBox.Name = "modeComboBox";
+            modeComboBox.Size = new Size(322, 50);
+            modeComboBox.TabIndex = 4;
             // 
-            // textBoxSessionId
+            // sessionIdTextBox
             // 
-            textBoxSessionId.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            textBoxSessionId.Location = new Point(720, 41);
-            textBoxSessionId.Name = "textBoxSessionId";
-            textBoxSessionId.Size = new Size(182, 49);
-            textBoxSessionId.TabIndex = 5;
+            sessionIdTextBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            sessionIdTextBox.Location = new Point(790, 41);
+            sessionIdTextBox.Name = "sessionIdTextBox";
+            sessionIdTextBox.Size = new Size(318, 49);
+            sessionIdTextBox.TabIndex = 5;
             // 
             // connectButton
             // 
             connectButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            connectButton.Location = new Point(1114, 41);
+            connectButton.Location = new Point(1228, 41);
             connectButton.Name = "connectButton";
             connectButton.Size = new Size(162, 59);
             connectButton.TabIndex = 6;
@@ -155,6 +155,7 @@
             logTextBox.Location = new Point(98, 497);
             logTextBox.Multiline = true;
             logTextBox.Name = "logTextBox";
+            logTextBox.ScrollBars = ScrollBars.Vertical;
             logTextBox.Size = new Size(2074, 464);
             logTextBox.TabIndex = 10;
             // 
@@ -191,8 +192,8 @@
             Controls.Add(audioOffButton);
             Controls.Add(audioOnButton);
             Controls.Add(connectButton);
-            Controls.Add(textBoxSessionId);
-            Controls.Add(comboBoxMode);
+            Controls.Add(sessionIdTextBox);
+            Controls.Add(modeComboBox);
             Controls.Add(statusValueLabel);
             Controls.Add(statusTitleLabel);
             Controls.Add(sessionIdLabel);
@@ -210,8 +211,8 @@
         private Label sessionIdLabel;
         private Label statusTitleLabel;
         private Label statusValueLabel;
-        private ComboBox comboBoxMode;
-        private TextBox textBoxSessionId;
+        private ComboBox modeComboBox;
+        private TextBox sessionIdTextBox;
         private Button connectButton;
         private Button audioOnButton;
         private Button audioOffButton;

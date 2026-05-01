@@ -14,12 +14,16 @@
 #include <atomic>
 #include <string>
 #include <array>
+#include <fstream>
+#include <nlohmann/json.hpp>
+#include "msdirent.h"
 #include "nvEncodeAPI.h"
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 
 NV_ENCODE_API_FUNCTION_LIST g_nvenc = {};
+std::vector<nlohmann::json> customs;
 
 static const char* NvEncStatusToString(NVENCSTATUS st) {
     switch (st) {
@@ -56,7 +60,7 @@ static const char* NvEncStatusToString(NVENCSTATUS st) {
 static void CheckNvEnc(NVENCSTATUS st, const char* where) {
     if (st != NV_ENC_SUCCESS) {
         std::cerr << where << " failed: " << NvEncStatusToString(st)
-                  << " (" << static_cast<int>(st) << ")\n";
+            << " (" << static_cast<int>(st) << ")\n";
         throw std::runtime_error(where);
     }
 }
@@ -112,7 +116,7 @@ void LoadNvEnc() {
 
     auto create = reinterpret_cast<NVENCSTATUS(NVENCAPI*)(NV_ENCODE_API_FUNCTION_LIST*)>(
         GetProcAddress(h, "NvEncodeAPICreateInstance")
-    );
+        );
 
     if (!create) throw std::runtime_error("NvEncodeAPICreateInstance not found");
 
@@ -130,8 +134,7 @@ enum class StreamPreset {
     Stable,
     Balanced,
     Quality,
-    Mobile,
-    IPv4
+    Mobile
 };
 
 struct StreamConfig {
@@ -170,7 +173,6 @@ static StreamPreset ParseStreamPreset(int argc, char** argv) {
     if (arg == "balanced") return StreamPreset::Balanced;
     if (arg == "quality")  return StreamPreset::Quality;
     if (arg == "mobile")   return StreamPreset::Mobile;
-    if (arg == "ipv4") return StreamPreset::IPv4;
 
     std::cerr << "[WARN] Unknown preset: " << arg << " (fallback to balanced)\n";
     return StreamPreset::Balanced;
@@ -182,34 +184,12 @@ static const char* StreamPresetToString(StreamPreset preset) {
     case StreamPreset::Balanced: return "balanced";
     case StreamPreset::Quality:  return "quality";
     case StreamPreset::Mobile:   return "mobile";
-    case StreamPreset::IPv4:     return "ipv4";
     default:                     return "unknown";
     }
 }
 
 static StreamConfig GetStreamConfig(StreamPreset preset) {
     switch (preset) {
-    case StreamPreset::IPv4:
-        return StreamConfig{
-            960, 540,
-            30,
-            1400 * 1000,
-            1800 * 1000,
-            1400 * 1000,
-            700 * 1000,
-            30,
-            30,
-            true,
-            false,
-            1,
-            NV_ENC_H264_PROFILE_BASELINE_GUID,
-            NV_ENC_PRESET_P3_GUID,
-            NV_ENC_TUNING_INFO_LOW_LATENCY,
-            false,
-            0,
-            true,
-            true
-        };
     case StreamPreset::Stable:
         return StreamConfig{
             1280, 720,
@@ -223,7 +203,7 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
             true,
             false,
             1,
-            NV_ENC_H264_PROFILE_BASELINE_GUID,
+            NV_ENC_H264_PROFILE_HIGH_GUID,
             NV_ENC_PRESET_P3_GUID,
             NV_ENC_TUNING_INFO_LOW_LATENCY,
             false,
@@ -245,8 +225,8 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
             true,
             false,
             1,
-            NV_ENC_H264_PROFILE_BASELINE_GUID,
-            NV_ENC_PRESET_P3_GUID,
+            NV_ENC_H264_PROFILE_HIGH_GUID,
+            NV_ENC_PRESET_P4_GUID,
             NV_ENC_TUNING_INFO_LOW_LATENCY,
             false,
             0,
@@ -258,17 +238,17 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
         return StreamConfig{
             1920, 1080,
             60,
-            8 * 1000 * 1000,
             10 * 1000 * 1000,
-            8 * 1000 * 1000,
-            3 * 1000 * 1000,
+            12 * 1000 * 1000,
+            10 * 1000 * 1000,
+            6 * 1000 * 1000,
             60,
-            30,
+            60,
             true,
             false,
             1,
-            NV_ENC_H264_PROFILE_BASELINE_GUID,
-            NV_ENC_PRESET_P3_GUID,
+            NV_ENC_H264_PROFILE_HIGH_GUID,
+            NV_ENC_PRESET_P5_GUID,
             NV_ENC_TUNING_INFO_LOW_LATENCY,
             false,
             0,
@@ -290,7 +270,7 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
             false,
             1,
             NV_ENC_H264_PROFILE_BASELINE_GUID,
-            NV_ENC_PRESET_P3_GUID,
+            NV_ENC_PRESET_P2_GUID,
             NV_ENC_TUNING_INFO_LOW_LATENCY,
             false,
             0,
@@ -299,7 +279,141 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
         };
     }
 
+
+
     return GetStreamConfig(StreamPreset::Balanced);
+}
+
+// ----------------------------------------------------
+// Custom Stream Set
+// ----------------------------------------------------
+// アプリ側では選択肢を与えていないため本来は不要
+static GUID GetCustomProfileGuidFromStr(std::string profileGuid) {
+    if (profileGuid == "NV_ENC_H264_PROFILE_BASELINE_GUID") return NV_ENC_H264_PROFILE_BASELINE_GUID;
+    if (profileGuid == "NV_ENC_H264_PROFILE_MAIN_GUID") return NV_ENC_H264_PROFILE_MAIN_GUID;
+    if (profileGuid == "NV_ENC_H264_PROFILE_HIGH_GUID") return NV_ENC_H264_PROFILE_HIGH_GUID;
+    if (profileGuid == "NV_ENC_H264_PROFILE_HIGH_444_GUID") return NV_ENC_H264_PROFILE_HIGH_444_GUID;
+
+    // 高画質・高効率
+    return NV_ENC_H264_PROFILE_HIGH_GUID;
+}
+
+static GUID GetCustomPresetGuidFromStr(std::string profileGuid) {
+    if (profileGuid == "NV_ENC_PRESET_P1_GUID") return NV_ENC_PRESET_P1_GUID;
+    if (profileGuid == "NV_ENC_PRESET_P2_GUID") return NV_ENC_PRESET_P2_GUID;
+    if (profileGuid == "NV_ENC_PRESET_P3_GUID") return NV_ENC_PRESET_P3_GUID;
+    if (profileGuid == "NV_ENC_PRESET_P4_GUID") return NV_ENC_PRESET_P4_GUID;
+    if (profileGuid == "NV_ENC_PRESET_P5_GUID") return NV_ENC_PRESET_P5_GUID;
+    if (profileGuid == "NV_ENC_PRESET_P6_GUID") return NV_ENC_PRESET_P6_GUID;
+    if (profileGuid == "NV_ENC_PRESET_P7_GUID") return NV_ENC_PRESET_P7_GUID;
+
+    // デフォルトはバランスのいいP4
+    return NV_ENC_PRESET_P4_GUID;
+}
+
+static NV_ENC_TUNING_INFO GetCustomTuningInfoGuidFromStr(std::string tuningInfo) {
+    if (tuningInfo == "NV_ENC_TUNING_INFO_HIGH_QUALITY") return NV_ENC_TUNING_INFO_HIGH_QUALITY;
+    if (tuningInfo == "NV_ENC_TUNING_INFO_LOW_LATENCY") return NV_ENC_TUNING_INFO_LOW_LATENCY;
+    if (tuningInfo == "NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY") return NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY;
+
+    // ゲーム向け低遅延設定をデフォルトに
+    return NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY;
+}
+
+// カスタムモードを取得
+static StreamConfig GetCustomModeFromFile(const std::string& customDirectoryPath, const std::string& customFileName) {
+    std::ifstream ifs(customDirectoryPath + customFileName);
+
+    if (!ifs.is_open()) {
+        std::cerr << "Failed to open custom file: " << customFileName << std::endl;
+        return StreamConfig{};
+    }
+
+    if (!nlohmann::json::accept(ifs)) {
+        std::cerr << "Invalid JSON format: " << customFileName << std::endl;
+        return StreamConfig{};
+    }
+
+    std::string customJsonString(
+        (std::istreambuf_iterator<char>(ifs)),
+        std::istreambuf_iterator<char>()
+    );
+
+    ifs.seekg(0, std::ios::beg);
+
+    nlohmann::json customJson = nlohmann::json::parse(ifs);
+
+    GUID customProfileGuid = GetCustomProfileGuidFromStr(customJson["profileGuid"]);
+    GUID customPresetGuid = GetCustomPresetGuidFromStr(customJson["presetGuid"]);
+    NV_ENC_TUNING_INFO customTuningInfo = GetCustomTuningInfoGuidFromStr(customJson["tuningInfo"]);
+
+    StreamConfig customMode = StreamConfig{
+        customJson["width"],
+        customJson["height"],
+        customJson["fps"],
+        customJson["averageBitrate"],
+        customJson["maxBitrate"],
+        customJson["vbvBufferSize"],
+        customJson["vbvInitialDelay"],
+        customJson["gopLength"],
+        customJson["idrPeriod"],
+        customJson["repeatSpsPps"],
+        customJson["outputAud"],
+        customJson["maxRefFrames"],
+        customProfileGuid,
+        customPresetGuid,
+        customTuningInfo,
+        customJson["enableLookahead"],
+        customJson["lookaheadDepth"],
+        customJson["disableIadapt"],
+        customJson["disableBadapt"]
+    };
+
+    return customMode;
+}
+
+static std::vector<std::string> GetCustomFilesInFolder(const std::string& folderPath) {
+    std::vector<std::string> fileNames;
+    DIR* dir;
+    struct dirent* entry;
+
+    if ((dir = opendir(folderPath.c_str())) != nullptr) {
+        while ((entry = readdir(dir)) != nullptr) {
+            if (entry->d_type == DT_REG) {
+                //std::cout << entry->d_name << std::endl;
+                fileNames.push_back(entry->d_name);
+            }
+        }
+
+        closedir(dir);
+    }
+
+    return fileNames;
+}
+
+static bool IsValidCustomMode(StreamConfig cfg) {
+    // 解像度とFPSが初期値になっているかで判定
+    if (
+        cfg.width <= 0 ||
+        cfg.height <= 0 ||
+        cfg.fps <= 0
+    ) {
+        return false;
+    }
+
+    return true;
+}
+
+static int IsCustomMode(std::vector<std::pair<StreamConfig, std::string>> customModes, int argc, char** argv) {
+    if (argc < 2) { return -1; }
+    
+    for (int i = 0; i < customModes.size(); i++) {
+        auto& [_, name] = customModes[i];
+
+        if (name == argv[1]) { return i; }
+    }
+
+    return -1;
 }
 
 // ----------------------------------------------------
@@ -720,13 +834,14 @@ static bool EncodeRegisteredTexture(
 
         try {
             if (!WritePacketToStdout(
-                    reinterpret_cast<const uint8_t*>(lock.bitstreamBufferPtr),
-                    static_cast<uint32_t>(lock.bitstreamSizeInBytes))) {
+                reinterpret_cast<const uint8_t*>(lock.bitstreamBufferPtr),
+                static_cast<uint32_t>(lock.bitstreamSizeInBytes))) {
                 g_nvenc.nvEncUnlockBitstream(enc.encoder, enc.bitstreamBuffer);
                 g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource);
                 return false;
             }
-        } catch (...) {
+        }
+        catch (...) {
             g_nvenc.nvEncUnlockBitstream(enc.encoder, enc.bitstreamBuffer);
             throw;
         }
@@ -787,18 +902,29 @@ static void CreateSession(
 ) {
     dup = CreateDuplication(device);
     std::cerr << "[INFO] Desktop Duplication created: "
-              << dup.width << "x" << dup.height << "\n";
+        << dup.width << "x" << dup.height << "\n";
 
     enc = CreateEncoder(device, cfg);
     scaler = CreateScaler(device, context, enc.encoder, dup.width, dup.height, cfg.width, cfg.height);
 
     std::cerr << "[INFO] Encoder/scaler initialized: "
-              << cfg.width << "x" << cfg.height
-              << " @" << cfg.fps << "fps"
-              << " bitrate=" << (cfg.averageBitrate / 1000) << "kbps"
-              << " gop=" << cfg.gopLength
-              << " idr=" << cfg.idrPeriod
-              << "\n";
+        << cfg.width << "x" << cfg.height
+        << " @" << cfg.fps << "fps"
+        << " bitrate=" << (cfg.averageBitrate / 1000) << "kbps"
+        << " gop=" << cfg.gopLength
+        << " idr=" << cfg.idrPeriod
+        << "\n";
+}
+
+std::string replaceOtherStr(std::string& replacedStr, std::string from, std::string to) {
+    const unsigned int pos = replacedStr.find(from);
+    const int len = from.length();
+
+    if (pos == std::string::npos || from.empty()) {
+        return replacedStr;
+    }
+
+    return replacedStr.replace(pos, len, to);
 }
 
 // ----------------------------------------------------
@@ -807,6 +933,19 @@ static void CreateSession(
 int main(int argc, char** argv) {
     _setmode(_fileno(stdout), _O_BINARY);
     _setmode(_fileno(stdin), _O_BINARY);
+
+    std::string customDirectoryPath = "./customs";
+    std::vector<std::string> customFileNames = GetCustomFilesInFolder(customDirectoryPath);
+    std::vector<std::pair<StreamConfig, std::string>> customModes;
+
+    std::cerr << "[INFO] Before getting custom files list" << std::endl;
+    for (std::string customFileName : customFileNames) {
+        std::cerr << "[INFO] Checking: " << customDirectoryPath + "/" + customFileName << std::endl;
+        StreamConfig config = GetCustomModeFromFile(customDirectoryPath + "/", customFileName);
+        
+        customModes.push_back(std::pair(config, replaceOtherStr(customFileName, ".json", "")));
+    }
+    std::cerr << "[INFO] success getting custom files list" << std::endl;
 
     ID3D11Device* device = nullptr;
     ID3D11DeviceContext* context = nullptr;
@@ -831,7 +970,7 @@ int main(int argc, char** argv) {
                 std::cerr << "[NVENC] command received: force_idr\n";
             }
         }
-    });
+        });
 
     try {
         D3D_FEATURE_LEVEL flOut = D3D_FEATURE_LEVEL_11_0;
@@ -863,13 +1002,25 @@ int main(int argc, char** argv) {
         LoadNvEnc();
         std::cerr << "[INFO] NVENC API Loaded\n";
 
-        StreamPreset preset = ParseStreamPreset(argc, argv);
-        StreamConfig cfg = GetStreamConfig(preset);
+        StreamConfig cfg;
+        std::string modeName;
+        int customIndex = IsCustomMode(customModes, argc, argv);
 
-        std::cerr << "[INFO] Selected preset: " << StreamPresetToString(preset)
-                  << " (" << cfg.width << "x" << cfg.height
-                  << " @" << cfg.fps << "fps, "
-                  << cfg.averageBitrate / 1000000.0 << "Mbps)\n";
+        if (customIndex >= 0) {
+            auto& [mode, name] = customModes[customIndex];
+            modeName = name;
+            cfg = mode;
+        }
+        else {
+            StreamPreset preset = ParseStreamPreset(argc, argv);
+            modeName = StreamPresetToString(preset);
+            cfg = GetStreamConfig(preset);
+        }
+
+        std::cerr << "[INFO] Selected Mode: " << modeName
+            << " (" << cfg.width << "x" << cfg.height
+            << " @" << cfg.fps << "fps, "
+            << cfg.averageBitrate / 1000000.0 << "Mbps)\n";
 
         uint64_t frameIndex = 0;
         bool firstFrame = true;
@@ -956,7 +1107,7 @@ int main(int argc, char** argv) {
                             HRESULT r = dup.duplication->ReleaseFrame();
                             if (FAILED(r) && r != DXGI_ERROR_ACCESS_LOST) {
                                 std::cerr << "[WARN] ReleaseFrame during exception failed: 0x"
-                                          << std::hex << r << std::dec << "\n";
+                                    << std::hex << r << std::dec << "\n";
                             }
                         }
 

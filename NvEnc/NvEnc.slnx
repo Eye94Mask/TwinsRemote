@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="NvEnc/NvEnc.vcxproj" Id="5303a325-3f43-4abb-b057-e1794a0dc091" />
+</Solution>

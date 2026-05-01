@@ -1,6 +1,7 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http.Json;
@@ -38,13 +39,18 @@ namespace TwinsRemoteHost
 
         private void InitializeUi()
         {
-            comboBoxMode.Items.Clear();
-            comboBoxMode.Items.Add(new VideoPresetItem { DisplayName = "Balanced", Key = "balanced" });
-            comboBoxMode.Items.Add(new VideoPresetItem { DisplayName = "Quality", Key = "quality" });
-            comboBoxMode.Items.Add(new VideoPresetItem { DisplayName = "Stable", Key = "stable" });
-            comboBoxMode.Items.Add(new VideoPresetItem { DisplayName = "Mobile", Key = "mobile" });
-            comboBoxMode.Items.Add(new VideoPresetItem { DisplayName = "IPv4", Key = "ipv4" });
-            comboBoxMode.SelectedIndex = 0;
+            List<string> customNames = getCustomModeList();
+
+            modeComboBox.Items.Clear();
+            foreach (string customName in customNames)
+            {
+                modeComboBox.Items.Add(new VideoPresetItem { DisplayName = customName, Key = customName });
+            }
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Balanced", Key = "balanced" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Quality", Key = "quality" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Stable", Key = "stable" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Mobile", Key = "mobile" });
+            modeComboBox.SelectedIndex = 0;
 
             string language = Properties.Settings.Default.Language;
             InitializeLanguageComboBox();
@@ -53,6 +59,19 @@ namespace TwinsRemoteHost
 
             statusValueLabel.Text = locale.StatusStopped;
             SetRunningState(false);
+        }
+
+        private List<string> getCustomModeList()
+        {
+            List<string> customNames = new();
+            string[] customs = Directory.GetFiles(@"./exes/customs");
+
+            foreach (string custom in customs)
+            {
+                customNames.Add(custom.Replace(".json", "").Replace("./exes/customs\\", ""));
+            }
+
+            return customNames;
         }
 
         private void InitializeLanguageComboBox()
@@ -104,8 +123,8 @@ namespace TwinsRemoteHost
 
         private void SetRunningState(bool running)
         {
-            comboBoxMode.Enabled = !running;
-            textBoxSessionId.Enabled = !running;
+            modeComboBox.Enabled = !running;
+            sessionIdTextBox.Enabled = !running;
             connectButton.Enabled = !running;
 
             audioOnButton.Enabled = running;
@@ -249,39 +268,10 @@ namespace TwinsRemoteHost
             ApplyLanguage();
         }
 
-        private bool isValidLanguage(string code)
-        {
-            switch (code)
-            {
-                case "ja-JP":
-                case "en-US":
-                    {
-                        return true;
-                    }
-            }
-
-            return false;
-        }
-
         private void SetLocale()
         {
             if (languageComboBox.SelectedItem == null) { return; }
-            string? language = languageComboBox.SelectedItem.ToString();
-            if (language == null) { return; }
-
-            string[] words = language.Split(' ');
-            if (words.Length != 8 && words[4] != "Code")
-            {
-                AppendLog(this.locale.InvalidLanguage);
-                return;
-            }
-
-            string code = words[6];
-            if (!isValidLanguage(code))
-            {
-                AppendLog(this.locale.InvalidLanguage);
-                return;
-            }
+            string code = languageComboBox.SelectedValue.ToString();
 
             string localeFile = $"{code}.json";
             string localePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "locales", localeFile);
@@ -345,8 +335,8 @@ namespace TwinsRemoteHost
                 return;
             }
 
-            string mode = (comboBoxMode.SelectedItem?.ToString() ?? "Balanced").ToLower();
-            string sessionId = textBoxSessionId.Text.Trim();
+            string mode = (modeComboBox.SelectedItem?.ToString() ?? "Balanced").ToLower();
+            string sessionId = sessionIdTextBox.Text.Trim();
 
             if (string.IsNullOrWhiteSpace(sessionId))
             {
@@ -494,6 +484,7 @@ namespace TwinsRemoteHost
                 mCreator.Activate();
             }
 
+            InitializeUi();
             mCreator.Dispose();
             mCreator = null;
         }
@@ -613,7 +604,7 @@ namespace TwinsRemoteHost
         [JsonProperty("readLocaleFailed")]
         public required string ReadLocaleFailed { get; set; }
 
-        [JsonProperty("confim")]
+        [JsonProperty("confirm")]
         public required string Confirm { get; set; }
 
         [JsonProperty("error")]
@@ -631,17 +622,44 @@ namespace TwinsRemoteHost
         [JsonProperty("presets")]
         public required string Presets { get; set; }
 
+        [JsonProperty("casualPresets")]
+        public required string CasualPresets { get; set; }
+
+        [JsonProperty("lowLatencyPresets")]
+        public required string LowLatencyPresets { get; set; }
+
+        [JsonProperty("qualityPresets")]
+        public required string QualityPresets { get; set; }
+
+        [JsonProperty("reducingNetworkLoadPresets")]
+        public required string ReducingNetworkLoadPresets { get; set; }
+
         [JsonProperty("balancedMode")]
         public required string BalancedMode { get; set; }
-
-        [JsonProperty("qualityMode")]
-        public required string QualityMode { get; set; }
 
         [JsonProperty("stableMode")]
         public required string StableMode { get; set; }
 
+        [JsonProperty("lowLatencyMode")]
+        public required string LowLatencyMode { get; set; }
+
+        [JsonProperty("ultraLowLatencyMode")]
+        public required string UltraLowLatencyMode { get; set; }
+
+        [JsonProperty("highFpsMode")]
+        public required string HighFpsMode { get; set; }
+
+        [JsonProperty("fourKMode")]
+        public required string FourKMode { get; set; }
+
         [JsonProperty("mobileMode")]
         public required string MobileMode { get; set; }
+
+        [JsonProperty("ipv4Mode")]
+        public required string Ipv4Mode { get; set; }
+
+        [JsonProperty("restrictedIpv4Mode")]
+        public required string RestrictedIpv4Mode { get; set; }
 
         [JsonProperty("resolutionDescription")]
         public required string ResolutionDescription { get; set; }
@@ -649,17 +667,17 @@ namespace TwinsRemoteHost
         [JsonProperty("fpsDescription")]
         public required string FpsDescription { get; set; }
 
-        [JsonProperty("balancedModeDescription")]
-        public required string BalancedModeDescription { get; set; }
+        [JsonProperty("casualModeDescription")]
+        public required string CasualModeDescription { get; set; }
+
+        [JsonProperty("lowLatencyModeDescription")]
+        public required string LowLatencyModeDescription { get; set; }
 
         [JsonProperty("qualityModeDescription")]
         public required string QualityModeDescription { get; set; }
 
-        [JsonProperty("stableModeDescription")]
-        public required string StableModeDescription { get; set; }
-
-        [JsonProperty("mobileModeDescription")]
-        public required string MobileModeDescription { get; set; }
+        [JsonProperty("reducingNetworkLoadModeDescription")]
+        public required string ReducingNetworkLoadModeDescription { get; set; }
 
         [JsonProperty("toggleDescriptionClose")]
         public required string ToggleDescriptionClose { get; set; }
@@ -694,20 +712,17 @@ namespace TwinsRemoteHost
         [JsonProperty("maxRefFramesDescription")]
         public required string MaxRefFramesDescription { get; set; }
 
-        [JsonProperty("profileGuidLabelDescription")]
-        public required string ProfileGuidLabelDescription { get; set; }
-
         [JsonProperty("presetGuidDescription")]
         public required string PresetGuidDescription { get; set; }
 
         [JsonProperty("tuningInfoDescription")]
         public required string TuningInfoDescription { get; set; }
 
-        [JsonProperty("enableLookAheadDescription")]
-        public required string EnableLookAheadDescription { get; set; }
+        [JsonProperty("enableLookaheadDescription")]
+        public required string EnableLookaheadDescription { get; set; }
 
-        [JsonProperty("lookAheadDepthDescription")]
-        public required string LookAheadDepthDescription { get; set; }
+        [JsonProperty("lookaheadDepthDescription")]
+        public required string LookaheadDepthDescription { get; set; }
 
         [JsonProperty("disableIadaptDescription")]
         public required string DisableIadaptDescription { get; set; }
@@ -717,6 +732,42 @@ namespace TwinsRemoteHost
 
         [JsonProperty("alretNoModeName")]
         public required string AlretNoModeName { get; set; }
+
+        [JsonProperty("alertNoResolution")]
+        public required string AlertNoResolution { get; set; }
+
+        [JsonProperty("alertNoFps")]
+        public required string AlertNoFps { get; set; }
+
+        [JsonProperty("alertNoAverageBitrate")]
+        public required string AlertNoAverageBitrate { get; set; }
+
+        [JsonProperty("alertNoMaxBitrate")]
+        public required string AlertNoMaxBitrate { get; set; }
+
+        [JsonProperty("alertNoVbvBufferSize")]
+        public required string AlertNoVbvBufferSize { get; set; }
+
+        [JsonProperty("alertNoVbvInitialDelay")]
+        public required string AlertNoVbvInitialDelay { get; set; }
+
+        [JsonProperty("alertNoGopLength")]
+        public required string AlertNoGopLength { get; set; }
+
+        [JsonProperty("alertNoIdrPeriod")]
+        public required string AlertNoIdrPeriod { get; set; }
+
+        [JsonProperty("alertNoPresetGuid")]
+        public required string AlertNoPresetGuid { get; set; }
+
+        [JsonProperty("alertNoTuningInfo")]
+        public required string AlertNoTuningInfo { get; set; }
+
+        [JsonProperty("alertNoLookaheadDepth")]
+        public required string AlertNoLookaheadDepth { get; set; }
+
+        [JsonProperty("alertInvalidModeName")]
+        public required string AlertInvalidModeName { get; set; }
 
         [JsonProperty("alertInvalidResolution")]
         public required string AlertInvalidResolution { get; set; }
@@ -730,14 +781,14 @@ namespace TwinsRemoteHost
         [JsonProperty("alertInvalidMaxBitrate")]
         public required string AlertInvalidMaxBitrate { get; set; }
 
-        [JsonProperty("alertVbvBufferSize")]
-        public required string AlertVbvBufferSize { get; set; }
+        [JsonProperty("alertInvalidVbvBufferSize")]
+        public required string AlertInvalidVbvBufferSize { get; set; }
 
-        [JsonProperty("alertVbvInitialDelay")]
-        public required string AlertVbvInitialDelay { get; set; }
+        [JsonProperty("alertInvalidVbvInitialDelay")]
+        public required string AlertInvalidVbvInitialDelay { get; set; }
 
-        [JsonProperty("alertGopLength")]
-        public required string AlertGopLength { get; set; }
+        [JsonProperty("alertInvalidGopLength")]
+        public required string AlertInvalidGopLength { get; set; }
 
         [JsonProperty("alertInvalidIdrPeriod")]
         public required string AlertInvalidIdrPeriod { get; set; }
@@ -745,17 +796,14 @@ namespace TwinsRemoteHost
         [JsonProperty("alertInvalidMaxRefFrames")]
         public required string AlertInvalidMaxRefFrames { get; set; }
 
-        [JsonProperty("alertInvalidProfileGuid")]
-        public required string AlertInvalidProfileGuid { get; set; }
-
         [JsonProperty("alertInvalidPresetGuid")]
         public required string AlertInvalidPresetGuid { get; set; }
 
         [JsonProperty("alertInvalidTuningInfo")]
         public required string AlertInvalidTuningInfo { get; set; }
 
-        [JsonProperty("alertLookAheadDepth")]
-        public required string AlertLookAheadDepth { get; set; }
+        [JsonProperty("alertInvalidLookaheadDepth")]
+        public required string AlertInvalidLookaheadDepth { get; set; }
 
         [JsonProperty("customModeSaved")]
         public required string CustomModeSaved { get; set; }
