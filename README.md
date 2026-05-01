@@ -89,7 +89,7 @@ https://play.twins-remote.com
 * TURN/STUN処理
 * NAT越え
 
-また、仮想コントローラーの生成に ViGEm を利用しています。
+また、仮想コントローラーの生成に [ViGEm](https://vigembusdriver.com/download/) を利用しています。
 
 > クライアントからのコントローラー入力をゲーム側で認識させるため、ホストPCには ViGEm のインストールが必要です。
 
