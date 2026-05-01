@@ -1,204 +1,233 @@
 # Twins Remote Play
 
-Low-latency peer-to-peer remote play system for Windows.
+Windows向けの低遅延P2Pリモートプレイシステムです。
 
-Twins Remote Play allows a host PC to stream video/audio to a remote client through the browser with very low latency.
-The client can also send controller input back to the host, allowing remote gameplay similar to Steam Remote Play Together — but without being limited to Steam games.
+Twins Remote Play は、ホストPCの映像・音声をブラウザ経由でクライアントへ共有し、さらにクライアントからのコントローラー入力をホストへ送信できるシステムです。
+
+Steam Remote Play Together のような体験を、Steam以外のゲームやアプリでも利用できることを目指しています。
 
 ---
 
-# Features
+# 特徴
 
-## Low Latency Streaming
+## 低遅延配信
 
-* Peer-to-peer communication using WebRTC
-* Very low latency under stable network conditions
-* Designed for interactive gameplay, not just video playback
+* WebRTC を利用したP2P通信
+* 安定した回線環境では数十ms程度の低遅延
+* ゲームプレイを前提とした設計
 
-## Browser-Based Client
+---
 
-* No client installation required
-* Open the client page in a Chromium-based browser and connect
-* Confirmed working on:
+## ブラウザのみで接続可能
 
-  * Google Chrome
-  * Brave
+クライアント側はソフトウェアのインストール不要です。
 
-Client URL:
+以下のような Chromium 系ブラウザで動作確認済みです。
 
-```text
+* Google Chrome
+* Brave
+
+クライアントページ:
+
+```text id="zv4hr2"
 https://play.twins-remote.com
 ```
 
 ---
 
-# Supported Features
+# 実装済み機能
 
-## Video Streaming
+## 映像共有
 
-* Hardware encoding using NVIDIA NVENC
-* Multiple predefined streaming modes
-* User-created custom modes
-* Tunable for unstable network environments
-* IPv4 / IPv6 support
-* TURN relay support for NAT traversal
+* NVIDIA NVENC を使用したハードウェアエンコード
+* 複数のプリセット配信モード
+* ユーザー作成カスタムモード
+* 回線環境に応じた調整が可能
+* IPv4 / IPv6 対応
+* TURN Relay 対応
+* NAT越え対応
 
-## Audio Sharing
+---
 
-Three audio sharing modes are available:
+## 音声共有
 
-1. Full PC system audio
-2. Application-specific audio sharing
-3. Audio disabled
+以下の3種類に対応しています。
 
-## Controller Input
+1. PC全体のシステム音声共有
+2. アプリ単位の音声共有
+3. 音声共有なし
 
-Supported and tested controllers:
+---
 
-* Xbox Controllers
+## コントローラー入力共有
+
+現在動作確認済み:
+
+* Xbox Controller
 * DualShock 4
 * DualSense
 
-Controller input is transmitted through WebRTC DataChannels with very low latency.
+クライアント側の入力は WebRTC DataChannel を利用してホストへ送信されます。
+
+遅延は非常に少なく、実際のゲームプレイを想定した設計になっています。
 
 ---
 
-# Architecture
+# システム構成
 
-## Host Side
+## ホスト側
 
 ### Rust
 
-Responsible for:
+以下を担当しています。
 
-* WebRTC communication
-* DataChannel processing
-* Controller input handling
-* TURN/STUN support
-* NAT traversal
+* WebRTC通信
+* DataChannel処理
+* コントローラー入力処理
+* TURN/STUN処理
+* NAT越え
 
-Uses:
+また、仮想コントローラーの生成に ViGEm を利用しています。
 
-* WebRTC
-* ViGEm for virtual controller emulation
+> クライアントからのコントローラー入力をゲーム側で認識させるため、ホストPCには ViGEm のインストールが必要です。
 
-> ViGEm installation is required on the host PC to allow remote controller input.
+---
 
 ### C++
 
-Used for:
+以下を担当しています。
 
-* Video capture and NVENC encoding
-* Audio capture
+#### 映像
+
+* 画面キャプチャ
+* NVENCエンコード
+
+配信モードは:
+
+* 開発者が用意した固定モード
+* ユーザーが作成したカスタムモード
+
+を選択できます。
+
+---
+
+#### 音声
+
+* システム音声キャプチャ
+* アプリ音声キャプチャ
+
+---
 
 ### C#
 
-Windows Forms application used for:
+Windows Forms アプリケーションとして動作します。
 
-* Host UI
-* Streaming configuration
-* Session connection management
+以下を担当しています。
 
-The host application supports:
+* ホストUI
+* 配信設定
+* セッション接続管理
 
-* Japanese
-* English
+日本語 / 英語に対応しています。
 
 ---
 
-## Client Side
+## クライアント側
 
 ### Vanilla JavaScript
 
-* No frontend framework
-* Browser-based WebRTC client
-* Session ID generation and connection handling
+* フロントエンドフレームワーク未使用
+* WebRTCベース
+* ブラウザ上で動作
 
 ---
 
-# How To Use
+# 使用方法
 
-## Host
+## ホスト側
 
-1. Launch `TwinsRemoteHost.exe`
-2. Select a streaming mode
-3. Enter the session ID shared by the client
-4. Press the connect button
+1. `TwinsRemoteHost.exe` を起動
+2. 配信モードを選択
+3. クライアントから共有されたセッションIDを入力
+4. 接続ボタンを押す
 
-Streaming will start automatically after the connection is established.
+接続後、自動的に配信が開始されます。
 
 ---
 
-## Client
+## クライアント側
 
-1. Open:
+1. 以下へアクセス
 
-```text
+```text id="24zq1e"
 https://play.twins-remote.com
 ```
 
-2. A session ID will be generated automatically
-3. Send the session ID to the host
-4. Wait for the host to connect
+2. セッションIDが自動生成されます
+3. そのIDをホスト側へ共有
+4. ホスト側の接続完了を待つ
 
-After the host finishes processing, the stream will begin automatically.
+接続完了後、自動的に配信が開始されます。
 
 ---
 
-# Requirements
+# 必要環境
 
-## Host PC
+## ホスト側
 
 * Windows
-* NVIDIA GPU with NVENC support
-* Chromium-based browser is NOT required on the host
+* NVENC対応 NVIDIA GPU
 
-## Client
+---
 
-* Chromium-based browser
+## クライアント側
+
+* Chromium系ブラウザ
 
   * Chrome
   * Brave
 
 ---
 
-# Current Limitations
+# 現在の制限事項
 
-## Not Yet Implemented
+## 未実装機能
 
-* Editing/deleting custom streaming modes
-* Controller vibration feedback
-* Dynamic resolution switching during streaming
-* Multi-monitor selection
-* CPU encoding
-
-## Current Restrictions
-
-* Windows host only
-* Main monitor capture only
-* NVIDIA NVENC required
+* カスタムモードの編集 / 削除
+* コントローラーバイブレーション
+* 配信中の動的解像度変更
+* マルチモニター選択
+* CPUエンコード
 
 ---
 
-# Networking
+## 現在の制約
 
-Twins Remote Play supports:
+* ホスト側は Windows 限定
+* メインモニターのみ共有可能
+* NVIDIA NVENC 必須
 
-* P2P WebRTC communication
+---
+
+# ネットワーク
+
+対応:
+
+* WebRTC P2P通信
 * IPv4
 * IPv6
-* TURN relay fallback
-* NAT traversal
+* TURN Relay
+* NAT越え
 
-Currently, a TURN server is deployed in Tokyo.
+現在、TURNサーバーは東京に設置しています。
 
 ---
 
-# Development
+# 開発について
 
-## Technologies Used
+## 使用技術
 
-### Host
+### ホスト側
 
 * Rust
 * C++
@@ -207,96 +236,94 @@ Currently, a TURN server is deployed in Tokyo.
 * NVENC
 * ViGEm
 
-### Client
+### クライアント側
 
 * Vanilla JavaScript
 * WebRTC
 
 ---
 
-# Building
+# ビルド
 
-Visual Studio is required for development.
+開発には Visual Studio が必要です。
 
-The repository contains multiple projects including:
+リポジトリには以下のプロジェクトが含まれています。
 
 * `NvEnc`
 * `ProcessAudioCapture`
 * `SystemMicCapture`
 * `TwinsRemoteHost`
 
-These projects are managed through a Visual Studio solution.
+これらは Visual Studio ソリューションで管理されています。
 
 ---
 
-# Future Plans
+# 今後の予定
 
-Planned features include:
+将来的に以下の実装を予定しています。
 
-* Keyboard and mouse input support
-* Host-side input permission settings
-* Dynamic resolution switching
-* Additional streaming optimizations
-* More flexible display selection
+* キーボード / マウス入力対応
+* ホスト側で受け付ける入力種別の制御
+* 動的解像度変更
+* 配信安定性向上
+* より柔軟なディスプレイ選択
 
 ---
 
 # FAQ
 
-## Does this only work with Steam games?
+## Steam専用ですか？
 
-No.
+いいえ。
 
-Twins Remote Play is not tied to Steam and can be used with:
+Twins Remote Play は Steam に依存していません。
 
-* Non-Steam games
-* Emulators
-* Desktop applications
-* Video/movie sharing
+以下のような用途にも利用できます。
 
----
-
-## Does the client need to install anything?
-
-No.
-
-The client only needs a supported browser.
+* Steam以外のゲーム
+* エミュレーター
+* デスクトップアプリ
+* 動画 / 映画共有
 
 ---
 
-## Why is ViGEm required?
+## クライアント側にインストールは必要ですか？
 
-ViGEm is used to emulate virtual game controllers on the host PC so that remote controller input can be recognized by games.
+不要です。
 
----
-
-# Project Background
-
-This project originally started as a system built for the developer and their twin brother to play games remotely together.
-
-The name "Twins Remote Play" comes from:
-
-* The original use case between twins
-* The goal of making two distant PCs feel as synchronized as possible
+ブラウザのみで利用できます。
 
 ---
 
-# Status
+## なぜ ViGEm が必要なのですか？
 
-This project is currently under active development.
-
-Features and behavior may change significantly over time.
+ViGEm を利用してホスト側に仮想コントローラーを生成し、ゲーム側へクライアント入力を渡しているためです。
 
 ---
 
-# Japanese README
+# プロジェクトについて
 
-日本語版READMEは将来的に追加予定です。
+このプロジェクトは、開発者と双子の兄が遠隔でゲームを遊ぶために作り始めたシステムです。
+
+「Twins Remote Play」という名前には:
+
+* 双子で遊ぶために始まったプロジェクトであること
+* 離れたPC同士を双子のように近い存在にしたいこと
+
+という意味を込めています。
 
 ---
 
-# Disclaimer
+# 開発状況
 
-This project is provided as-is without warranty.
+現在も開発中です。
 
-Use at your own risk.
+仕様や機能は今後大きく変更される可能性があります。
+
+---
+
+# 免責事項
+
+本ソフトウェアは無保証で提供されます。
+
+自己責任で利用してください。
