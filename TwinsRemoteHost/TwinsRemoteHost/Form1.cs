@@ -622,17 +622,44 @@ namespace TwinsRemoteHost
         [JsonProperty("presets")]
         public required string Presets { get; set; }
 
+        [JsonProperty("casualPresets")]
+        public required string CasualPresets { get; set; }
+
+        [JsonProperty("lowLatencyPresets")]
+        public required string LowLatencyPresets { get; set; }
+
+        [JsonProperty("qualityPresets")]
+        public required string QualityPresets { get; set; }
+
+        [JsonProperty("reducingNetworkLoadPresets")]
+        public required string ReducingNetworkLoadPresets { get; set; }
+
         [JsonProperty("balancedMode")]
         public required string BalancedMode { get; set; }
-
-        [JsonProperty("qualityMode")]
-        public required string QualityMode { get; set; }
 
         [JsonProperty("stableMode")]
         public required string StableMode { get; set; }
 
+        [JsonProperty("lowLatencyMode")]
+        public required string LowLatencyMode { get; set; }
+
+        [JsonProperty("ultraLowLatencyMode")]
+        public required string UltraLowLatencyMode { get; set; }
+
+        [JsonProperty("highFpsMode")]
+        public required string HighFpsMode { get; set; }
+
+        [JsonProperty("fourKMode")]
+        public required string FourKMode { get; set; }
+
         [JsonProperty("mobileMode")]
         public required string MobileMode { get; set; }
+
+        [JsonProperty("ipv4Mode")]
+        public required string Ipv4Mode { get; set; }
+
+        [JsonProperty("restrictedIpv4Mode")]
+        public required string RestrictedIpv4Mode { get; set; }
 
         [JsonProperty("resolutionDescription")]
         public required string ResolutionDescription { get; set; }
@@ -643,14 +670,14 @@ namespace TwinsRemoteHost
         [JsonProperty("balancedModeDescription")]
         public required string BalancedModeDescription { get; set; }
 
+        [JsonProperty("lowLatencyModeDescription")]
+        public required string LowLatencyModeDescription { get; set; }
+
         [JsonProperty("qualityModeDescription")]
         public required string QualityModeDescription { get; set; }
 
-        [JsonProperty("stableModeDescription")]
-        public required string StableModeDescription { get; set; }
-
-        [JsonProperty("mobileModeDescription")]
-        public required string MobileModeDescription { get; set; }
+        [JsonProperty("reducingNetworkLoadModeDescription")]
+        public required string ReducingNetworkLoadModeDescription { get; set; }
 
         [JsonProperty("toggleDescriptionClose")]
         public required string ToggleDescriptionClose { get; set; }
