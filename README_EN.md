@@ -84,7 +84,7 @@ Uses:
 * WebRTC
 * ViGEm for virtual controller emulation
 
-> ViGEm installation is required on the host PC to allow remote controller input.
+> [ViGEm](https://vigembusdriver.com/download/) installation is required on the host PC to allow remote controller input.
 
 ### C++
 
@@ -207,7 +207,7 @@ Currently, a TURN server is deployed in Tokyo.
 * C#
 * WebRTC
 * NVENC
-* ViGEm
+* [ViGEm](https://vigembusdriver.com/download/)
 
 ### Client
 
@@ -268,7 +268,7 @@ The client only needs a supported browser.
 
 ## Why is ViGEm required?
 
-ViGEm is used to emulate virtual game controllers on the host PC so that remote controller input can be recognized by games.
+[ViGEm](https://vigembusdriver.com/download/) is used to emulate virtual game controllers on the host PC so that remote controller input can be recognized by games.
 
 ---
 
