@@ -380,7 +380,7 @@ static std::vector<std::string> GetCustomFilesInFolder(const std::string& folder
     if ((dir = opendir(folderPath.c_str())) != nullptr) {
         while ((entry = readdir(dir)) != nullptr) {
             if (entry->d_type == DT_REG) {
-                std::cout << entry->d_name << std::endl;
+                //std::cout << entry->d_name << std::endl;
                 fileNames.push_back(entry->d_name);
             }
         }
@@ -409,7 +409,8 @@ static int IsCustomMode(std::vector<std::pair<StreamConfig, std::string>> custom
     
     for (int i = 0; i < customModes.size(); i++) {
         auto& [_, name] = customModes[i];
-        if (name == argv[2]) { return i; }
+
+        if (name == argv[1]) { return i; }
     }
 
     return -1;
@@ -915,6 +916,17 @@ static void CreateSession(
         << "\n";
 }
 
+std::string replaceOtherStr(std::string& replacedStr, std::string from, std::string to) {
+    const unsigned int pos = replacedStr.find(from);
+    const int len = from.length();
+
+    if (pos == std::string::npos || from.empty()) {
+        return replacedStr;
+    }
+
+    return replacedStr.replace(pos, len, to);
+}
+
 // ----------------------------------------------------
 // Main
 // ----------------------------------------------------
@@ -923,14 +935,17 @@ int main(int argc, char** argv) {
     _setmode(_fileno(stdin), _O_BINARY);
 
     std::string customDirectoryPath = "./customs";
-    std::vector customFileNames = GetCustomFilesInFolder(customDirectoryPath);
+    std::vector<std::string> customFileNames = GetCustomFilesInFolder(customDirectoryPath);
     std::vector<std::pair<StreamConfig, std::string>> customModes;
 
+    std::cerr << "[INFO] Before getting custom files list" << std::endl;
     for (std::string customFileName : customFileNames) {
+        std::cerr << "[INFO] Checking: " << customDirectoryPath + "/" + customFileName << std::endl;
         StreamConfig config = GetCustomModeFromFile(customDirectoryPath + "/", customFileName);
         
-        customModes.push_back(std::pair(config, customFileName));
+        customModes.push_back(std::pair(config, replaceOtherStr(customFileName, ".json", "")));
     }
+    std::cerr << "[INFO] success getting custom files list" << std::endl;
 
     ID3D11Device* device = nullptr;
     ID3D11DeviceContext* context = nullptr;
