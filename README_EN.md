@@ -1,5 +1,7 @@
 # Twins Remote Play
 
+日本語版ReadMeは[こちら](https://github.com/MeuShirokuma/TwinsRemote/blob/master/README.md)
+
 Low-latency peer-to-peer remote play system for Windows.
 
 Twins Remote Play allows a host PC to stream video/audio to a remote client through the browser with very low latency.
@@ -286,12 +288,6 @@ The name "Twins Remote Play" comes from:
 This project is currently under active development.
 
 Features and behavior may change significantly over time.
-
----
-
-# Japanese README
-
-日本語版READMEは将来的に追加予定です。
 
 ---
 
