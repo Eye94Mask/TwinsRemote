@@ -39,13 +39,19 @@ namespace TwinsRemoteHost
 
         private void InitializeUi()
         {
-            comboBoxMode.Items.Clear();
-            comboBoxMode.Items.Add(new VideoPresetItem { DisplayName = "Balanced", Key = "balanced" });
-            comboBoxMode.Items.Add(new VideoPresetItem { DisplayName = "Quality", Key = "quality" });
-            comboBoxMode.Items.Add(new VideoPresetItem { DisplayName = "Stable", Key = "stable" });
-            comboBoxMode.Items.Add(new VideoPresetItem { DisplayName = "Mobile", Key = "mobile" });
-            comboBoxMode.Items.Add(new VideoPresetItem { DisplayName = "IPv4", Key = "ipv4" });
-            comboBoxMode.SelectedIndex = 0;
+            List<string> customNames = getCustomModeList();
+
+            modeComboBox.Items.Clear();
+            foreach (string customName in customNames)
+            {
+                modeComboBox.Items.Add(new VideoPresetItem { DisplayName = customName, Key = customName });
+            }
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Balanced", Key = "balanced" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Quality", Key = "quality" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Stable", Key = "stable" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Mobile", Key = "mobile" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "IPv4", Key = "ipv4" });
+            modeComboBox.SelectedIndex = 0;
 
             string language = Properties.Settings.Default.Language;
             InitializeLanguageComboBox();
@@ -54,6 +60,19 @@ namespace TwinsRemoteHost
 
             statusValueLabel.Text = locale.StatusStopped;
             SetRunningState(false);
+        }
+
+        private List<string> getCustomModeList()
+        {
+            List<string> customNames = new();
+            string[] customs = Directory.GetFiles(@"./exes/customs");
+
+            foreach (string custom in customs)
+            {
+                customNames.Add(custom.Replace(".json", "").Replace("./exes/customs\\", ""));
+            }
+
+            return customNames;
         }
 
         private void InitializeLanguageComboBox()
@@ -105,8 +124,8 @@ namespace TwinsRemoteHost
 
         private void SetRunningState(bool running)
         {
-            comboBoxMode.Enabled = !running;
-            textBoxSessionId.Enabled = !running;
+            modeComboBox.Enabled = !running;
+            sessionIdTextBox.Enabled = !running;
             connectButton.Enabled = !running;
 
             audioOnButton.Enabled = running;
@@ -317,8 +336,8 @@ namespace TwinsRemoteHost
                 return;
             }
 
-            string mode = (comboBoxMode.SelectedItem?.ToString() ?? "Balanced").ToLower();
-            string sessionId = textBoxSessionId.Text.Trim();
+            string mode = (modeComboBox.SelectedItem?.ToString() ?? "Balanced").ToLower();
+            string sessionId = sessionIdTextBox.Text.Trim();
 
             if (string.IsNullOrWhiteSpace(sessionId))
             {
