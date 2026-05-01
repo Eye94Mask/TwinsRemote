@@ -1,5 +1,7 @@
 # Twins Remote Play
 
+English ReadMe is [here](https://github.com/MeuShirokuma/TwinsRemote/blob/master/README_EN.md)
+
 Windows向けの低遅延P2Pリモートプレイシステムです。
 
 Twins Remote Play は、ホストPCの映像・音声をブラウザ経由でクライアントへ共有し、さらにクライアントからのコントローラー入力をホストへ送信できるシステムです。
