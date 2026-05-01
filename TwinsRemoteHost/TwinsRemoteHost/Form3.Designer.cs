@@ -626,7 +626,7 @@
             // ipv4Button
             // 
             ipv4Button.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            ipv4Button.Location = new Point(952, 452);
+            ipv4Button.Location = new Point(952, 518);
             ipv4Button.Name = "ipv4Button";
             ipv4Button.Size = new Size(243, 47);
             ipv4Button.TabIndex = 9;
@@ -637,7 +637,7 @@
             // balancedButton
             // 
             balancedButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            balancedButton.Location = new Point(82, 382);
+            balancedButton.Location = new Point(82, 448);
             balancedButton.Name = "balancedButton";
             balancedButton.Size = new Size(243, 47);
             balancedButton.TabIndex = 5;
@@ -648,7 +648,7 @@
             // highFpsButton
             // 
             highFpsButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            highFpsButton.Location = new Point(662, 382);
+            highFpsButton.Location = new Point(662, 448);
             highFpsButton.Name = "highFpsButton";
             highFpsButton.Size = new Size(243, 47);
             highFpsButton.TabIndex = 6;
@@ -659,7 +659,7 @@
             // stableButton
             // 
             stableButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            stableButton.Location = new Point(82, 452);
+            stableButton.Location = new Point(82, 518);
             stableButton.Name = "stableButton";
             stableButton.Size = new Size(243, 47);
             stableButton.TabIndex = 8;
@@ -670,10 +670,10 @@
             // casualPresetLabel
             // 
             casualPresetLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            casualPresetLabel.Location = new Point(82, 332);
+            casualPresetLabel.Location = new Point(82, 351);
             casualPresetLabel.Name = "casualPresetLabel";
             casualPresetLabel.RightToLeft = RightToLeft.No;
-            casualPresetLabel.Size = new Size(243, 38);
+            casualPresetLabel.Size = new Size(243, 86);
             casualPresetLabel.TabIndex = 40;
             casualPresetLabel.Text = "label1";
             casualPresetLabel.TextAlign = ContentAlignment.MiddleCenter;
@@ -682,10 +682,10 @@
             // lowLatencyLabel
             // 
             lowLatencyLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            lowLatencyLabel.Location = new Point(372, 332);
+            lowLatencyLabel.Location = new Point(372, 351);
             lowLatencyLabel.Name = "lowLatencyLabel";
             lowLatencyLabel.RightToLeft = RightToLeft.No;
-            lowLatencyLabel.Size = new Size(243, 38);
+            lowLatencyLabel.Size = new Size(243, 86);
             lowLatencyLabel.TabIndex = 41;
             lowLatencyLabel.Text = "label1";
             lowLatencyLabel.TextAlign = ContentAlignment.MiddleCenter;
@@ -694,10 +694,10 @@
             // reducingNetworkLoadLabel
             // 
             reducingNetworkLoadLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            reducingNetworkLoadLabel.Location = new Point(952, 332);
+            reducingNetworkLoadLabel.Location = new Point(952, 351);
             reducingNetworkLoadLabel.Name = "reducingNetworkLoadLabel";
             reducingNetworkLoadLabel.RightToLeft = RightToLeft.No;
-            reducingNetworkLoadLabel.Size = new Size(243, 38);
+            reducingNetworkLoadLabel.Size = new Size(243, 86);
             reducingNetworkLoadLabel.TabIndex = 42;
             reducingNetworkLoadLabel.Text = "label1";
             reducingNetworkLoadLabel.TextAlign = ContentAlignment.MiddleCenter;
@@ -706,10 +706,10 @@
             // qualityLabel
             // 
             qualityLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            qualityLabel.Location = new Point(662, 332);
+            qualityLabel.Location = new Point(662, 351);
             qualityLabel.Name = "qualityLabel";
             qualityLabel.RightToLeft = RightToLeft.No;
-            qualityLabel.Size = new Size(243, 38);
+            qualityLabel.Size = new Size(243, 86);
             qualityLabel.TabIndex = 43;
             qualityLabel.Text = "label1";
             qualityLabel.TextAlign = ContentAlignment.MiddleCenter;
@@ -718,7 +718,7 @@
             // lowLatencyButton
             // 
             lowLatencyButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            lowLatencyButton.Location = new Point(372, 382);
+            lowLatencyButton.Location = new Point(372, 448);
             lowLatencyButton.Name = "lowLatencyButton";
             lowLatencyButton.Size = new Size(243, 47);
             lowLatencyButton.TabIndex = 44;
@@ -729,7 +729,7 @@
             // fourKButton
             // 
             fourKButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            fourKButton.Location = new Point(662, 452);
+            fourKButton.Location = new Point(662, 518);
             fourKButton.Name = "fourKButton";
             fourKButton.Size = new Size(243, 47);
             fourKButton.TabIndex = 45;
@@ -740,7 +740,7 @@
             // ultraLowLatencyButton
             // 
             ultraLowLatencyButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            ultraLowLatencyButton.Location = new Point(372, 452);
+            ultraLowLatencyButton.Location = new Point(372, 518);
             ultraLowLatencyButton.Name = "ultraLowLatencyButton";
             ultraLowLatencyButton.Size = new Size(243, 47);
             ultraLowLatencyButton.TabIndex = 46;
@@ -751,7 +751,7 @@
             // restrictedIpv4Button
             // 
             restrictedIpv4Button.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            restrictedIpv4Button.Location = new Point(952, 522);
+            restrictedIpv4Button.Location = new Point(952, 588);
             restrictedIpv4Button.Name = "restrictedIpv4Button";
             restrictedIpv4Button.Size = new Size(243, 47);
             restrictedIpv4Button.TabIndex = 47;
@@ -762,7 +762,7 @@
             // mobileButton
             // 
             mobileButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            mobileButton.Location = new Point(952, 382);
+            mobileButton.Location = new Point(952, 448);
             mobileButton.Name = "mobileButton";
             mobileButton.Size = new Size(243, 47);
             mobileButton.TabIndex = 48;
