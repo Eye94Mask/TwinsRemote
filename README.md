@@ -91,7 +91,7 @@ https://play.twins-remote.com
 
 また、仮想コントローラーの生成に [ViGEm](https://vigembusdriver.com/download/) を利用しています。
 
-> クライアントからのコントローラー入力をゲーム側で認識させるため、ホストPCには ViGEm のインストールが必要です。
+> クライアントからのコントローラー入力をゲーム側で認識させるため、ホストPCには [ViGEm](https://vigembusdriver.com/download/) のインストールが必要です。
 
 ---
 
@@ -236,7 +236,7 @@ https://play.twins-remote.com
 * C#
 * WebRTC
 * NVENC
-* ViGEm
+* [ViGEm](https://vigembusdriver.com/download/)
 
 ### クライアント側
 
@@ -299,7 +299,7 @@ Twins Remote Play は Steam に依存していません。
 
 ## なぜ ViGEm が必要なのですか？
 
-ViGEm を利用してホスト側に仮想コントローラーを生成し、ゲーム側へクライアント入力を渡しているためです。
+[ViGEm](https://vigembusdriver.com/download/) を利用してホスト側に仮想コントローラーを生成し、ゲーム側へクライアント入力を渡しているためです。
 
 ---
 
