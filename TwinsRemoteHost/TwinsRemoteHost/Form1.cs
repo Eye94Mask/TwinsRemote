@@ -50,7 +50,6 @@ namespace TwinsRemoteHost
             modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Quality", Key = "quality" });
             modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Stable", Key = "stable" });
             modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Mobile", Key = "mobile" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "IPv4", Key = "ipv4" });
             modeComboBox.SelectedIndex = 0;
 
             string language = Properties.Settings.Default.Language;
@@ -485,6 +484,7 @@ namespace TwinsRemoteHost
                 mCreator.Activate();
             }
 
+            InitializeUi();
             mCreator.Dispose();
             mCreator = null;
         }

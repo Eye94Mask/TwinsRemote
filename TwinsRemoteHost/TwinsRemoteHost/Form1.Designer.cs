@@ -59,7 +59,7 @@
             // 
             sessionIdLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             sessionIdLabel.ImageAlign = ContentAlignment.MiddleRight;
-            sessionIdLabel.Location = new Point(438, 49);
+            sessionIdLabel.Location = new Point(508, 49);
             sessionIdLabel.Name = "sessionIdLabel";
             sessionIdLabel.RightToLeft = RightToLeft.Yes;
             sessionIdLabel.Size = new Size(276, 42);
@@ -94,21 +94,21 @@
             modeComboBox.FormattingEnabled = true;
             modeComboBox.Location = new Point(250, 41);
             modeComboBox.Name = "modeComboBox";
-            modeComboBox.Size = new Size(182, 50);
+            modeComboBox.Size = new Size(322, 50);
             modeComboBox.TabIndex = 4;
             // 
             // sessionIdTextBox
             // 
             sessionIdTextBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            sessionIdTextBox.Location = new Point(720, 41);
+            sessionIdTextBox.Location = new Point(790, 41);
             sessionIdTextBox.Name = "sessionIdTextBox";
-            sessionIdTextBox.Size = new Size(182, 49);
+            sessionIdTextBox.Size = new Size(318, 49);
             sessionIdTextBox.TabIndex = 5;
             // 
             // connectButton
             // 
             connectButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            connectButton.Location = new Point(1114, 41);
+            connectButton.Location = new Point(1228, 41);
             connectButton.Name = "connectButton";
             connectButton.Size = new Size(162, 59);
             connectButton.TabIndex = 6;
