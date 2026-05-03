@@ -781,6 +781,37 @@ async function connect() {
 
     startStatsMonitor();
     startVideoWatchdog();
+    startRelayMonitoring();
+}
+
+function isRelayConnection(stats, selectedPair) {
+    const local = stats.get(selectedPair.localCandidateId);
+    const remote = stats.get(selectedPair.remoteCandidateId);
+
+    return local?.candidateType === "relay" || remote?.candidateType == "relay";
+}
+
+function startRelayMonitoring() {
+    const candidateTypeMessenger = document.getElementById("candidateTypeMessenger");
+    const limitation = document.getElementById("limitation");
+    setInterval(() => {
+        pc.getStats(null).then((stats => {
+            let selectedPair = null;
+
+            stats.forEach((report) => {
+                if (report.type === "transport" && report.selectedCandidatePairId) {
+                    selectedPair = stats.get(report.selectedCandidatePairId);
+                    if (isRelayConnection(stats, selectedPair)) {
+                        candidateTypeMessenger.textContent = "🟡 TURN Relay";
+                        limitation.textContent = "720p30 limited";
+                        return;
+                    }
+                    candidateTypeMessenger.textContent = "🟢 Direct P2P";
+                    limitation.textContent = "";
+                }
+            });
+        }));
+    }, 1000);
 }
 
 function cleanupPeerConnection() {
