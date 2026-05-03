@@ -12,6 +12,7 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Forms;
+using System.ComponentModel;
 
 namespace TwinsRemoteHost
 {
@@ -28,6 +29,12 @@ namespace TwinsRemoteHost
         public Host()
         {
             InitializeComponent();
+
+            if (LicenseManager.UsageMode == LicenseUsageMode.Designtime)
+            {
+                return;
+            }
+
             InitializeUi();
 
             FormClosing += Host_FormClosing;
@@ -319,11 +326,21 @@ namespace TwinsRemoteHost
         public static List<string> GetCustomModeList()
         {
             List<string> customNames = [];
-            string[] customs = Directory.GetFiles(@"./exes/customs");
+
+            string customDir = @"./exes/customs";
+
+            if (!Directory.Exists(customDir))
+            {
+                return customNames;
+            }
+
+            string[] customs = Directory.GetFiles(customDir);
 
             foreach (string custom in customs)
             {
-                customNames.Add(custom.Replace(".json", "").Replace("./exes/customs\\", ""));
+                customNames.Add(
+                    Path.GetFileNameWithoutExtension(custom)
+                );
             }
 
             return customNames;
@@ -830,6 +847,9 @@ namespace TwinsRemoteHost
 
         [JsonProperty("customModeSaved")]
         public required string CustomModeSaved { get; set; }
+
+        [JsonProperty("customModeUpdated")]
+        public required string CustomModeUpdated { get; set; }
 
         [JsonProperty("updateCustomMode")]
         public required string UpdateCustomMode { get; set; }

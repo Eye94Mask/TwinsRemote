@@ -97,5 +97,12 @@
   "alertInvalidPresetGuid": "",
   "alertInvalidTuningInfo": "",
   "alertInvalidLookaheadDepth": "",
-  "customModeSaved": ""
+  "customModeSaved": "",
+  "customModeUpdated": "",
+  "updateCustomMode": "",
+  "selectModeLabel": "",
+  "failedToReadCustom": "",
+  "customModeNameConflictsWithOthers": "",
+  "failedToDeleteCustom": "",
+  "failedToUpdateCustom": ""
 }
