@@ -168,7 +168,6 @@ After the host finishes processing, the stream will begin automatically.
 
 ## Not Yet Implemented
 
-* Editing/deleting custom streaming modes
 * Controller vibration feedback
 * Dynamic resolution switching during streaming
 * Multi-monitor selection
