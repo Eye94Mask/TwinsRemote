@@ -72,7 +72,7 @@
             disableBadaptLabel = new Label();
             disableBadaptCheckBox = new CheckBox();
             saveButton = new Button();
-            cancelButton = new Button();
+            closeButton = new Button();
             resolutionWidthTextBox = new TextBox();
             fpsTextBox = new TextBox();
             resolutionHeightTextBox = new TextBox();
@@ -570,17 +570,17 @@
             saveButton.UseVisualStyleBackColor = true;
             saveButton.Click += saveButton_Click;
             // 
-            // cancelButton
+            // closeButton
             // 
-            cancelButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            cancelButton.Location = new Point(936, 1205);
-            cancelButton.Name = "cancelButton";
-            cancelButton.Size = new Size(131, 52);
-            cancelButton.TabIndex = 34;
-            cancelButton.TabStop = false;
-            cancelButton.Text = "Cancel";
-            cancelButton.UseVisualStyleBackColor = true;
-            cancelButton.Click += cancelButton_Click;
+            closeButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            closeButton.Location = new Point(936, 1205);
+            closeButton.Name = "closeButton";
+            closeButton.Size = new Size(131, 52);
+            closeButton.TabIndex = 34;
+            closeButton.TabStop = false;
+            closeButton.Text = "Close";
+            closeButton.UseVisualStyleBackColor = true;
+            closeButton.Click += closeButton_Click;
             // 
             // resolutionWidthTextBox
             // 
@@ -793,7 +793,7 @@
             Controls.Add(resolutionXLabel);
             Controls.Add(fpsTextBox);
             Controls.Add(resolutionWidthTextBox);
-            Controls.Add(cancelButton);
+            Controls.Add(closeButton);
             Controls.Add(saveButton);
             Controls.Add(detailSettingLabel);
             Controls.Add(ipv4Button);
@@ -874,7 +874,7 @@
         private Label lookaheadDepthLabel;
         private TextBox lookaheadDepthTextBox;
         private Button saveButton;
-        private Button cancelButton;
+        private Button closeButton;
         private TextBox resolutionWidthTextBox;
         private TextBox fpsTextBox;
         private TextBox resolutionHeightTextBox;

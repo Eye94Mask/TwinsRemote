@@ -122,31 +122,32 @@ namespace TwinsRemoteHost
 
         private void InitializePreset()
         {
-            resolutionWidthTextBox.Text = this.balanced.Width.ToString();
-            resolutionHeightTextBox.Text = this.balanced.Height.ToString();
-            fpsTextBox.Text = this.balanced.Fps.ToString();
+            modeNameTextBox.Text = string.Empty;
+            resolutionWidthTextBox.Text = string.Empty;
+            resolutionHeightTextBox.Text = string.Empty;
+            fpsTextBox.Text = string.Empty;
 
-            averageBitrateTextBox.Text = this.balanced.AverageBitrate.ToString();
-            maxBitrateTextBox.Text = this.balanced.MaxBitrate.ToString();
-            vbvBufferSizeTextBox.Text = this.balanced.VbvBufferSize.ToString();
-            vbvInitialDelayTextBox.Text = this.balanced.VbvInitialDelay.ToString();
+            averageBitrateTextBox.Text = string.Empty;
+            maxBitrateTextBox.Text = string.Empty;
+            vbvBufferSizeTextBox.Text = string.Empty;
+            vbvInitialDelayTextBox.Text = string.Empty;
 
-            gopLengthTextBox.Text = this.balanced.GopLength.ToString();
-            idrPeriodTextBox.Text = this.balanced.IdrPeriod.ToString();
+            gopLengthTextBox.Text = string.Empty;
+            idrPeriodTextBox.Text = string.Empty;
 
-            repeatSpsPpsCheckBox.Checked = this.balanced.RepeatSpsPps;
-            outputAudCheckBox.Checked = this.balanced.OutputAud;
+            repeatSpsPpsCheckBox.Checked = false;
+            outputAudCheckBox.Checked = false;
 
-            maxRefFramesTextBox.Text = this.balanced.MaxRefFrames.ToString();
+            maxRefFramesTextBox.Text = string.Empty;
 
             presetGuidComboBox.SelectedIndex = presetGuidComboBox.FindString(this.balanced.PresetGuid.ToString());
             tuningInfoComboBox.SelectedIndex = tuningInfoComboBox.FindString(this.balanced.TuningInfo.ToString());
 
-            enableLookaheadCheckBox.Checked = this.balanced.EnableLookahead;
-            lookaheadDepthTextBox.Text = this.balanced.LookaheadDepth.ToString();
+            enableLookaheadCheckBox.Checked = false;
+            lookaheadDepthTextBox.Text = string.Empty;
 
-            disableIadaptCheckBox.Checked = this.balanced.DisableIadapt;
-            disableBadaptCheckBox.Checked = this.balanced.DisableBadapt;
+            disableIadaptCheckBox.Checked = false;
+            disableBadaptCheckBox.Checked = false;
         }
 
         public static object GetPresetGuids()
@@ -281,6 +282,17 @@ namespace TwinsRemoteHost
             return customMode;
         }
 
+        private bool ConflictsWithOtherModes(string modeName)
+        {
+            List<string> customNames = Host.GetCustomModeList();
+            foreach (string customName in customNames)
+            {
+                // ほかのカスタムモードと被るのはNG
+                if (customName == modeName) { return true; }
+            }
+
+            return false;
+        }
         public static List<UInt32>? ValidateCustomMode(
             string modeName,
             string resolutionWidthText,
@@ -570,6 +582,13 @@ namespace TwinsRemoteHost
                 this.locale
             );
 
+            if (ConflictsWithOtherModes(modeNameTextBox.Text))
+            {
+                MessageBox.Show(this.locale.CustomModeNameConflictsWithOthers, this.locale.Confirm,
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
             if (validatedValues == null) { return; }
 
             UInt32 width = validatedValues[0];
@@ -615,10 +634,12 @@ namespace TwinsRemoteHost
             using StreamWriter sw = new(customJsonPath, false, System.Text.Encoding.UTF8);
             sw.Write(customMode);
 
-            this.Close();
+            MessageBox.Show(this.locale.CustomModeSaved + modeNameTextBox.Text, this.locale.Confirm,
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            InitializePreset();
         }
 
-        private void cancelButton_Click(object sender, EventArgs e)
+        private void closeButton_Click(object sender, EventArgs e)
         {
             this.Close();
         }
