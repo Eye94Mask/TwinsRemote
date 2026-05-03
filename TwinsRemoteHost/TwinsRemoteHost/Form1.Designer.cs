@@ -41,6 +41,7 @@
             logTextBox = new TextBox();
             languageComboBox = new ComboBox();
             createCustomModeButton = new Button();
+            updateCustomMode = new Button();
             SuspendLayout();
             // 
             // modeLabel
@@ -123,6 +124,7 @@
             audioOnButton.Name = "audioOnButton";
             audioOnButton.Size = new Size(222, 59);
             audioOnButton.TabIndex = 7;
+            audioOnButton.TabStop = false;
             audioOnButton.Text = "button1";
             audioOnButton.UseVisualStyleBackColor = true;
             audioOnButton.Click += buttonAudioOn_Click;
@@ -134,6 +136,7 @@
             audioOffButton.Name = "audioOffButton";
             audioOffButton.Size = new Size(222, 59);
             audioOffButton.TabIndex = 8;
+            audioOffButton.TabStop = false;
             audioOffButton.Text = "button1";
             audioOffButton.UseVisualStyleBackColor = true;
             audioOffButton.Click += buttonAudioOff_Click;
@@ -145,6 +148,7 @@
             audioSystemButton.Name = "audioSystemButton";
             audioSystemButton.Size = new Size(222, 59);
             audioSystemButton.TabIndex = 9;
+            audioSystemButton.TabStop = false;
             audioSystemButton.Text = "button1";
             audioSystemButton.UseVisualStyleBackColor = true;
             audioSystemButton.Click += buttonAudioSystem_Click;
@@ -167,6 +171,7 @@
             languageComboBox.Name = "languageComboBox";
             languageComboBox.Size = new Size(182, 50);
             languageComboBox.TabIndex = 11;
+            languageComboBox.TabStop = false;
             languageComboBox.SelectedIndexChanged += comboBoxLanguage_SelectedIndexChanged;
             // 
             // createCustomModeButton
@@ -176,15 +181,29 @@
             createCustomModeButton.Name = "createCustomModeButton";
             createCustomModeButton.Size = new Size(405, 59);
             createCustomModeButton.TabIndex = 12;
+            createCustomModeButton.TabStop = false;
             createCustomModeButton.Text = "button1";
             createCustomModeButton.UseVisualStyleBackColor = true;
             createCustomModeButton.Click += createMode_Click;
+            // 
+            // updateCustomMode
+            // 
+            updateCustomMode.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            updateCustomMode.Location = new Point(1887, 178);
+            updateCustomMode.Name = "updateCustomMode";
+            updateCustomMode.Size = new Size(405, 59);
+            updateCustomMode.TabIndex = 13;
+            updateCustomMode.TabStop = false;
+            updateCustomMode.Text = "button1";
+            updateCustomMode.UseVisualStyleBackColor = true;
+            updateCustomMode.Click += updateDeleteCustomMode_Click;
             // 
             // Host
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(2304, 1014);
+            Controls.Add(updateCustomMode);
             Controls.Add(createCustomModeButton);
             Controls.Add(languageComboBox);
             Controls.Add(logTextBox);
@@ -220,5 +239,6 @@
         private TextBox logTextBox;
         private ComboBox languageComboBox;
         private Button createCustomModeButton;
+        private Button updateCustomMode;
     }
 }

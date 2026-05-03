@@ -35,7 +35,7 @@
   "modeName": "Mode Name",
   "resolution": "Resolution",
   "presets": "Presets",
-  "casualPresets": "Everyday Use",
+  "everydayUsePresets": "Everyday Use",
   "lowLatencyPresets": "Low Latency Priority",
   "qualityPresets": "Quality Priority",
   "reducingNetworkLoadPresets": "Reduce Network Load",

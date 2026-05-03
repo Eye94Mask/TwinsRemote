@@ -35,7 +35,7 @@
   "modeName": "モード名",
   "resolution": "解像度",
   "presets": "プリセット",
-  "casualPresets": "普段使い",
+  "everydayUsePresets": "普段使い",
   "lowLatencyPresets": "低遅延優先",
   "qualityPresets": "品質優先",
   "reducingNetworkLoadPresets": "回線負荷軽減",
@@ -97,5 +97,11 @@
   "alertInvalidPresetGuid": "不正な presetGuid が入力されています",
   "alertInvalidTuningInfo": "不正な tuningInfo が入力されています",
   "alertInvalidLookaheadDepth": "不正な LookaheadDepth が入力されています",
-  "customModeSaved": "新たなモードを保存しました: "
+  "customModeSaved": "新たなモードを保存しました: ",
+  "updateCustomMode": "カスタムモード編集",
+  "selectModeLabel": "モード",
+  "failedToReadCustom": "カスタムモードの取得に失敗しました",
+  "customModeNameConflictsWithOthers": "入力されたモードは既に存在しています\n別の名前で保存してください",
+  "failedToDeleteCustom": "カスタムモードの削除に失敗しました",
+  "failedToUpdateCustom": "カスタムモードの更新に失敗しました"
 }

@@ -21,6 +21,7 @@ namespace TwinsRemoteHost
         private Locale locale;
         private ProcessSelector? pSelector = null;
         private ModeCreator? mCreator = null;
+        private ModeEditor? mEditor = null;
         private string pId = "";
         private Status status = Status.Stop;
 
@@ -39,7 +40,7 @@ namespace TwinsRemoteHost
 
         private void InitializeUi()
         {
-            List<string> customNames = getCustomModeList();
+            List<string> customNames = GetCustomModeList();
 
             modeComboBox.Items.Clear();
             foreach (string customName in customNames)
@@ -59,19 +60,6 @@ namespace TwinsRemoteHost
 
             statusValueLabel.Text = locale.StatusStopped;
             SetRunningState(false);
-        }
-
-        private List<string> getCustomModeList()
-        {
-            List<string> customNames = new();
-            string[] customs = Directory.GetFiles(@"./exes/customs");
-
-            foreach (string custom in customs)
-            {
-                customNames.Add(custom.Replace(".json", "").Replace("./exes/customs\\", ""));
-            }
-
-            return customNames;
         }
 
         private void InitializeLanguageComboBox()
@@ -168,12 +156,12 @@ namespace TwinsRemoteHost
                     if (line.Contains("ICE_CONNECTED"))
                     {
                         this.status = Status.Connected;
-                        statusValueLabel.Text = locale.StatusConnected;
+                        statusValueLabel.Text = this.locale.StatusConnected;
                     }
                     if (line.Contains("ICE_DISCONNECTED"))
                     {
                         this.status = Status.Disconnected;
-                        statusValueLabel.Text = locale.StatusDisconnected;
+                        statusValueLabel.Text = this.locale.StatusDisconnected;
                     }
 
                     BeginInvoke(new Action(() =>
@@ -303,10 +291,10 @@ namespace TwinsRemoteHost
         {
             switch (this.status)
             {
-                case Status.Stop: return locale.StatusStopped;
-                case Status.Start: return locale.StatusStart;
-                case Status.Connected: return locale.StatusConnected;
-                case Status.Disconnected: return locale.StatusDisconnected;
+                case Status.Stop: return this.locale.StatusStopped;
+                case Status.Start: return this.locale.StatusStart;
+                case Status.Connected: return this.locale.StatusConnected;
+                case Status.Disconnected: return this.locale.StatusDisconnected;
             }
 
             return "";
@@ -316,15 +304,29 @@ namespace TwinsRemoteHost
         {
             SetLocale();
 
-            modeLabel.Text = locale.LabelModeText;
-            sessionIdLabel.Text = locale.LabelSessionIdText;
-            statusTitleLabel.Text = locale.LabelStatusTitleText;
+            modeLabel.Text = this.locale.LabelModeText;
+            sessionIdLabel.Text = this.locale.LabelSessionIdText;
+            statusTitleLabel.Text = this.locale.LabelStatusTitleText;
             statusValueLabel.Text = GetCurrentStatus();
-            connectButton.Text = locale.ButtonStartText;
-            audioOnButton.Text = locale.ButtonAudioOnText;
-            audioOffButton.Text = locale.ButtonAudioOffText;
-            audioSystemButton.Text = locale.ButtonAudioSystemText;
-            createCustomModeButton.Text = locale.CreateCustomMode;
+            connectButton.Text = this.locale.ButtonStartText;
+            audioOnButton.Text = this.locale.ButtonAudioOnText;
+            audioOffButton.Text = this.locale.ButtonAudioOffText;
+            audioSystemButton.Text = this.locale.ButtonAudioSystemText;
+            createCustomModeButton.Text = this.locale.CreateCustomMode;
+            updateCustomMode.Text = this.locale.UpdateCustomMode;
+        }
+
+        public static List<string> GetCustomModeList()
+        {
+            List<string> customNames = [];
+            string[] customs = Directory.GetFiles(@"./exes/customs");
+
+            foreach (string custom in customs)
+            {
+                customNames.Add(custom.Replace(".json", "").Replace("./exes/customs\\", ""));
+            }
+
+            return customNames;
         }
 
         private async void buttonStart_Click(object sender, EventArgs e)
@@ -488,6 +490,27 @@ namespace TwinsRemoteHost
             mCreator.Dispose();
             mCreator = null;
         }
+
+        private void updateDeleteCustomMode_Click(object sender, EventArgs e)
+        {
+            if (mEditor == null || mEditor.IsDisposed)
+            {
+                mEditor = new ModeEditor(this.locale);
+                mEditor.Left = this.Left + 200;
+                mEditor.Top = this.Top + 200;
+                mEditor.StartPosition = FormStartPosition.Manual;
+                mEditor.ShowDialog();
+            }
+            else
+            {
+                mEditor.WindowState = FormWindowState.Normal;
+                mEditor.Activate();
+            }
+
+            InitializeUi();
+            mEditor.Dispose();
+            mEditor = null;
+        }
     }
 
     public enum Status
@@ -622,8 +645,8 @@ namespace TwinsRemoteHost
         [JsonProperty("presets")]
         public required string Presets { get; set; }
 
-        [JsonProperty("casualPresets")]
-        public required string CasualPresets { get; set; }
+        [JsonProperty("everydayUsePresets")]
+        public required string EverydayUsePresets { get; set; }
 
         [JsonProperty("lowLatencyPresets")]
         public required string LowLatencyPresets { get; set; }
@@ -807,6 +830,24 @@ namespace TwinsRemoteHost
 
         [JsonProperty("customModeSaved")]
         public required string CustomModeSaved { get; set; }
+
+        [JsonProperty("updateCustomMode")]
+        public required string UpdateCustomMode { get; set; }
+
+        [JsonProperty("selectModeLabel")]
+        public required string SelectModeLabel { get; set; }
+
+        [JsonProperty("failedToReadCustom")]
+        public required string FailedToReadCustom { get; set; }
+
+        [JsonProperty("customModeNameConflictsWithOthers")]
+        public required string CustomModeNameConflictsWithOthers { get; set; }
+
+        [JsonProperty("failedToDeleteCustom")]
+        public required string FailedToDeleteCustom { get; set; }
+
+        [JsonProperty("failedToUpdateCustom")]
+        public required string FailedToUpdateCustom { get; set; }
     }
 
     public class IssueHostTokenRequest
