@@ -98,6 +98,7 @@
   "alertInvalidTuningInfo": "不正な tuningInfo が入力されています",
   "alertInvalidLookaheadDepth": "不正な LookaheadDepth が入力されています",
   "customModeSaved": "新たなモードを保存しました: ",
+  "customModeUpdated": "モードを更新しました: ",
   "updateCustomMode": "カスタムモード編集",
   "selectModeLabel": "モード",
   "failedToReadCustom": "カスタムモードの取得に失敗しました",

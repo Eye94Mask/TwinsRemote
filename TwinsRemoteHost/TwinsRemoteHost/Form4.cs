@@ -269,6 +269,9 @@ namespace TwinsRemoteHost
             sw.Write(customMode);
             sw.Close();
 
+            MessageBox.Show(this.locale.CustomModeUpdated + modeNameTextBox.Text, this.locale.Confirm,
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+
             InitializeUi();
         }
 
