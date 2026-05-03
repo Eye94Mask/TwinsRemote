@@ -149,32 +149,42 @@ namespace TwinsRemoteHost
             disableBadaptCheckBox.Checked = this.balanced.DisableBadapt;
         }
 
+        public static object GetPresetGuids()
+        {
+            return new[]
+            {
+                new { Name = "NV_ENC_PRESET_P1_GUID", Value = "NV_ENC_PRESET_P1_GUID" },
+                new { Name = "NV_ENC_PRESET_P2_GUID", Value = "NV_ENC_PRESET_P2_GUID" },
+                new { Name = "NV_ENC_PRESET_P3_GUID", Value = "NV_ENC_PRESET_P3_GUID" },
+                new { Name = "NV_ENC_PRESET_P4_GUID", Value = "NV_ENC_PRESET_P4_GUID" },
+                new { Name = "NV_ENC_PRESET_P5_GUID", Value = "NV_ENC_PRESET_P5_GUID" },
+                new { Name = "NV_ENC_PRESET_P6_GUID", Value = "NV_ENC_PRESET_P6_GUID" },
+                new { Name = "NV_ENC_PRESET_P7_GUID", Value = "NV_ENC_PRESET_P7_GUID" }
+            };
+        }
+
+        public static object GetTuningInfo()
+        {
+            return new[]
+            {
+                new { Name = "NV_ENC_TUNING_INFO_HIGH_QUALITY", Value = "NV_ENC_TUNING_INFO_HIGH_QUALITY" },
+                new { Name = "NV_ENC_TUNING_INFO_LOW_LATENCY", Value = "NV_ENC_TUNING_INFO_LOW_LATENCY" },
+                new { Name = "NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY", Value = "NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY" }
+            };
+        }
+
         private void InitializeUi()
         {
-            var presetGuids = new[]
-            {
-                new { Name = "NV_ENC_PRESET_P1_GUID", Code = "NV_ENC_PRESET_P1_GUID" },
-                new { Name = "NV_ENC_PRESET_P2_GUID", Code = "NV_ENC_PRESET_P2_GUID" },
-                new { Name = "NV_ENC_PRESET_P3_GUID", Code = "NV_ENC_PRESET_P3_GUID" },
-                new { Name = "NV_ENC_PRESET_P4_GUID", Code = "NV_ENC_PRESET_P4_GUID" },
-                new { Name = "NV_ENC_PRESET_P5_GUID", Code = "NV_ENC_PRESET_P5_GUID" },
-                new { Name = "NV_ENC_PRESET_P6_GUID", Code = "NV_ENC_PRESET_P6_GUID" },
-                new { Name = "NV_ENC_PRESET_P7_GUID", Code = "NV_ENC_PRESET_P7_GUID" }
-            };
+            var presetGuids = GetPresetGuids();
 
             presetGuidComboBox.DisplayMember = "Name";
-            presetGuidComboBox.ValueMember = "Code";
+            presetGuidComboBox.ValueMember = "Value";
             presetGuidComboBox.DataSource = presetGuids;
 
-            var tuningInfo = new[]
-            {
-                new { Name = "NV_ENC_TUNING_INFO_HIGH_QUALITY", Code = "NV_ENC_TUNING_INFO_HIGH_QUALITY" },
-                new { Name = "NV_ENC_TUNING_INFO_LOW_LATENCY", Code = "NV_ENC_TUNING_INFO_LOW_LATENCY" },
-                new { Name = "NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY", Code = "NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY" }
-            };
+            var tuningInfo = GetTuningInfo();
 
             tuningInfoComboBox.DisplayMember = "Name";
-            tuningInfoComboBox.ValueMember = "Code";
+            tuningInfoComboBox.ValueMember = "Value";
             tuningInfoComboBox.DataSource = tuningInfo;
         }
 
@@ -183,7 +193,7 @@ namespace TwinsRemoteHost
             modeNameLabel.Text = this.locale.ModeName;
             resolusionLabel.Text = this.locale.Resolution;
             presetModeLabel.Text = this.locale.Presets;
-            casualPresetLabel.Text = this.locale.CasualPresets;
+            casualPresetLabel.Text = this.locale.EverydayUsePresets;
             lowLatencyLabel.Text = this.locale.LowLatencyPresets;
             qualityLabel.Text = this.locale.QualityPresets;
             reducingNetworkLoadLabel.Text = this.locale.ReducingNetworkLoadPresets;
@@ -212,19 +222,19 @@ namespace TwinsRemoteHost
             detailSettingLabel.Text = this.locale.ToggleDescriptionClose;
         }
 
-        private bool ValidateModeName()
+        public static bool ValidateModeName(string modeName)
         {
             string[] InvalidCharactors = ["\\", "/", ":", "*", "?", "\"", "<", ">", "|"];
 
             foreach (string text in InvalidCharactors)
             {
-                if (modeNameTextBox.Text.Contains(text)) { return false; }
+                if (modeName.Contains(text)) { return false; }
             }
 
             return true;
         }
 
-        private void CreateCustomMode(
+        public static CustomMode CreateCustomMode(
             UInt32 width,
             UInt32 height,
             UInt32 fps,
@@ -234,32 +244,60 @@ namespace TwinsRemoteHost
             UInt32 vbvInitialDelay,
             UInt32 gopLength,
             UInt32 idrPeriod,
+            bool repeatSpsPps,
+            bool outputAud,
             UInt32 maxRefFrames,
-            UInt32 lookaheadDepth
+            string presetGuid,
+            string tuningInfo,
+            bool enableLookahead,
+            UInt32 lookaheadDepth,
+            bool disableIadapt,
+            bool disableBadapt
             )
         {
-            this.customMode.Width = width;
-            this.customMode.Height = height;
-            this.customMode.Fps = fps;
-            this.customMode.AverageBitrate = averageBitrate;
-            this.customMode.MaxBitrate = maxBitrate;
-            this.customMode.VbvBufferSize = vbvBufferSize;
-            this.customMode.VbvInitialDelay = vbvInitialDelay;
-            this.customMode.GopLength = gopLength;
-            this.customMode.IdrPeriod = idrPeriod;
-            this.customMode.RepeatSpsPps = repeatSpsPpsCheckBox.Checked;
-            this.customMode.OutputAud = outputAudCheckBox.Checked;
-            this.customMode.MaxRefFrames = maxRefFrames;
-            this.customMode.ProfileGuid = "NV_ENC_H264_PROFILE_HIGH_GUID";  // 基本これ一択なので固定
-            this.customMode.PresetGuid = presetGuidComboBox.SelectedValue.ToString();
-            this.customMode.TuningInfo = tuningInfoComboBox.SelectedValue.ToString();
-            this.customMode.EnableLookahead = enableLookaheadCheckBox.Checked;
-            this.customMode.LookaheadDepth = lookaheadDepth;
-            this.customMode.DisableIadapt = disableIadaptCheckBox.Checked;
-            this.customMode.DisableBadapt = disableBadaptCheckBox.Checked;
+            CustomMode customMode = new()
+            {
+                Width = width,
+                Height = height,
+                Fps = fps,
+                AverageBitrate = averageBitrate,
+                MaxBitrate = maxBitrate,
+                VbvBufferSize = vbvBufferSize,
+                VbvInitialDelay = vbvInitialDelay,
+                GopLength = gopLength,
+                IdrPeriod = idrPeriod,
+                RepeatSpsPps = repeatSpsPps,
+                OutputAud = outputAud,
+                MaxRefFrames = maxRefFrames,
+                ProfileGuid = "NV_ENC_H264_PROFILE_HIGH_GUID",  // 基本これ一択なので固定
+                PresetGuid = presetGuid,
+                TuningInfo = tuningInfo,
+                EnableLookahead = enableLookahead,
+                LookaheadDepth = lookaheadDepth,
+                DisableIadapt = disableIadapt,
+                DisableBadapt = disableBadapt
+            };
+
+            return customMode;
         }
 
-        private bool ValidateCustomMode()
+        public static List<UInt32>? ValidateCustomMode(
+            string modeName,
+            string resolutionWidthText,
+            string resolutionHeightText,
+            string fpsText,
+            string averageBitrateText,
+            string maxBitrateText,
+            string vbvBufferSizeText,
+            string vbvInitialDelayText,
+            string gopLengthText,
+            string idrPeriodText,
+            string maxRefFramesText,
+            object? presetGuid,
+            object? tuningInfo,
+            string lookaheadDepthText,
+            Locale locale
+        )
         {
             string message = "";
             UInt32 width = 0;
@@ -275,201 +313,202 @@ namespace TwinsRemoteHost
             UInt32 lookaheadDepth = 0;
 
             // Custom Mode Name
-            if (modeNameTextBox.Text == string.Empty)
+            if (modeName == string.Empty)
             {
-                message += this.locale.AlretNoModeName + "\n";
+                message += locale.AlretNoModeName + "\n";
             }
-            else if (!ValidateModeName())
+            else if (!ValidateModeName(modeName))
             {
-                message += this.locale.AlertInvalidModeName + "\n";
+                message += locale.AlertInvalidModeName + "\n";
             }
 
             // Resolution
             if (
-                resolutionWidthTextBox.Text == string.Empty ||
-                resolutionHeightTextBox.Text == string.Empty
+                resolutionWidthText == string.Empty ||
+                resolutionHeightText == string.Empty
                 )
             {
-                message += this.locale.AlertNoResolution + "\n";
+                message += locale.AlertNoResolution + "\n";
             }
             else
             {
                 try
                 {
-                    width = UInt32.Parse(resolutionWidthTextBox.Text);
-                    height = UInt32.Parse(resolutionHeightTextBox.Text);
+                    width = UInt32.Parse(resolutionWidthText);
+                    height = UInt32.Parse(resolutionHeightText);
                 }
                 catch (Exception)
                 {
-                    message += this.locale.AlertInvalidResolution + "\n";
+                    message += locale.AlertInvalidResolution + "\n";
                 }
             }
 
             // FPS
-            if (fpsTextBox.Text == string.Empty)
+            if (fpsText == string.Empty)
             {
-                message += this.locale.AlertNoFps + "\n";
+                message += locale.AlertNoFps + "\n";
             }
             else
             {
                 try
                 {
-                    fps = UInt32.Parse(fpsTextBox.Text);
+                    fps = UInt32.Parse(fpsText);
                 }
                 catch (Exception)
                 {
-                    message += this.locale.AlertInvalidFps + "\n";
+                    message += locale.AlertInvalidFps + "\n";
                 }
             }
 
             // averageBitrate
-            if (averageBitrateTextBox.Text == string.Empty)
+            if (averageBitrateText == string.Empty)
             {
-                message += this.locale.AlertNoAverageBitrate + "\n";
+                message += locale.AlertNoAverageBitrate + "\n";
             }
             else
             {
                 try
                 {
-                    float averageBitrate = float.Parse(averageBitrateTextBox.Text);
+                    float averageBitrate = float.Parse(averageBitrateText);
                     customAverageBitrate = (UInt32)(averageBitrate * 1000 * 1000);
                 }
                 catch (Exception)
                 {
-                    message += this.locale.AlertInvalidAverageBitrate + "\n";
+                    message += locale.AlertInvalidAverageBitrate + "\n";
                 }
             }
 
             // maxBitrate
-            if (maxBitrateTextBox.Text == string.Empty)
+            if (maxBitrateText == string.Empty)
             {
-                message += this.locale.AlertNoMaxBitrate + "\n";
+                message += locale.AlertNoMaxBitrate + "\n";
             }
             else
             {
                 try
                 {
-                    float maxBitrate = float.Parse(maxBitrateTextBox.Text);
+                    float maxBitrate = float.Parse(maxBitrateText);
                     customMaxBitrate = (UInt32)(maxBitrate * 1000 * 1000);
                 }
                 catch (Exception)
                 {
-                    message += this.locale.AlertInvalidMaxBitrate + "\n";
+                    message += locale.AlertInvalidMaxBitrate + "\n";
                 }
             }
 
             // vbvBufferSize
-            if (vbvBufferSizeTextBox.Text == string.Empty)
+            if (vbvBufferSizeText == string.Empty)
             {
-                message += this.locale.AlertNoVbvBufferSize + "\n";
+                message += locale.AlertNoVbvBufferSize + "\n";
             }
             else
             {
                 try
                 {
-                    float vbvBufferSize = float.Parse(vbvBufferSizeTextBox.Text);
+                    float vbvBufferSize = float.Parse(vbvBufferSizeText);
                     customVbvBufferSize = (UInt32)(vbvBufferSize * 1000 * 1000);
                 }
                 catch (Exception)
                 {
-                    message += this.locale.AlertInvalidVbvBufferSize + "\n";
+                    message += locale.AlertInvalidVbvBufferSize + "\n";
                 }
             }
 
-            if (vbvInitialDelayTextBox.Text == string.Empty)
+            // vbvInitialDelay
+            if (vbvInitialDelayText == string.Empty)
             {
-                message += this.locale.AlertNoVbvInitialDelay + "\n";
+                message += locale.AlertNoVbvInitialDelay + "\n";
             }
             else
             {
                 try
                 {
-                    float vbvInitialDelay = float.Parse(vbvInitialDelayTextBox.Text);
+                    float vbvInitialDelay = float.Parse(vbvInitialDelayText);
                     customVbvInitialDelay = (UInt32)(vbvInitialDelay * 1000 * 1000);
                 }
                 catch (Exception)
                 {
-                    message += this.locale.AlertInvalidVbvInitialDelay + "\n";
+                    message += locale.AlertInvalidVbvInitialDelay + "\n";
                 }
             }
 
             // gopLength
-            if (gopLengthTextBox.Text == string.Empty)
+            if (gopLengthText == string.Empty)
             {
-                message += this.locale.AlertNoGopLength + "\n";
+                message += locale.AlertNoGopLength + "\n";
             }
             else
             {
                 try
                 {
-                    gopLength = UInt32.Parse(gopLengthTextBox.Text);
+                    gopLength = UInt32.Parse(gopLengthText);
                 }
                 catch (Exception)
                 {
-                    message += this.locale.AlertInvalidGopLength + "\n";
+                    message += locale.AlertInvalidGopLength + "\n";
                 }
             }
 
             // idrPeriod
-            if (idrPeriodTextBox.Text == string.Empty)
+            if (idrPeriodText == string.Empty)
             {
-                message += this.locale.AlertNoIdrPeriod + "\n";
+                message += locale.AlertNoIdrPeriod + "\n";
             }
             else
             {
                 try
                 {
-                    idrPeriod = UInt32.Parse(idrPeriodTextBox.Text);
+                    idrPeriod = UInt32.Parse(idrPeriodText);
                 }
                 catch (Exception)
                 {
-                    message += this.locale.AlertInvalidIdrPeriod + "\n";
+                    message += locale.AlertInvalidIdrPeriod + "\n";
                 }
             }
 
             // maxRefFrames
-            if (maxRefFramesTextBox.Text == string.Empty)
+            if (maxRefFramesText == string.Empty)
             {
-                message += this.locale.AlertInvalidMaxRefFrames + "\n";
+                message += locale.AlertInvalidMaxRefFrames + "\n";
             }
             else
             {
                 try
                 {
-                    maxRefFrames = UInt32.Parse(maxRefFramesTextBox.Text);
+                    maxRefFrames = UInt32.Parse(maxRefFramesText);
                 }
                 catch (Exception)
                 {
-                    message += this.locale.AlertInvalidMaxRefFrames + "\n";
+                    message += locale.AlertInvalidMaxRefFrames + "\n";
                 }
             }
 
             // presetGuid
-            if (presetGuidComboBox.SelectedItem == null)
+            if (presetGuid == null)
             {
-                message += this.locale.AlertInvalidPresetGuid + "\n";
+                message += locale.AlertInvalidPresetGuid + "\n";
             }
 
             // tuningInfo
-            if (tuningInfoComboBox.SelectedItem == null)
+            if (tuningInfo == null)
             {
-                message += this.locale.AlertInvalidTuningInfo + "\n";
+                message += locale.AlertInvalidTuningInfo + "\n";
             }
 
             // lookaheadDepth
-            if (lookaheadDepthTextBox.Text == string.Empty)
+            if (lookaheadDepthText == string.Empty)
             {
-                message += this.locale.AlertNoLookaheadDepth + "\n";
+                message += locale.AlertNoLookaheadDepth + "\n";
             }
             else
             {
                 try
                 {
-                    lookaheadDepth = UInt32.Parse(lookaheadDepthTextBox.Text);
+                    lookaheadDepth = UInt32.Parse(lookaheadDepthText);
                 }
                 catch (Exception)
                 {
-                    message += this.locale.AlertInvalidLookaheadDepth + "\n";
+                    message += locale.AlertInvalidLookaheadDepth + "\n";
                 }
             }
 
@@ -478,10 +517,11 @@ namespace TwinsRemoteHost
             {
                 MessageBox.Show(message, locale.Confirm,
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return false;
+                return null;
             }
 
-            CreateCustomMode(
+            return
+            [
                 width,
                 height,
                 fps,
@@ -493,8 +533,7 @@ namespace TwinsRemoteHost
                 idrPeriod,
                 maxRefFrames,
                 lookaheadDepth
-            );
-            return true;
+            ];
         }
 
         private void detailSettingLabel_Click(object sender, EventArgs e)
@@ -513,7 +552,49 @@ namespace TwinsRemoteHost
 
         private void saveButton_Click(object sender, EventArgs e)
         {
-            if (!ValidateCustomMode()) { return; }
+            List<UInt32>? validatedValues = ValidateCustomMode(
+                modeNameTextBox.Text,
+                resolutionWidthTextBox.Text,
+                resolutionHeightTextBox.Text,
+                fpsTextBox.Text,
+                averageBitrateTextBox.Text,
+                maxBitrateTextBox.Text,
+                vbvBufferSizeTextBox.Text,
+                vbvInitialDelayTextBox.Text,
+                gopLengthTextBox.Text,
+                idrPeriodTextBox.Text,
+                maxRefFramesTextBox.Text,
+                presetGuidComboBox.SelectedItem,
+                tuningInfoComboBox.SelectedItem,
+                lookaheadDepthTextBox.Text,
+                this.locale
+            );
+
+            if (validatedValues == null) { return; }
+
+            UInt32 width = validatedValues[0];
+            UInt32 height = validatedValues[1];
+            UInt32 fps = validatedValues[2];
+            UInt32 averageBitrate = validatedValues[3];
+            UInt32 maxBitrate = validatedValues[4];
+            UInt32 vbvBufferSize = validatedValues[5];
+            UInt32 vbvInitialDelay = validatedValues[6];
+            UInt32 gopLength = validatedValues[7];
+            UInt32 idrPeriod = validatedValues[8];
+            UInt32 maxRefFrames = validatedValues[9];
+            UInt32 lookaheadDepth = validatedValues[10];
+
+            this.customMode = CreateCustomMode(
+                width, height, fps,
+                averageBitrate, maxBitrate, vbvBufferSize, vbvInitialDelay,
+                gopLength, idrPeriod,
+                repeatSpsPpsCheckBox.Checked, outputAudCheckBox.Checked,
+                maxRefFrames,
+                presetGuidComboBox.SelectedValue.ToString(),
+                tuningInfoComboBox.SelectedValue.ToString(),
+                enableLookaheadCheckBox.Checked, lookaheadDepth,
+                disableIadaptCheckBox.Checked, disableBadaptCheckBox.Checked
+            );
 
             var customMode = JsonConvert.SerializeObject(this.customMode);
             string customJsonName = modeNameTextBox.Text + ".json";
@@ -521,7 +602,7 @@ namespace TwinsRemoteHost
             string customsDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "exes", "customs");
             if (!Directory.Exists(customsDirectory))
             {
-                DirectoryInfo di = new DirectoryInfo(customsDirectory);
+                DirectoryInfo di = new(customsDirectory);
                 di.Create();
             }
 
@@ -803,111 +884,121 @@ namespace TwinsRemoteHost
             disableBadaptCheckBox.Checked = this.restrictedIpv4.DisableBadapt;
         }
 
+        private void resolusionLabel_MouseHover(object sender, EventArgs e)
+        {
+            technicalTermToolTip.SetToolTip(resolusionLabel, this.locale.ResolutionDescription);
+        }
+
+        private void fpsLabel_MouseHover(object sender, EventArgs e)
+        {
+            technicalTermToolTip.SetToolTip(fpsLabel, this.locale.FpsDescription);
+        }
+
         private void casualPresetLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(casualPresetLabel, this.locale.CasualModeDescription);
+            technicalTermToolTip.SetToolTip(casualPresetLabel, this.locale.CasualModeDescription);
         }
 
         private void lowLatencyLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(lowLatencyLabel, this.locale.LowLatencyModeDescription);
+            technicalTermToolTip.SetToolTip(lowLatencyLabel, this.locale.LowLatencyModeDescription);
         }
 
         private void qualityLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(qualityLabel, this.locale.QualityModeDescription);
+            technicalTermToolTip.SetToolTip(qualityLabel, this.locale.QualityModeDescription);
         }
 
         private void reducingNetworkLoadLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(reducingNetworkLoadLabel, this.locale.ReducingNetworkLoadModeDescription);
+            technicalTermToolTip.SetToolTip(reducingNetworkLoadLabel, this.locale.ReducingNetworkLoadModeDescription);
         }
 
         private void averageBitrateLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(averageBitrateLabel, this.locale.AverageBitrateDescription);
+            technicalTermToolTip.SetToolTip(averageBitrateLabel, this.locale.AverageBitrateDescription);
         }
 
         private void maxBitrateLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(maxBitrateLabel, this.locale.MaxBitrateDescription);
+            technicalTermToolTip.SetToolTip(maxBitrateLabel, this.locale.MaxBitrateDescription);
         }
 
         private void vbvBufferSizeLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(vbvBufferSizeLabel, this.locale.VbvBufferSizeDescription);
+            technicalTermToolTip.SetToolTip(vbvBufferSizeLabel, this.locale.VbvBufferSizeDescription);
         }
 
         private void vbvInitialDelayLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(vbvInitialDelayLabel, this.locale.VbvInitialDelayDescription);
+            technicalTermToolTip.SetToolTip(vbvInitialDelayLabel, this.locale.VbvInitialDelayDescription);
         }
 
         private void gopLengthLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(gopLengthLabel, this.locale.GopLengthDescription);
+            technicalTermToolTip.SetToolTip(gopLengthLabel, this.locale.GopLengthDescription);
         }
 
         private void idrPeriodLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(idrPeriodLabel, this.locale.IdrPeriodDescription);
+            technicalTermToolTip.SetToolTip(idrPeriodLabel, this.locale.IdrPeriodDescription);
         }
 
         private void repeatSpsPpsLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(repeatSpsPpsLabel, this.locale.RepeatSpsPpsDescription);
+            technicalTermToolTip.SetToolTip(repeatSpsPpsLabel, this.locale.RepeatSpsPpsDescription);
         }
 
         private void outputAudLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(outputAudLabel, this.locale.OutputAudDescription);
+            technicalTermToolTip.SetToolTip(outputAudLabel, this.locale.OutputAudDescription);
         }
 
         private void maxRefFramesLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(maxRefFramesLabel, this.locale.MaxRefFramesDescription);
+            technicalTermToolTip.SetToolTip(maxRefFramesLabel, this.locale.MaxRefFramesDescription);
         }
 
         private void presetGuidLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(presetGuidLabel, this.locale.PresetGuidDescription);
+            technicalTermToolTip.SetToolTip(presetGuidLabel, this.locale.PresetGuidDescription);
         }
 
         private void tuningInfoLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(tuningInfoLabel, this.locale.TuningInfoDescription);
+            technicalTermToolTip.SetToolTip(tuningInfoLabel, this.locale.TuningInfoDescription);
         }
 
         private void enableLookaheadLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(enableLookaheadLabel, this.locale.EnableLookaheadDescription);
+            technicalTermToolTip.SetToolTip(enableLookaheadLabel, this.locale.EnableLookaheadDescription);
         }
 
         private void lookaheadDepthLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(lookaheadDepthLabel, this.locale.LookaheadDepthDescription);
+            technicalTermToolTip.SetToolTip(lookaheadDepthLabel, this.locale.LookaheadDepthDescription);
         }
 
         private void disableIadaptLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(disableIadaptLabel, this.locale.DisableIadaptDescription);
+            technicalTermToolTip.SetToolTip(disableIadaptLabel, this.locale.DisableIadaptDescription);
         }
 
         private void disableBadaptLabel_MouseHover(object sender, EventArgs e)
         {
-            toolTip1.SetToolTip(disableBadaptLabel, this.locale.DisableBadaptDescription);
+            technicalTermToolTip.SetToolTip(disableBadaptLabel, this.locale.DisableBadaptDescription);
         }
 
         // ToolTipが表示されないバグの回避策
         private void common_MouseLeave(object sender, EventArgs e)
         {
-            toolTip1.Active = false;
-            toolTip1.Active = true;
+            technicalTermToolTip.Active = false;
+            technicalTermToolTip.Active = true;
         }
     }
 
     [JsonObject("customModes")]
-    class CustomMode
+    public class CustomMode
     {
         [JsonProperty("width")]
         public UInt32 Width { get; set; }
