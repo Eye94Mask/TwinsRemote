@@ -589,12 +589,15 @@ async function connect() {
     const config = await fetchWebRtcConfig();
     log("ICE CONFIG:", config);
 
+    // STUNサーバーのみ先に登録
     pc = new RTCPeerConnection({
-        iceServers: config.iceServers,
+        iceServers: config.iceServers[0],
         iceTransportPolicy: "all",
         bundlePolicy: "max-bundle",
         rtcpMuxPolicy: "require",
     });
+
+    delayRegisterTURN(config);
 
     if (audioEl) {
         audioEl.srcObject = remoteAudioStream;
@@ -782,6 +785,48 @@ async function connect() {
     startStatsMonitor();
     startVideoWatchdog();
     startRelayMonitoring();
+}
+
+function delayRegisterTURN(config) {
+    let iceServers = new Array();
+    for (let i = 1; i < config.iceServers.length; i++) {
+        iceServer.push(config.iceServers[i]);
+    }
+
+    setTimeout(() => {
+        if (pc.iceConnectionState !== "connected") {
+            pc.setConfiguration({
+                iceServers: iceServers
+            })
+        }
+    }, 3000);
+}
+
+function needsTurn(result) {
+    // srflx取得できない -> TURN
+    if (!result.hasSrflx) return true;
+
+    // hostのみ -> LAN(TURN不要)
+    if (result.hasHost && !result.hasSrflx) return false;
+
+    // srflxがある -> 不要
+    return false;
+}
+
+function analyzeCandidate(candidates) {
+    const types = new Set();
+
+    candidates.forEach(c => {
+        if (c.candidate.includes("typ host")) types.add("host");
+        if (c.candidate.includes("typ srflex")) types.add("srflx");
+        if (c.candidate.includes("typ relay")) types.add("relay");
+    });
+
+    return {
+        hasHost:  types.has("host"),
+        hasSrflx: types.has("srflx"),
+        hasRelay: types.has("relay")
+    }
 }
 
 function isRelayConnection(stats, selectedPair) {
