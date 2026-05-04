@@ -591,7 +591,7 @@ async function connect() {
 
     // STUNサーバーのみ先に登録
     pc = new RTCPeerConnection({
-        iceServers: config.iceServers[0],
+        iceServers: [config.iceServers[0]],
         iceTransportPolicy: "all",
         bundlePolicy: "max-bundle",
         rtcpMuxPolicy: "require",
@@ -790,14 +790,14 @@ async function connect() {
 function delayRegisterTURN(config) {
     let iceServers = new Array();
     for (let i = 1; i < config.iceServers.length; i++) {
-        iceServer.push(config.iceServers[i]);
+        iceServers.push(config.iceServers[i]);
     }
 
     setTimeout(() => {
         if (pc.iceConnectionState !== "connected") {
-            pc.setConfiguration({
-                iceServers: iceServers
-            })
+            iceServers.forEach(iceServer => {
+                pc.addIceCandidate(iceServer);
+            });
         }
     }, 3000);
 }
