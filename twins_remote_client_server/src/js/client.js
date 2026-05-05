@@ -45,6 +45,8 @@ let pendingRemoteCandidates = [];
 let sessionId = null;
 let copySessionResetTimer = null;
 
+let turnEnabled = false;
+
 const splashSubtitles = [
     "Two PCs, one feeling.",
     "Connecting comfort and speed.",
@@ -453,10 +455,17 @@ async function pollAnswerOnce() {
     const json = await fetchJson(buildSessionUrl("/answer"));
     if (!json) return false;
     if (!pc) return false;
-    if (pc.remoteDescription) return true;
+
+    if (pc.remoteDescription &&
+        pc.remoteDescription.type === json.type &&
+        pc.remoteDescription.sdp === json.sdp
+    ) {
+        return true;
+    }
+
 
     await pc.setRemoteDescription(json);
-    console.log("remote answer set");
+    console.log("remote answer set / updated");
     await flushPendingRemoteCandidates();
     return true;
 }
@@ -589,15 +598,10 @@ async function connect() {
     const config = await fetchWebRtcConfig();
     log("ICE CONFIG:", config);
 
-    // STUNサーバーのみ先に登録
-    pc = new RTCPeerConnection({
-        iceServers: [config.iceServers[0]],
-        iceTransportPolicy: "all",
-        bundlePolicy: "max-bundle",
-        rtcpMuxPolicy: "require",
-    });
-
-    delayRegisterTURN(config);
+    // =======================================================================================
+    // !!!! リリース前には絶対に setPeerConnection(config) に変更すること !!!!
+    // =======================================================================================
+    setPeerConnection(config);
 
     if (audioEl) {
         audioEl.srcObject = remoteAudioStream;
@@ -699,6 +703,14 @@ async function connect() {
             return;
         }
 
+        const cand = e.candidate.candidate;
+        log("CANDIDATE: ", e.candidate.candidate);
+        console.log("CANDIDATE: ", cand);
+
+        if (cand.includes("typ relay")) {
+            console.log("✅ relay candidate generated");
+        }
+
         try {
             await postClientCandidate(e.candidate.toJSON());
             console.log("client candidate posted");
@@ -787,46 +799,54 @@ async function connect() {
     startRelayMonitoring();
 }
 
-function delayRegisterTURN(config) {
-    let iceServers = new Array();
-    for (let i = 1; i < config.iceServers.length; i++) {
-        iceServers.push(config.iceServers[i]);
+function setPeerConnection(config, relay = false) {
+    const stunOnlyConfig = {
+        ...config,
+        iceServers: config.iceServers.filter(s => 
+            String(s.urls).includes("stun:") ||
+            (Array.isArray(s.urls) && s.urls.some(u => u.startsWith("stun:")))
+        )
+    };
+
+    if (relay) { pc = new RTCPeerConnection(getPeerConnectionConfig(config, relay)); }
+    else {
+        pc = new RTCPeerConnection(getPeerConnectionConfig(stunOnlyConfig));
+        startTurnFallbackTimer(config);
     }
-
-    setTimeout(() => {
-        if (pc.iceConnectionState !== "connected") {
-            iceServers.forEach(iceServer => {
-                pc.addIceCandidate(iceServer);
-            });
-        }
-    }, 3000);
 }
 
-function needsTurn(result) {
-    // srflx取得できない -> TURN
-    if (!result.hasSrflx) return true;
-
-    // hostのみ -> LAN(TURN不要)
-    if (result.hasHost && !result.hasSrflx) return false;
-
-    // srflxがある -> 不要
-    return false;
-}
-
-function analyzeCandidate(candidates) {
-    const types = new Set();
-
-    candidates.forEach(c => {
-        if (c.candidate.includes("typ host")) types.add("host");
-        if (c.candidate.includes("typ srflex")) types.add("srflx");
-        if (c.candidate.includes("typ relay")) types.add("relay");
-    });
-
+function getPeerConnectionConfig(config, relay = false) {
+    
+    const policy = relay ? "relay" : "all";
     return {
-        hasHost:  types.has("host"),
-        hasSrflx: types.has("srflx"),
-        hasRelay: types.has("relay")
+        iceServers: config.iceServers,
+        iceTransportPolicy: policy,
+        bundlePolicy: "max-bundle",
+        rtcpMuxPolicy: "require"
     }
+}
+
+function startTurnFallbackTimer(config) {
+    setTimeout(async () => {
+        if (!pc || turnEnabled) return;
+
+        const state = pc.iceConnectionState;
+        if (state === "connected" || state === "completed") return;
+
+        turnEnabled = true;
+        log("TURN fallback enabled");
+
+        pc.setConfiguration(getPeerConnectionConfig(config.iceServers));
+
+        const offer = await pc.createOffer({ iceRestart: true });
+        await pc.setLocalDescription(offer);
+
+        seenRemoteCandidates.clear();
+        pendingRemoteCandidates = [];
+
+        await postOffer(pc.localDescription.toJSON());
+        startAnswerPolling();
+    }, 3000);
 }
 
 function isRelayConnection(stats, selectedPair) {
