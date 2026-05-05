@@ -22,3 +22,5 @@ bin/
 obj/
 
 .editorconfig
+
+vps_signal_server/

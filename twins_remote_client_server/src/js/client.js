@@ -45,6 +45,8 @@ let pendingRemoteCandidates = [];
 let sessionId = null;
 let copySessionResetTimer = null;
 
+let turnEnabled = false;
+
 const splashSubtitles = [
     "Two PCs, one feeling.",
     "Connecting comfort and speed.",
@@ -55,6 +57,20 @@ const VIDEO_STALL_MS = 700;
 const RENDER_IDLE_WAIT_MS = 8;
 const MAX_FRAME_AGE_MS = 150;
 const MAX_RENDER_BACKLOG = 1;
+
+// =======================================================================================
+// "relay-test" | "normal" | "stun-first"
+// !!!! リリース前には絶対に normal に変更すること !!!!
+// =======================================================================================
+const ICE_MODE = "normal" 
+
+let badRttCount = 0;
+let lastIceRestartAt = 0;
+
+const RTT_WARN_SEC = 0.12;  // 120ms
+const RTT_BAD_SEC = 0.20;   // 200ms
+const BAD_RTT_LIMIT = 3;
+const ICE_RESTART_COOLDOWN_MS = 15000;
 
 window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
@@ -453,10 +469,17 @@ async function pollAnswerOnce() {
     const json = await fetchJson(buildSessionUrl("/answer"));
     if (!json) return false;
     if (!pc) return false;
-    if (pc.remoteDescription) return true;
+
+    if (pc.remoteDescription &&
+        pc.remoteDescription.type === json.type &&
+        pc.remoteDescription.sdp === json.sdp
+    ) {
+        return true;
+    }
+
 
     await pc.setRemoteDescription(json);
-    console.log("remote answer set");
+    console.log("remote answer set / updated");
     await flushPendingRemoteCandidates();
     return true;
 }
@@ -589,12 +612,7 @@ async function connect() {
     const config = await fetchWebRtcConfig();
     log("ICE CONFIG:", config);
 
-    pc = new RTCPeerConnection({
-        iceServers: config.iceServers,
-        iceTransportPolicy: "all",
-        bundlePolicy: "max-bundle",
-        rtcpMuxPolicy: "require",
-    });
+    pc = new RTCPeerConnection(buildRtcConfig(config));
 
     if (audioEl) {
         audioEl.srcObject = remoteAudioStream;
@@ -696,6 +714,14 @@ async function connect() {
             return;
         }
 
+        const cand = e.candidate.candidate;
+        log("CANDIDATE: ", e.candidate.candidate);
+        console.log("CANDIDATE: ", cand);
+
+        if (cand.includes("typ relay")) {
+            console.log("✅ relay candidate generated");
+        }
+
         try {
             await postClientCandidate(e.candidate.toJSON());
             console.log("client candidate posted");
@@ -782,6 +808,121 @@ async function connect() {
     startStatsMonitor();
     startVideoWatchdog();
     startRelayMonitoring();
+}
+
+async function maybeRestartIceByRtt(selectedPair) {
+    if (!selectedPair || !pc) return;
+    const rtt = selectedPair.currentRoundTripTime;
+    if (typeof rtt !== "number") return;
+
+    if (rtt >= RTT_BAD_SEC) {
+        badRttCount++;
+    } else {
+        badRttCount = 0;
+    }
+
+    if (badRttCount < BAD_RTT_LIMIT) return;
+
+    const now = Date.now();
+    if (now - lastIceRestartAt < ICE_RESTART_COOLDOWN_MS) return;
+
+    badRttCount = 0;
+    lastIceRestartAt = now;
+
+    console.warn("[ICE] RTT degraded, restarting ICE", rtt);
+
+    const offer = await pc.createOffer({ iceRestart: true });
+    await pc.setLocalDescription(offer);
+
+    seenRemoteCandidates.clear();
+    pendingRemoteCandidates = [];
+
+    await postOffer(pc.localDescription.toJSON());
+    startAnswerPolling();
+}
+
+function setPeerConnection(config) {
+    const stunOnlyConfig = {
+        ...config,
+        iceServers: config.iceServers.filter(s => 
+            String(s.urls).includes("stun:") ||
+            (Array.isArray(s.urls) && s.urls.some(u => u.startsWith("stun:")))
+        )
+    };
+
+    if (relay) { pc = new RTCPeerConnection(buildRtcConfig(config)); }
+    else {
+        pc = new RTCPeerConnection(buildRtcConfig(stunOnlyConfig));
+        startTurnFallbackTimer(config);
+    }
+}
+
+function urlsOf(server) {
+    return Array.isArray(server.urls) ? server.urls : [server.urls];
+}
+
+function isTurnServer(server) {
+    return urlsOf(server).some(u => u.startsWith("turn:") || u.startsWith("turns:"));
+}
+
+function isStunServer(server) {
+    return urlsOf(server).some(u => u.startsWith("stun:"));
+}
+
+function buildRtcConfig(config) {
+    switch (ICE_MODE) {
+        case "relay-test":
+            return {
+                iceServers: config.iceServers.filter(isTurnServer),
+                iceTransportPolicy: "relay",
+                bundlePolicy: "max-bundle",
+                rtcpMuxPolicy: "require"
+            }
+        
+        case "stun-first":
+            return {
+                iceServers: config.iceServers.filter(isStunServer),
+                iceTransportPolicy: "all",
+                bundlePolicy: "max-bundle",
+                rtcpMuxPolicy: "require"
+            };
+
+        default:
+            return {
+                iceServers: config.iceServers,
+                iceTransportPolicy: "all",
+                bundlePolicy: "max-bundle",
+                rtcpMuxPolicy: "require"
+            }
+    }
+}
+
+function startTurnFallbackTimer(config) {
+    setTimeout(async () => {
+        if (!pc || turnEnabled) return;
+
+        const state = pc.iceConnectionState;
+        if (state === "connected" || state === "completed") return;
+
+        turnEnabled = true;
+        log("TURN fallback enabled");
+
+        pc.setConfiguration({
+            iceServers: config.iceServers,
+            iceTransportPolicy: "all",
+            bundlePolicy: "max-bundle",
+            rtcpMuxPolicy: "require",
+        });
+
+        const offer = await pc.createOffer({ iceRestart: true });
+        await pc.setLocalDescription(offer);
+
+        seenRemoteCandidates.clear();
+        pendingRemoteCandidates = [];
+
+        await postOffer(pc.localDescription.toJSON());
+        startAnswerPolling();
+    }, 3000);
 }
 
 function isRelayConnection(stats, selectedPair) {
@@ -1256,6 +1397,7 @@ function startStatsMonitor() {
             });
 
             if (selectedCandidatePair) {
+                await maybeRestartIceByRtt(selectedCandidatePair);
                 console.log("[candidate pair]", {
                     currentRoundTripTime: selectedCandidatePair.currentRoundTripTime,
                     availableIncomingBitrate: selectedCandidatePair.availableIncomingBitrate,
