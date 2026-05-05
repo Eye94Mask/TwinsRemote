@@ -58,6 +58,12 @@ const RENDER_IDLE_WAIT_MS = 8;
 const MAX_FRAME_AGE_MS = 150;
 const MAX_RENDER_BACKLOG = 1;
 
+// =======================================================================================
+// "relay-test" | "normal" | "stun-first"
+// !!!! リリース前には絶対に normal に変更すること !!!!
+// =======================================================================================
+const ICE_MODE = "normal" 
+
 window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
     console.log("gamepad connected:", e.gamepad.id, "index=", gamepadIndex);
@@ -598,10 +604,7 @@ async function connect() {
     const config = await fetchWebRtcConfig();
     log("ICE CONFIG:", config);
 
-    // =======================================================================================
-    // !!!! リリース前には絶対に setPeerConnection(config) に変更すること !!!!
-    // =======================================================================================
-    setPeerConnection(config);
+    pc = new RTCPeerConnection(buildRtcConfig(config));
 
     if (audioEl) {
         audioEl.srcObject = remoteAudioStream;
@@ -799,7 +802,7 @@ async function connect() {
     startRelayMonitoring();
 }
 
-function setPeerConnection(config, relay = false) {
+function setPeerConnection(config) {
     const stunOnlyConfig = {
         ...config,
         iceServers: config.iceServers.filter(s => 
@@ -808,21 +811,50 @@ function setPeerConnection(config, relay = false) {
         )
     };
 
-    if (relay) { pc = new RTCPeerConnection(getPeerConnectionConfig(config, relay)); }
+    if (relay) { pc = new RTCPeerConnection(buildRtcConfig(config)); }
     else {
-        pc = new RTCPeerConnection(getPeerConnectionConfig(stunOnlyConfig));
+        pc = new RTCPeerConnection(buildRtcConfig(stunOnlyConfig));
         startTurnFallbackTimer(config);
     }
 }
 
-function getPeerConnectionConfig(config, relay = false) {
-    
-    const policy = relay ? "relay" : "all";
-    return {
-        iceServers: config.iceServers,
-        iceTransportPolicy: policy,
-        bundlePolicy: "max-bundle",
-        rtcpMuxPolicy: "require"
+function urlsOf(server) {
+    return Array.isArray(server.urls) ? server.urls : [server.urls];
+}
+
+function isTurnServer(server) {
+    return urlsOf(server).some(u => u.startsWith("turn:") || u.startsWith("turns:"));
+}
+
+function isStunServer(server) {
+    return urlsOf(server).some(u => u.startsWith("stun:"));
+}
+
+function buildRtcConfig(config) {
+    switch (ICE_MODE) {
+        case "relay-test":
+            return {
+                iceServers: config.iceServers.filter(isTurnServer),
+                iceTransportPolicy: "relay",
+                bundlePolicy: "max-bundle",
+                rtcpMuxPolicy: "require"
+            }
+        
+        case "stun-first":
+            return {
+                iceServers: config.iceServers.filter(isStunServer),
+                iceTransportPolicy: "all",
+                bundlePolicy: "max-bundle",
+                rtcpMuxPolicy: "require"
+            };
+
+        default:
+            return {
+                iceServers: config.iceServers,
+                iceTransportPolicy: "all",
+                bundlePolicy: "max-bundle",
+                rtcpMuxPolicy: "require"
+            }
     }
 }
 
@@ -836,7 +868,12 @@ function startTurnFallbackTimer(config) {
         turnEnabled = true;
         log("TURN fallback enabled");
 
-        pc.setConfiguration(getPeerConnectionConfig(config.iceServers));
+        pc.setConfiguration({
+            iceServers: config.iceServers,
+            iceTransportPolicy: "all",
+            bundlePolicy: "max-bundle",
+            rtcpMuxPolicy: "require",
+        });
 
         const offer = await pc.createOffer({ iceRestart: true });
         await pc.setLocalDescription(offer);
