@@ -16,7 +16,7 @@ packages.config
 .env
 twins_remote_client/
 
-update_client.bat
+*.bat
 
 bin/
 obj/
