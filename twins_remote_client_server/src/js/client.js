@@ -64,6 +64,14 @@ const MAX_RENDER_BACKLOG = 1;
 // =======================================================================================
 const ICE_MODE = "normal" 
 
+let badRttCount = 0;
+let lastIceRestartAt = 0;
+
+const RTT_WARN_SEC = 0.12;  // 120ms
+const RTT_BAD_SEC = 0.20;   // 200ms
+const BAD_RTT_LIMIT = 3;
+const ICE_RESTART_COOLDOWN_MS = 15000;
+
 window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
     console.log("gamepad connected:", e.gamepad.id, "index=", gamepadIndex);
@@ -802,6 +810,37 @@ async function connect() {
     startRelayMonitoring();
 }
 
+async function maybeRestartIceByRtt(selectedPair) {
+    if (!selectedPair || !pc) return;
+    const rtt = selectedPair.currentRoundTripTime;
+    if (typeof rtt !== "number") return;
+
+    if (rtt >= RTT_BAD_SEC) {
+        badRttCount++;
+    } else {
+        badRttCount = 0;
+    }
+
+    if (badRttCount < BAD_RTT_LIMIT) return;
+
+    const now = Date.now();
+    if (now - lastIceRestartAt < ICE_RESTART_COOLDOWN_MS) return;
+
+    badRttCount = 0;
+    lastIceRestartAt = now;
+
+    console.warn("[ICE] RTT degraded, restarting ICE", rtt);
+
+    const offer = await pc.createOffer({ iceRestart: true });
+    await pc.setLocalDescription(offer);
+
+    seenRemoteCandidates.clear();
+    pendingRemoteCandidates = [];
+
+    await postOffer(pc.localDescription.toJSON());
+    startAnswerPolling();
+}
+
 function setPeerConnection(config) {
     const stunOnlyConfig = {
         ...config,
@@ -1358,6 +1397,7 @@ function startStatsMonitor() {
             });
 
             if (selectedCandidatePair) {
+                await maybeRestartIceByRtt(selectedCandidatePair);
                 console.log("[candidate pair]", {
                     currentRoundTripTime: selectedCandidatePair.currentRoundTripTime,
                     availableIncomingBitrate: selectedCandidatePair.availableIncomingBitrate,
