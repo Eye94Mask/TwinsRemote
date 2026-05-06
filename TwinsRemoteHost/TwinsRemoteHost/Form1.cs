@@ -346,7 +346,7 @@ namespace TwinsRemoteHost
             return customNames;
         }
 
-        private async void buttonStart_Click(object sender, EventArgs e)
+        private async void connectButton_Click(object sender, EventArgs e)
         {
             if (_hostProcess != null && !_hostProcess.HasExited)
             {
@@ -354,7 +354,8 @@ namespace TwinsRemoteHost
                 return;
             }
 
-            string mode = (modeComboBox.SelectedItem?.ToString() ?? "Balanced").ToLower();
+            string mode = (modeComboBox.SelectedItem?.ToString() ?? "Balanced");
+            AppendLog(mode);
             string sessionId = sessionIdTextBox.Text.Trim();
 
             if (string.IsNullOrWhiteSpace(sessionId))
@@ -403,7 +404,7 @@ namespace TwinsRemoteHost
             {
                 FileName = hostExePath,
                 WorkingDirectory = exeDir,
-                Arguments = $"--mode {mode} --session \"{sessionId}\"",
+                Arguments = $"--mode \"{mode}\" --session \"{sessionId}\"",
                 UseShellExecute = false,
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
@@ -579,7 +580,7 @@ namespace TwinsRemoteHost
         public required string ProcessExitError { get; set; }
 
         [JsonProperty("hostExeAlreadyStarted")]
-        public required string HostExeAlreadyStarted {  get; set; }
+        public required string HostExeAlreadyStarted { get; set; }
 
         [JsonProperty("inputSessionIdMessage")]
         public required string InputSessionIdMessage { get; set; }
@@ -613,10 +614,10 @@ namespace TwinsRemoteHost
 
         [JsonProperty("statusFailed")]
         public required string StatusFailed { get; set; }
-        
+
         [JsonProperty("statusStart")]
         public required string StatusStart { get; set; }
-        
+
         [JsonProperty("statusStopped")]
         public required string StatusStopped { get; set; }
 
@@ -634,7 +635,7 @@ namespace TwinsRemoteHost
 
         [JsonProperty("sendCommandFailed")]
         public required string SendCommandFailed { get; set; }
-        
+
         [JsonProperty("invalidLanguage")]
         public required string InvalidLanguage { get; set; }
 

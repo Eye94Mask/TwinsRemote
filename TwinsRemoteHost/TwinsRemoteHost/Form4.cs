@@ -178,8 +178,8 @@ namespace TwinsRemoteHost
             repeatSpsPpsCheckBox.Checked = this.editMode.RepeatSpsPps;
             outputAudCheckBox.Checked = this.editMode.OutputAud;
             maxRefFramesTextBox.Text = this.editMode.MaxRefFrames.ToString();
-            presetGuidComboBox.SelectedItem = presetGuidComboBox.FindString(this.editMode.PresetGuid);
-            tuningInfoComboBox.SelectedItem = tuningInfoComboBox.FindString(this.editMode.TuningInfo);
+            presetGuidComboBox.SelectedIndex = presetGuidComboBox.FindString(this.editMode.PresetGuid);
+            tuningInfoComboBox.SelectedIndex = tuningInfoComboBox.FindString(this.editMode.TuningInfo);
             enableLookaheadCheckBox.Checked = this.editMode.EnableLookahead;
             lookaheadDepthTextBox.Text = this.editMode.LookaheadDepth.ToString();
             disableIadaptCheckBox.Checked = this.editMode.DisableIadapt;
