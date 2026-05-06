@@ -55,9 +55,8 @@ async fn main() -> Result<()> {
         .expect("install rustls crypto provider");
     
     let args = Args::parse();
-    let mode = args.mode.trim().to_ascii_lowercase();
-
-    let preset = mode.as_str();
+    
+    let preset = args.mode;
     let session_id = args.session;
 
     println!("[STATE] HOST_STARTING");

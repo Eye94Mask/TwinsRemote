@@ -12,7 +12,6 @@
 #include <string>
 #include <thread>
 #include <atomic>
-#include <string>
 #include <array>
 #include <fstream>
 #include <nlohmann/json.hpp>
@@ -404,13 +403,13 @@ static bool IsValidCustomMode(StreamConfig cfg) {
     return true;
 }
 
-static int IsCustomMode(std::vector<std::pair<StreamConfig, std::string>> customModes, int argc, char** argv) {
+static int GetCustomModeIndex(std::vector<std::pair<StreamConfig, std::string>> customModes, int argc, std::string argName) {
     if (argc < 2) { return -1; }
     
     for (int i = 0; i < customModes.size(); i++) {
-        auto& [_, name] = customModes[i];
+        std::string name = customModes[i].second;
 
-        if (name == argv[1]) { return i; }
+        if (name == argName) { return i; }
     }
 
     return -1;
@@ -916,7 +915,7 @@ static void CreateSession(
         << "\n";
 }
 
-std::string replaceOtherStr(std::string& replacedStr, std::string from, std::string to) {
+std::string ReplaceOtherStr(std::string& replacedStr, std::string from, std::string to) {
     const unsigned int pos = replacedStr.find(from);
     const int len = from.length();
 
@@ -943,7 +942,7 @@ int main(int argc, char** argv) {
         std::cerr << "[INFO] Checking: " << customDirectoryPath + "/" + customFileName << std::endl;
         StreamConfig config = GetCustomModeFromFile(customDirectoryPath + "/", customFileName);
         
-        customModes.push_back(std::pair(config, replaceOtherStr(customFileName, ".json", "")));
+        customModes.push_back(std::pair(config, ReplaceOtherStr(customFileName, ".json", "")));
     }
     std::cerr << "[INFO] success getting custom files list" << std::endl;
 
@@ -1004,7 +1003,7 @@ int main(int argc, char** argv) {
 
         StreamConfig cfg;
         std::string modeName;
-        int customIndex = IsCustomMode(customModes, argc, argv);
+        int customIndex = GetCustomModeIndex(customModes, argc, argv[1]);
 
         if (customIndex >= 0) {
             auto& [mode, name] = customModes[customIndex];

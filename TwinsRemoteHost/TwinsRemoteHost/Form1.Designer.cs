@@ -115,7 +115,7 @@
             connectButton.TabIndex = 6;
             connectButton.Text = "button1";
             connectButton.UseVisualStyleBackColor = true;
-            connectButton.Click += buttonStart_Click;
+            connectButton.Click += connectButton_Click;
             // 
             // audioOnButton
             // 
