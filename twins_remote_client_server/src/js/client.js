@@ -129,6 +129,9 @@ const RTT_BAD_SEC = 0.20;   // 200ms
 const BAD_RTT_LIMIT = 3;
 const ICE_RESTART_COOLDOWN_MS = 15000;
 
+let relayMonitorIntervalId = null;
+let lastPostedNetworkMode = null;
+
 window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
     console.log("gamepad connected:", e.gamepad.id, "index=", gamepadIndex);
@@ -626,6 +629,13 @@ async function resetSession() {
     }
 }
 
+async function postClientNetworkState(mode) {
+    await postJson(buildSessionUrl("/client-network-state"), {
+        mode,
+        ts: Date.now()
+    });
+}
+
 //--------------------------------------------------
 // WebRTC stats monitoring
 //--------------------------------------------------
@@ -992,24 +1002,51 @@ function isRelayConnection(stats, selectedPair) {
 function startRelayMonitoring() {
     const candidateTypeMessenger = document.getElementById("candidateTypeMessenger");
     const limitation = document.getElementById("limitation");
-    setInterval(() => {
-        pc.getStats(null).then((stats => {
-            let selectedPair = null;
 
-            stats.forEach((report) => {
-                if (report.type === "transport" && report.selectedCandidatePairId) {
-                    selectedPair = stats.get(report.selectedCandidatePairId);
-                    if (isRelayConnection(stats, selectedPair)) {
-                        candidateTypeMessenger.textContent = "🟡 TURN Relay";
-                        limitation.textContent = "720p30 limited";
-                        return;
+    if (relayMonitorIntervalId) { clearInterval(relayMonitorIntervalId); }
+
+    relayMonitorIntervalId = setInterval(async () => {
+        const candidateTypeMessenger = document.getElementById("candidateTypeMessenger");
+        const limitation = document.getElementById("limitation");
+
+        if (relayMonitorIntervalId) { clearInterval(relayMonitorIntervalId); }
+
+        relayMonitorIntervalId = setInterval(async () => {
+            if (!pc) return;
+
+            try {
+                const stats = await pc.getStats(null);
+                let selectedPair = null;
+
+                stats.forEach((report) => {
+                    if (report.type === "transport" && report.selectedCandidatePairId) {
+                        selectedPair = stats.get(report.selectedCandidatePairId);
                     }
-                    candidateTypeMessenger.textContent = "🟢 Direct P2P";
-                    limitation.textContent = "";
+                });
+
+                if (!selectedPair) return;
+
+                const relay = isRelayConnection(state, selectedPair);
+                const mode = relay ? "relay" : "direct";
+
+                if (relay) {
+                    if (candidateTypeMessenger) candidateTypeMessenger.textContent = "🟡 TURN Relay";
+                    if (limitation) limitation.textContent = "720p30 limited";
+                } else {
+                    if (candidateTypeMessenger) candidateTypeMessenger.textContent = "🟢 Direct P2P";
+                    if (limitation) limitation.textContent = "";
                 }
-            });
-        }));
-    }, 1000);
+
+                if (lastPostedNetworkMode !== mode) {
+                    lastPostedNetworkMode = mode;
+                    await postClientNetworkState(mode);
+                    console.log("[CLIENT NETWORK STATE] posted:", mode);
+                }
+            } catch (e) {
+                console.warn("relay monitoring failed", e);
+            }
+        }, 1000);
+    });
 }
 
 function cleanupPeerConnection() {
@@ -1043,8 +1080,14 @@ function cleanupPeerConnection() {
         videoStatsMonitorAbort = null;
     }
 
+    if (relayMonitorIntervalId) {
+        clearInterval(relayMonitorIntervalId);
+        relayMonitorIntervalId = null;
+    }
+
     seenRemoteCandidates.clear();
     pendingRemoteCandidates = [];
+    lastPostedNetworkMode = null;
 
     stopVideoTrackProcessor();
 

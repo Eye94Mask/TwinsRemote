@@ -14,6 +14,8 @@ use std::sync::{
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use serde::Deserialize;
+
 use clap::Parser;
 use bytes::Bytes;
 use rustls::crypto::ring::default_provider;
@@ -26,10 +28,10 @@ use webrtc::ice_transport::ice_connection_state::RTCIceConnectionState;
 use webrtc::media::Sample;
 
 use crate::audio_encoder::AudioEncoder;
-use crate::consts::VIDEO_FRAME_DURATION;
+use crate::consts::{VIDEO_FRAME_DURATION, CAP_THRESHOLD};
 use crate::controller::{Controller, GamepadState, VirtualPadType};
 use crate::env::IceConfig;
-use crate::webrtc_sender::WebRtcSender;
+use crate::webrtc_sender::{WebRtcSender, StreamPolicy};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
@@ -48,6 +50,26 @@ enum HostCommand {
     Quit
 }
 
+
+#[derive(Debug, Clone)]
+enum NvencCommand {
+    ForceIdr,
+    ApplyStreamPolicy(StreamPolicy),
+    RestorePreset
+}
+
+struct AudioHelper {
+    child: Child,
+    stdout: ChildStdout,
+}
+
+enum AudioCommand {
+    UsePid(u32),
+    UseSystemMix,
+    Stop,
+}
+
+
 #[tokio::main]
 async fn main() -> Result<()> {
     default_provider()
@@ -58,6 +80,8 @@ async fn main() -> Result<()> {
     
     let preset = args.mode;
     let session_id = args.session;
+
+    let preset_for_nvenc_thread = preset.clone();
 
     println!("[STATE] HOST_STARTING");
     println!("[INFO] Starting Remote Play Host");
@@ -97,7 +121,39 @@ async fn main() -> Result<()> {
     std::thread::spawn(move || {
         while let Ok(cmd) = nvenc_cmd_rx.recv() {
             let line = match cmd {
-                NvencCommand::ForceIdr => "force_idr\n",
+                NvencCommand::ForceIdr => "force_idr\n".to_string(),
+
+                NvencCommand::RestorePreset => format!("set_preset {}\n", preset_for_nvenc_thread),
+
+                NvencCommand::ApplyStreamPolicy(policy) => {
+                    match policy.cap {
+                        Some(cap) => format!(
+                            "set_config {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}\n",
+                            cap.width,
+                            cap.height,
+                            cap.fps,
+                            cap.average_bitrate,
+                            cap.max_bitrate,
+                            cap.vbv_buffer_size,
+                            cap.vbv_initial_delay,
+                            cap.gop_length,
+                            cap.idr_period,
+                            cap.repeat_sps_pps as u32,
+                            cap.output_aud as u32,
+                            cap.max_ref_frames,
+                            cap.profile_guid,
+                            cap.preset_guid,
+                            cap.tuning_info,
+                            cap.enable_lookahead as u32,
+                            cap.lookahead_depth,
+                            cap.disable_iadapt as u32,
+                            cap.disable_badapt as u32
+                        ),
+                        None => {
+                            format!("set_preset {}\n", preset)
+                        }
+                    }
+                }
             };
 
             if let Err(e) = nvenc_stdin.write_all(line.as_bytes()) {
@@ -430,6 +486,59 @@ async fn main() -> Result<()> {
 
     println!("[STATE] HOST_READY");
 
+    // -------------------------------
+    // Stream Policy
+    // -------------------------------
+    let nvenc_cmd_tx_policy = nvenc_cmd_tx.clone();
+    let webrtc_policy = webrtc.clone();
+    
+    tokio::spawn(async move {
+        let mut capped = false;
+        let mut direct_streak = 0u32;
+        
+        loop {
+            match webrtc_policy.fetch_stream_policy().await {
+                Ok(Some(policy)) => {
+                    match policy.mode.as_str() {
+                        "relay" => {
+                            direct_streak = 0;
+
+                            if !capped {
+                                println!("[STREAM_POLICY] relay detected: apply cap");
+                                let _ = nvenc_cmd_tx_policy.send(NvencCommand::ApplyStreamPolicy(policy));
+                                capped = true;
+                            }
+                        }
+
+                        "direct" => {
+                            if capped {
+                                direct_streak += 1;
+
+                                if direct_streak >= CAP_THRESHOLD {
+                                    println!("[STREAM_POLICY] direct stable: restore preset");
+                                    let _ = nvenc_cmd_tx_policy.send(NvencCommand::RestorePreset);
+
+                                    capped = false;
+                                    direct_streak = 0;
+                                }
+                            }
+                        }
+
+                        other => {
+                            eprintln!("[STREAM_POLICY] unknown mode: {}", other);
+                        }
+                    }
+                }
+
+                Ok(None) => {}
+
+                Err(e) => { eprintln!("[STREAM_POLICY] fetch failed: {:?}", e); }
+            }
+        }
+
+        sleep(Duration::from_secs(1)).await;
+    });
+
     loop {
         if quit_rx.try_recv().is_ok() {
             println!("[STATE] EXITING");
@@ -439,22 +548,6 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-#[derive(Debug, Clone, Copy)]
-enum NvencCommand {
-    ForceIdr,
-}
-
-struct AudioHelper {
-    child: Child,
-    stdout: ChildStdout,
-}
-
-enum AudioCommand {
-    UsePid(u32),
-    UseSystemMix,
-    Stop,
 }
 
 fn is_force_keyframe_message(text: &str) -> bool {
