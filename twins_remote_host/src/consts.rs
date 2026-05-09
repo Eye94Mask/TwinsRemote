@@ -3,6 +3,9 @@ use std::time::Duration;
 // 60fps
 pub const VIDEO_FRAME_DURATION: Duration = Duration::from_micros(16_667);
 
+// Capping
+pub const CAP_THRESHOLD: u32 = 10;
+
 // PS Controller
 pub const SONY_VENDOR_ID: u16    = 0x054C;
 pub const DS4_PRODUCT_ID: u16    = 0x05C4;

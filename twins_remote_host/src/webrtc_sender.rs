@@ -6,7 +6,7 @@ use std::env;
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use hmac::{Hmac, KeyInit, Mac};
-use reqwest::Client;
+use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 use sha1::Sha1;
 use tokio::sync::Mutex;
@@ -37,12 +37,57 @@ pub struct WebRtcSender {
     pub peer: Arc<webrtc::peer_connection::RTCPeerConnection>,
     signal_base_url: String,
     session_id: String,
-    http: Client,
+    http: Client
 }
 
 #[derive(Debug, Deserialize)]
 struct CandidatePollResponse {
-    candidates: Vec<RTCIceCandidateInit>,
+    candidates: Vec<RTCIceCandidateInit>
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct StreamPolicy {
+    pub mode: String,
+    pub cap: Option<StreamCap>
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+pub struct StreamCap {
+    pub width: u32,
+    pub height: u32,
+    pub fps: u32,
+    #[serde(rename = "averageBitrate")]
+    pub average_bitrate: u32,
+    #[serde(rename = "maxBitrate")]
+    pub max_bitrate: u32,
+    #[serde(rename = "vbvBufferSize")]
+    pub vbv_buffer_size: u32,
+    #[serde(rename = "vbvInitialDelay")]
+    pub vbv_initial_delay: u32,
+    #[serde(rename = "gopLength")]
+    pub gop_length: u32,
+    #[serde(rename = "idrPeriod")]
+    pub idr_period: u32,
+    #[serde(rename = "repeatSpsPps")]
+    pub repeat_sps_pps: bool,
+    #[serde(rename = "outputAud")]
+    pub output_aud: bool,
+    #[serde(rename = "maxRefFrames")]
+    pub max_ref_frames: u32,
+    #[serde(rename = "profileGuid")]
+    pub profile_guid: String,
+    #[serde(rename = "presetGuid")]
+    pub preset_guid: String,
+    #[serde(rename = "tuningInfo")]
+    pub tuning_info: String,
+    #[serde(rename = "enableLookahead")]
+    pub enable_lookahead: bool,
+    #[serde(rename = "lookaheadDepth")]
+    pub lookahead_depth: u32,
+    #[serde(rename = "disableIadapt")]
+    pub disable_iadapt: bool,
+    #[serde(rename = "disableBadapt")]
+    pub disable_badapt: bool
 }
 
 fn current_unix_time() -> u64 {
@@ -245,7 +290,7 @@ impl WebRtcSender {
 
         let resp = self.http.get(&url).send().await?;
 
-        if resp.status() == 204 {
+        if resp.status() == StatusCode::NO_CONTENT {
             return Ok(None);
         }
 
@@ -307,7 +352,7 @@ impl WebRtcSender {
             loop {
                 match http.get(&url).send().await {
                     Ok(resp) => {
-                        if resp.status() == 204 {
+                        if resp.status() == StatusCode::NO_CONTENT {
                             sleep(Duration::from_millis(300)).await;
                             continue;
                         }
@@ -360,5 +405,29 @@ impl WebRtcSender {
                 sleep(Duration::from_millis(300)).await;
             }
         });
+    }
+
+    pub async fn fetch_stream_policy(&self) -> Result<Option<StreamPolicy>> {
+        let url = with_session_id(
+            &self.signal_base_url,
+            "/stream-policy",
+            &self.session_id
+        );
+
+        let resp = self.http.get(&url).send().await?;
+
+        if resp.status() == StatusCode::NO_CONTENT {
+            return Ok(None);
+        }
+
+        if !resp.status().is_success() {
+            return Err(anyhow!(
+                "[ERR] fetch_stream_policy failed: {}",
+                resp.status()
+            ));
+        }
+
+        let policy = resp.json::<StreamPolicy>().await?;
+        Ok(Some(policy))
     }
 }
