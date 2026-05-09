@@ -456,6 +456,7 @@ async fn main() -> Result<()> {
             }
         }
     };
+    let initial_offer_json = offer_json.clone();
 
     println!("[STATE] OFFER_RECEIVED");
 
@@ -487,6 +488,57 @@ async fn main() -> Result<()> {
     println!("[STATE] HOST_READY");
 
     // -------------------------------
+    // Check Offer Constantly
+    // -------------------------------
+    let webrtc_renegotiate = webrtc.clone();
+    tokio::spawn(async move {
+        let mut last_offer: Option<String> = Some(initial_offer_json);
+
+        loop {
+            match webrtc_renegotiate.fetch_offer().await {
+                Ok(Some(offer_json)) => {
+                    if last_offer.as_ref() == Some(&offer_json) {
+                        sleep(Duration::from_millis(500)).await;
+                        continue;
+                    }
+
+                    println!("[HOST] RENEGOTIATION_OFFER_RECEIVED");
+
+                    match async {
+                        webrtc_renegotiate.set_remote_offer(&offer_json).await?;
+
+                        let answer = webrtc_renegotiate
+                            .create_and_set_local_answer()
+                            .await?;
+
+                        webrtc_renegotiate.post_answer(&answer).await?;
+
+                        Ok::<(), anyhow::Error>(())
+                    }
+                    .await
+                    {
+                        Ok(()) => {
+                            println!("[HOST] RENEGOTIATION_ANSWER_POSTED");
+                            last_offer = Some(offer_json);
+                        }
+                        Err(e) => {
+                            eprintln!("[HOST] renegotiation failed: {:?}", e);
+                        }
+                    }
+                }
+
+                Ok(None) => {}
+
+                Err(e) => {
+                    eprintln!("[HOST] renegotiation fetch_offer error: {:?}", e);
+                }
+            }
+
+            sleep(Duration::from_millis(500)).await;
+        }
+    });
+
+    // -------------------------------
     // Stream Policy
     // -------------------------------
     let nvenc_cmd_tx_policy = nvenc_cmd_tx.clone();
@@ -495,7 +547,7 @@ async fn main() -> Result<()> {
     tokio::spawn(async move {
         let mut capped = false;
         let mut direct_streak = 0u32;
-        
+
         loop {
             match webrtc_policy.fetch_stream_policy().await {
                 Ok(Some(policy)) => {
@@ -505,7 +557,8 @@ async fn main() -> Result<()> {
 
                             if !capped {
                                 println!("[STREAM_POLICY] relay detected: apply cap");
-                                let _ = nvenc_cmd_tx_policy.send(NvencCommand::ApplyStreamPolicy(policy));
+                                let _ = nvenc_cmd_tx_policy
+                                    .send(NvencCommand::ApplyStreamPolicy(policy));
                                 capped = true;
                             }
                         }
@@ -516,7 +569,8 @@ async fn main() -> Result<()> {
 
                                 if direct_streak >= CAP_THRESHOLD {
                                     println!("[STREAM_POLICY] direct stable: restore preset");
-                                    let _ = nvenc_cmd_tx_policy.send(NvencCommand::RestorePreset);
+                                    let _ = nvenc_cmd_tx_policy
+                                        .send(NvencCommand::RestorePreset);
 
                                     capped = false;
                                     direct_streak = 0;
@@ -532,11 +586,13 @@ async fn main() -> Result<()> {
 
                 Ok(None) => {}
 
-                Err(e) => { eprintln!("[STREAM_POLICY] fetch failed: {:?}", e); }
+                Err(e) => {
+                    eprintln!("[STREAM_POLICY] fetch failed: {:?}", e);
+                }
             }
-        }
 
-        sleep(Duration::from_secs(1)).await;
+            sleep(Duration::from_secs(1)).await;
+        }
     });
 
     loop {

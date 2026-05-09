@@ -17,6 +17,8 @@
 #include <nlohmann/json.hpp>
 #include "msdirent.h"
 #include "nvEncodeAPI.h"
+#include <mutex>
+#include <sstream>
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -297,14 +299,14 @@ static GUID GetCustomProfileGuidFromStr(std::string profileGuid) {
     return NV_ENC_H264_PROFILE_HIGH_GUID;
 }
 
-static GUID GetCustomPresetGuidFromStr(std::string profileGuid) {
-    if (profileGuid == "NV_ENC_PRESET_P1_GUID") return NV_ENC_PRESET_P1_GUID;
-    if (profileGuid == "NV_ENC_PRESET_P2_GUID") return NV_ENC_PRESET_P2_GUID;
-    if (profileGuid == "NV_ENC_PRESET_P3_GUID") return NV_ENC_PRESET_P3_GUID;
-    if (profileGuid == "NV_ENC_PRESET_P4_GUID") return NV_ENC_PRESET_P4_GUID;
-    if (profileGuid == "NV_ENC_PRESET_P5_GUID") return NV_ENC_PRESET_P5_GUID;
-    if (profileGuid == "NV_ENC_PRESET_P6_GUID") return NV_ENC_PRESET_P6_GUID;
-    if (profileGuid == "NV_ENC_PRESET_P7_GUID") return NV_ENC_PRESET_P7_GUID;
+static GUID GetCustomPresetGuidFromStr(std::string presetGuid) {
+    if (presetGuid == "NV_ENC_PRESET_P1_GUID") return NV_ENC_PRESET_P1_GUID;
+    if (presetGuid == "NV_ENC_PRESET_P2_GUID") return NV_ENC_PRESET_P2_GUID;
+    if (presetGuid == "NV_ENC_PRESET_P3_GUID") return NV_ENC_PRESET_P3_GUID;
+    if (presetGuid == "NV_ENC_PRESET_P4_GUID") return NV_ENC_PRESET_P4_GUID;
+    if (presetGuid == "NV_ENC_PRESET_P5_GUID") return NV_ENC_PRESET_P5_GUID;
+    if (presetGuid == "NV_ENC_PRESET_P6_GUID") return NV_ENC_PRESET_P6_GUID;
+    if (presetGuid == "NV_ENC_PRESET_P7_GUID") return NV_ENC_PRESET_P7_GUID;
 
     // デフォルトはバランスのいいP4
     return NV_ENC_PRESET_P4_GUID;
@@ -403,13 +405,14 @@ static bool IsValidCustomMode(StreamConfig cfg) {
     return true;
 }
 
-static int GetCustomModeIndex(std::vector<std::pair<StreamConfig, std::string>> customModes, int argc, std::string argName) {
-    if (argc < 2) { return -1; }
-    
-    for (int i = 0; i < customModes.size(); i++) {
-        std::string name = customModes[i].second;
-
-        if (name == argName) { return i; }
+static int GetCustomModeIndex(
+    const std::vector<std::pair<StreamConfig, std::string>>& customModes,
+    const std::string& argName
+) {
+    for (int i = 0; i < static_cast<int>(customModes.size()); i++) {
+        if (customModes[i].second == argName) {
+            return i;
+        }
     }
 
     return -1;
@@ -926,6 +929,40 @@ std::string ReplaceOtherStr(std::string& replacedStr, std::string from, std::str
     return replacedStr.replace(pos, len, to);
 }
 
+bool ShouldApplyRelayCap(StreamConfig current, StreamConfig cap){
+    return current.width > cap.width
+        || current.height > cap.height
+        || current.fps > cap.fps
+        || current.averageBitrate > cap.averageBitrate;
+}
+
+static StreamConfig GetStreamConfigByName(
+    const std::string& name,
+    const std::vector<std::pair<StreamConfig, std::string>>& customModes
+) {
+    const int customIndex = GetCustomModeIndex(customModes, name);
+
+    if (customIndex >= 0) {
+        return customModes[customIndex].first;
+    }
+
+    std::string arg = name;
+    for (auto& c : arg) {
+        c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+    }
+
+    if (arg == "stable")   { return GetStreamConfig(StreamPreset::Stable); }
+    if (arg == "balanced") { return GetStreamConfig(StreamPreset::Balanced); }
+    if (arg == "quality")  { return GetStreamConfig(StreamPreset::Quality); }
+    if (arg == "mobile")   { return GetStreamConfig(StreamPreset::Mobile); }
+
+    std::cerr << "[WARN] Unknown preset in set_preset: "
+        << name
+        << " fallback to balanced\n";
+
+    return GetStreamConfig(StreamPreset::Balanced);
+}
+
 // ----------------------------------------------------
 // Main
 // ----------------------------------------------------
@@ -952,12 +989,18 @@ int main(int argc, char** argv) {
     DuplicationContext dup{};
     EncoderContext enc{};
     ScaleContext scaler{};
+    StreamConfig cfg;
 
     std::atomic<bool> forceIdrRequested{ false };
     std::atomic<bool> stopCommandThread{ false };
+    std::atomic<bool> reconfigureRequested{ false };
+    std::atomic<bool> relayCapActuallyApplied{ false };
+    std::mutex pendingConfigMutex;
+    StreamConfig pendingConfig{};
 
     std::thread commandThread([&]() {
         std::string line;
+
         while (!stopCommandThread.load()) {
             if (!std::getline(std::cin, line)) {
                 Sleep(10);
@@ -967,9 +1010,144 @@ int main(int argc, char** argv) {
             if (line == "force_idr") {
                 forceIdrRequested.store(true);
                 std::cerr << "[NVENC] command received: force_idr\n";
+                continue;
             }
+
+            if (line.rfind("set_preset ", 0) == 0) {
+                if (!relayCapActuallyApplied.load()) {
+                    std::cerr << "[NVENC] set_preset skipped: relay cap was not applied\n";
+                    continue;
+                }
+
+                std::istringstream iss(line);
+
+                std::string cmd;
+                std::string presetName;
+
+                if (iss >> cmd >> presetName) {
+                    StreamConfig next = GetStreamConfigByName(presetName, customModes);
+
+                    {
+                        std::lock_guard<std::mutex> lock(pendingConfigMutex);
+                        pendingConfig = next;
+                    }
+
+                    reconfigureRequested.store(true);
+                    forceIdrRequested.store(true);
+                    relayCapActuallyApplied.store(false);
+
+                    std::cerr << "[NVENC] command received: set_preset "
+                        << presetName << "\n";
+                }
+
+                continue;
+            }
+
+            if (line.rfind("set_config ", 0) == 0) {
+                std::istringstream iss(line);
+
+                std::string cmd;
+                uint32_t width = 0;
+                uint32_t height = 0;
+                uint32_t fps = 0;
+                uint32_t averageBitrate = 0;
+                uint32_t maxBitrate = 0;
+                uint32_t vbvBufferSize = 0;
+                uint32_t vbvInitialDelay = 0;
+                uint32_t gopLength = 0;
+                uint32_t idrPeriod = 0;
+                uint32_t repeatSpsPps = 0;
+                uint32_t outputAud = 0;
+                uint32_t maxRefFrames = 0;
+                std::string profileGuid;
+                std::string presetGuid;
+                std::string tuningInfo;
+                uint32_t enableLookahead = 0;
+                uint32_t lookaheadDepth = 0;
+                uint32_t disableIadapt = 0;
+                uint32_t disableBadapt = 0;
+
+                if (
+                    iss >> cmd
+                    >> width
+                    >> height
+                    >> fps
+                    >> averageBitrate
+                    >> maxBitrate
+                    >> vbvBufferSize
+                    >> vbvInitialDelay
+                    >> gopLength
+                    >> idrPeriod
+                    >> repeatSpsPps
+                    >> outputAud
+                    >> maxRefFrames
+                    >> profileGuid
+                    >> presetGuid
+                    >> tuningInfo
+                    >> enableLookahead
+                    >> lookaheadDepth
+                    >> disableIadapt
+                    >> disableBadapt
+                ) {
+                    if (width == 0 || height == 0 || fps == 0 || averageBitrate == 0) {
+                        std::cerr << "[NVENC] invalid ste_config values\n";
+                        continue;
+                    }
+
+                    StreamConfig next{};
+                    next.width = width;
+                    next.height = height;
+                    next.fps = fps;
+                    next.averageBitrate = averageBitrate;
+                    next.maxBitrate = maxBitrate;
+                    next.vbvBufferSize = vbvBufferSize;
+                    next.vbvInitialDelay = vbvInitialDelay;
+                    next.gopLength = gopLength;
+                    next.idrPeriod = idrPeriod;
+                    next.repeatSpsPps = repeatSpsPps != 0;
+                    next.outputAud = outputAud != 0;
+                    next.maxRefFrames = maxRefFrames;
+                    next.profileGuid = GetCustomProfileGuidFromStr(profileGuid);
+                    next.presetGuid = GetCustomPresetGuidFromStr(presetGuid);
+                    next.tuningInfo = GetCustomTuningInfoGuidFromStr(tuningInfo);
+                    next.enableLookahead = enableLookahead != 0;
+                    next.lookaheadDepth = lookaheadDepth;
+                    next.disableIadapt = disableIadapt != 0;
+                    next.disableBadapt = disableBadapt != 0;
+
+                    if (!ShouldApplyRelayCap(cfg, next)) {
+                        relayCapActuallyApplied.store(false);
+                        std::cerr << "[NVENC] relay cap skipped: current config is already <= cap\n";
+                        continue;
+                    }
+
+                    relayCapActuallyApplied.store(true);
+
+                    {
+                        std::lock_guard<std::mutex> lock(pendingConfigMutex);
+                        pendingConfig = next;
+                    }
+
+                    reconfigureRequested.store(true);
+                    forceIdrRequested.store(true);
+
+                    std::cerr << "[NVENC] command received: set_config"
+                              << width << "x" << height
+                              << " @" << fps
+                              << " bitrate=" << averageBitrate / 1000
+                              << "kbps\n";
+                }
+                else {
+                    std::cerr << "[NVENC] failed to parse set_config: "
+                        << line << "\n";
+                }
+
+                continue;
+            }
+
+            std::cerr << "[NVENC] unknown command: " << line << "\n";
         }
-        });
+    });
 
     try {
         D3D_FEATURE_LEVEL flOut = D3D_FEATURE_LEVEL_11_0;
@@ -1001,9 +1179,8 @@ int main(int argc, char** argv) {
         LoadNvEnc();
         std::cerr << "[INFO] NVENC API Loaded\n";
 
-        StreamConfig cfg;
         std::string modeName;
-        int customIndex = GetCustomModeIndex(customModes, argc, argv[1]);
+        int customIndex = GetCustomModeIndex(customModes, argv[1]);
 
         if (customIndex >= 0) {
             auto& [mode, name] = customModes[customIndex];
@@ -1032,6 +1209,26 @@ int main(int argc, char** argv) {
                     IDXGIResource* desktopResource = nullptr;
                     ID3D11Texture2D* desktopTex = nullptr;
                     bool acquiredFrame = false;
+
+                    if (reconfigureRequested.exchange(false)) {
+                        {
+                            std::lock_guard<std::mutex> lock(pendingConfigMutex);
+                            cfg = pendingConfig;
+                        }
+
+                        firstFrame = true;
+
+                        forceIdrRequested.store(true);
+
+                        std::cerr << "[NVENC] reconfigure requested: "
+                            << cfg.width << "x" << cfg.height
+                            << " @" << cfg.fps
+                            << " bitrate=" << cfg.averageBitrate / 1000
+                            << "kbps\n";
+
+                        throw RecreateSessionException("stream config changed");
+                    }
+
 
                     try {
                         DXGI_OUTDUPL_FRAME_INFO frameInfo{};

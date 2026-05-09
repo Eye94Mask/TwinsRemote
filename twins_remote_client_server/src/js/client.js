@@ -119,7 +119,7 @@ const MAX_RENDER_BACKLOG = 1;
 // "relay-test" | "normal" | "stun-first"
 // !!!! リリース前には絶対に normal に変更すること !!!!
 // =======================================================================================
-const ICE_MODE = "normal" 
+let ICE_MODE = "normal"; 
 
 let badRttCount = 0;
 let lastIceRestartAt = 0;
@@ -551,11 +551,14 @@ function startAnswerPolling() {
 
     answerPollIntervalId = setInterval(async () => {
         if (!pc) return;
-        if (pc.remoteDescription) return;
 
         try {
             const ok = await pollAnswerOnce();
-            if (ok) {
+
+            if (
+                ok &&
+                pc.signalingState === "stable"
+            ) {
                 clearInterval(answerPollIntervalId);
                 answerPollIntervalId = null;
             }
@@ -879,6 +882,19 @@ async function connect() {
 
 async function maybeRestartIceByRtt(selectedPair) {
     if (!selectedPair || !pc) return;
+    if (
+        pc.iceConnectionState !== "connected" &&
+        pc.iceConnectionState !== "completed"
+    ) {
+        return;
+    }
+
+    const stats = await pc.getStats();
+
+    if (isRelayConnection(stats, selectedPair)) {
+        return;
+    }
+
     const rtt = selectedPair.currentRoundTripTime;
     if (typeof rtt !== "number") return;
 
@@ -906,22 +922,10 @@ async function maybeRestartIceByRtt(selectedPair) {
 
     await postOffer(pc.localDescription.toJSON());
     startAnswerPolling();
-}
 
-function setPeerConnection(config) {
-    const stunOnlyConfig = {
-        ...config,
-        iceServers: config.iceServers.filter(s => 
-            String(s.urls).includes("stun:") ||
-            (Array.isArray(s.urls) && s.urls.some(u => u.startsWith("stun:")))
-        )
-    };
-
-    if (relay) { pc = new RTCPeerConnection(buildRtcConfig(config)); }
-    else {
-        pc = new RTCPeerConnection(buildRtcConfig(stunOnlyConfig));
-        startTurnFallbackTimer(config);
-    }
+    setTimeout(() => {
+        sendForceKeyframe("after_ice_restart");
+    }, 800);
 }
 
 function urlsOf(server) {
@@ -964,34 +968,6 @@ function buildRtcConfig(config) {
     }
 }
 
-function startTurnFallbackTimer(config) {
-    setTimeout(async () => {
-        if (!pc || turnEnabled) return;
-
-        const state = pc.iceConnectionState;
-        if (state === "connected" || state === "completed") return;
-
-        turnEnabled = true;
-        log("TURN fallback enabled");
-
-        pc.setConfiguration({
-            iceServers: config.iceServers,
-            iceTransportPolicy: "all",
-            bundlePolicy: "max-bundle",
-            rtcpMuxPolicy: "require",
-        });
-
-        const offer = await pc.createOffer({ iceRestart: true });
-        await pc.setLocalDescription(offer);
-
-        seenRemoteCandidates.clear();
-        pendingRemoteCandidates = [];
-
-        await postOffer(pc.localDescription.toJSON());
-        startAnswerPolling();
-    }, 3000);
-}
-
 function isRelayConnection(stats, selectedPair) {
     const local = stats.get(selectedPair.localCandidateId);
     const remote = stats.get(selectedPair.remoteCandidateId);
@@ -1003,50 +979,57 @@ function startRelayMonitoring() {
     const candidateTypeMessenger = document.getElementById("candidateTypeMessenger");
     const limitation = document.getElementById("limitation");
 
-    if (relayMonitorIntervalId) { clearInterval(relayMonitorIntervalId); }
+    if (relayMonitorIntervalId) {
+        clearInterval(relayMonitorIntervalId);
+    }
 
     relayMonitorIntervalId = setInterval(async () => {
-        const candidateTypeMessenger = document.getElementById("candidateTypeMessenger");
-        const limitation = document.getElementById("limitation");
+        if (!pc) return;
 
-        if (relayMonitorIntervalId) { clearInterval(relayMonitorIntervalId); }
+        try {
+            const stats = await pc.getStats(null);
+            let selectedPair = null;
 
-        relayMonitorIntervalId = setInterval(async () => {
-            if (!pc) return;
+            stats.forEach((report) => {
+                if (report.type === "transport" && report.selectedCandidatePairId) {
+                    selectedPair = stats.get(report.selectedCandidatePairId);
+                }
+            });
 
-            try {
-                const stats = await pc.getStats(null);
-                let selectedPair = null;
+            if (!selectedPair) return;
 
-                stats.forEach((report) => {
-                    if (report.type === "transport" && report.selectedCandidatePairId) {
-                        selectedPair = stats.get(report.selectedCandidatePairId);
-                    }
-                });
+            const relay = isRelayConnection(stats, selectedPair);
+            const mode = relay ? "relay" : "direct";
 
-                if (!selectedPair) return;
-
-                const relay = isRelayConnection(state, selectedPair);
-                const mode = relay ? "relay" : "direct";
-
-                if (relay) {
-                    if (candidateTypeMessenger) candidateTypeMessenger.textContent = "🟡 TURN Relay";
-                    if (limitation) limitation.textContent = "720p30 limited";
-                } else {
-                    if (candidateTypeMessenger) candidateTypeMessenger.textContent = "🟢 Direct P2P";
-                    if (limitation) limitation.textContent = "";
+            if (relay) {
+                if (candidateTypeMessenger) {
+                    candidateTypeMessenger.textContent = "🟡 TURN Relay";
                 }
 
-                if (lastPostedNetworkMode !== mode) {
-                    lastPostedNetworkMode = mode;
-                    await postClientNetworkState(mode);
-                    console.log("[CLIENT NETWORK STATE] posted:", mode);
+                if (limitation) {
+                    limitation.textContent = "720p30 limited";
                 }
-            } catch (e) {
-                console.warn("relay monitoring failed", e);
+            } else {
+                if (candidateTypeMessenger) {
+                    candidateTypeMessenger.textContent = "🟢 Direct P2P";
+                }
+
+                if (limitation) {
+                    limitation.textContent = "";
+                }
             }
-        }, 1000);
-    });
+
+            if (lastPostedNetworkMode !== mode) {
+                lastPostedNetworkMode = mode;
+
+                await postClientNetworkState(mode);
+
+                console.log("[CLIENT NETWORK STATE] posted:", mode);
+            }
+        } catch (e) {
+            console.warn("relay monitoring failed", e);
+        }
+    }, 1000);
 }
 
 function cleanupPeerConnection() {
