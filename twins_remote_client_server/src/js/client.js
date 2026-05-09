@@ -129,6 +129,22 @@ const RTT_BAD_SEC = 0.20;   // 200ms
 const BAD_RTT_LIMIT = 3;
 const ICE_RESTART_COOLDOWN_MS = 15000;
 
+// ==========================
+// Cap 外し予防
+// ==========================
+const RELAY_CAP_WIDTH = 1200;
+const RELAY_CAP_HEIGHT = 720;
+const RELAY_CAP_FPS = 30;
+const RELAY_CAP_BITRATE_BPS = 5_000_000;
+
+const FPS_MARGIN = 5;           // 35fps 超えで違反
+const BITRATE_MARGIN = 1.4;     // 7Mbps 超えで違反
+const HARD_BITRATE_MARGIN = 2.0 // 10Mbps 超えで強違反
+
+let capViolationScore = 0;
+let lastVideoBytes = null;
+let lastVideoBytesAt = null;
+
 let relayMonitorIntervalId = null;
 let lastPostedNetworkMode = null;
 
@@ -1444,6 +1460,16 @@ function startStatsMonitor() {
 
             stats.forEach((report) => {
                 if (report.type === "inbound-rtp" && report.kind === "video") {
+                    const bitrateBps = estimateVideoBitrateBps(report);
+                    const isRelay = selectedCandidatePair
+                        ? isRelayConnection(stats, selectedCandidatePair)
+                        : false;
+                    
+                    if (updateCapViolationScore(report, bitrateBps, isRelay)) {
+                        disconnectForCapViolation(report, bitrateBps);
+                        return;
+                    }
+                    
                     console.log("[video stats]", {
                         packetsReceived: report.packetsReceived,
                         bytesReceived: report.bytesReceived,
@@ -1595,4 +1621,73 @@ async function logRtcSummary(pc) {
         processorLateDroppedFrames: lateDroppedFrames,
         latestFrameAgeMs: firstVideoFrameArrived ? Math.floor(nowMs() - lastFrameArrivedAt) : null,
     });
+}
+
+function estimateVideoBitrateBps(report) {
+    const now = performance.now();
+
+    if (lastVideoBytes == null || lastVideoBytesAt == null) {
+        lastVideoBytes = report.bytesReceived;
+        lastVideoBytesAt = now;
+        return null;
+    }
+
+    const deltaBytes = report.bytesReceived - lastVideoBytes;
+    const deltaMs = now - lastVideoBytesAt;
+
+    lastVideoBytes = report.bytesReceived;
+    lastVideoBytesAt = now;
+
+    if (deltaMs <= 0 || deltaBytes < 0) return null;
+
+    return (deltaBytes * 8 * 1000) / deltaMs;
+}
+
+function updateCapViolationScore(report, bitrateBps, isRelay) {
+    if (!isRelay) {
+        capViolationScore = 0;
+        return false;
+    }
+
+    const width  = report.frameWidth || 0;
+    const height = report.frameHeight || 0;
+    const fps    = report.framesPerSecond || 0;
+
+    let scoreAdd = 0;
+
+    if (width > RELAY_CAP_WIDTH || height > RELAY_CAP_HEIGHT) {
+        scoreAdd += 4;
+    }
+
+    if (fps > RELAY_CAP_FPS + FPS_MARGIN) {
+        scoreAdd += 3;
+    }
+
+    if (scoreAdd > 0) {
+        capViolationScore += scoreAdd;
+    } else {
+        capViolationScore = Math.max(0, capViolationScore - 1);
+    }
+
+    return capViolationScore >= 12
+}
+
+function disconnectForCapViolation(report, bitrateBps) {
+    console.warn("[CAP VIOLATION] disconnecting", {
+        width: report.frameWidth,
+        height: report.frameHeight,
+        fps: report.framesPerSecond,
+        bitrateMbps: bitrateBps ? bitrateBps / 1_000_000 : null
+    });
+
+    setStatus("failed", "TURN relay 中の品質制限を超えたため切断しました");
+
+    log("!!! [WARN] Cap Violation is detected !!!");
+    log("!!! Disconnected from the host !!!");
+
+    try {
+        pc?.close();
+    } catch(_) {}
+
+    pc = null;
 }
