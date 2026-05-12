@@ -148,6 +148,11 @@ let lastVideoBytesAt = null;
 let relayMonitorIntervalId = null;
 let lastPostedNetworkMode = null;
 
+let dcKeepaliveTimer = null;
+let dcLastPongAt = 0;
+let dcLastPingAt = 0;
+let reconnecting = false;
+
 window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
     console.log("gamepad connected:", e.gamepad.id, "index=", gamepadIndex);
@@ -789,6 +794,36 @@ async function connect() {
 
         dc.onmessage = (ev) => {
             console.log("DataChannel message:", ev.data);
+
+            let msg;
+
+            try {
+                msg = JSON.parse(event.data);
+            } catch {
+                return;
+            }
+
+            if (msg.type === "dc_ping") {
+                if (dc?.readyState === "open") {
+                    dc.send(JSON.stringify({
+                        type: "dc_pong",
+                        t: msg.t,
+                        receivedAt: Date.now()
+                    }));
+                }
+                return;
+            }
+
+            if (msg.type === "dc_pong") {
+                dcLastPongAt = Date.now();
+
+                console.log("[dc.keepalive] pong", {
+                    rtt: dcLastPongAt - msg.t,
+                    dcBufferedAmount: dc.bufferedAmount,
+                });
+
+                return;
+            }
         };
     };
 
@@ -823,6 +858,10 @@ async function connect() {
     pc.oniceconnectionstatechange = async () => {
         console.log("iceConnectionState =", pc.iceConnectionState);
 
+        if (pc && dc) {
+            logPcState("pc.iceconnectionstatechange", pc, dc);
+        }
+
         if (pc.iceConnectionState === "checking") {
             setStatus("connecting", "接続待機中");
         }
@@ -849,15 +888,27 @@ async function connect() {
     };
 
     pc.onconnectionstatechange = () => {
-        console.log("connectionState =", pc.connectionState);
+        if (pc && dc) {
+            logPcState("pc.connectionstatechange", pc, dc);
+        }
     };
 
     pc.onicegatheringstatechange = () => {
-        console.log("iceGatheringState =", pc.iceGatheringState);
+        if (pc && dc) {
+            logPcState("pc.connectionstatechange", pc, dc);
+        }
     };
 
     pc.onsignalingstatechange = () => {
-        console.log("signalingState =", pc.signalingState);
+        if (pc && dc) {
+            logPcState("pc.connectionstatechange", pc, dc);
+        }
+    };
+
+    const originalPcClose = pc.close.bind(pc);
+    pc.close = () => {
+        console.warn("pc.close called", new Error().stack);
+        originalPcClose();
     };
 
     dc = pc.createDataChannel("input", {
@@ -867,15 +918,18 @@ async function connect() {
 
     dc.onopen = () => {
         log("[CLIENT] input DataChannel Open");
+        logPcState("dc.open", pc, dc);
         startGamepadLoop();
     };
 
     dc.onclose = () => {
         log("[CLIENT] input DataChannel closed");
+        logPcState("dc.close", pc, dc);
     }
 
     dc.onerror = (err) => {
         console.error("[CLIENT] input DataChannel error", err);
+        logPcState("dc.error", pc, dc);
     }
 
     const offer = await pc.createOffer();
@@ -1690,4 +1744,93 @@ function disconnectForCapViolation(report, bitrateBps) {
     } catch(_) {}
 
     pc = null;
+}
+
+// DataChannel 自動切断防止策1
+function startDataChannelKeepalive(dc, pc) {
+    stopDataChannelKeepalive();
+
+    dcLastPongAt = Date.now();
+
+    dcKeepaliveTimer = setInterval(() => {
+        if (!dc || dc.readyState !== "open") return;
+
+        const now = Date.now();
+
+        // 60秒以上 pong が帰ってこない -> 異常検知
+        if (now - dcLastPongAt > 60000) {
+            console.warn("[dc.keepalive] pong timeout", {
+                now, dcLastPongAt,
+                pcConnectionState: pc?.connectionState,
+                iceConnectionState: pc?.iceConnectionState,
+                signalingState: pc?.signalingState,
+                dcReadyState: dc?.readyState,
+                dcBufferedAmount: dc?.bufferedAmount,
+            });
+
+            handleDataChannelDead("pong timeout");
+            return;
+        }
+
+        dcLastPingAt = now;
+
+        try {
+            dc.send(JSON.stringify({
+                type: "dc_ping",
+                t: now
+            }));
+        } catch (e) {
+            console.error("[dc.keepalive] send failed", e);
+            handleDataChannelDead("ping send failed");
+        }
+    }, 10000);
+}
+
+function stopDataChannelKeepalive() {
+    if (dcKeepaliveTimer) {
+        clearInterval(dcKeepaliveTimer);
+        dcKeepaliveTimer = null;
+    }
+}
+
+function handleDataChannelDead() {
+    if (reconnecting) return;
+    reconnecting = true;
+
+    console.warn("[dc.dead]", reason);
+
+    stopDataChannelKeepalive();
+
+    try {
+        if (dc && dc.readyState !== "closed") {
+            dc.close();
+        }
+    } catch {}
+
+    try {
+        if (pc && pc.signalingState !== "closed") {
+            pc.close();
+        }
+    } catch {}
+
+    setTimeout(async () => {
+        try {
+            reconnecting = false;
+            await connect();
+        } catch (e) {
+            console.error("[reconnect] failed", e);
+        }
+    }, 1000);
+}
+
+function logPcState(prefix, pc, dc) {
+    console.log(`[${prefix}]`, {
+        time: new Date().toISOString(),
+        pcConnectionState: pc?.connectionState,
+        iceConnectionState: pc?.iceConnectionState,
+        iceGatheringState: pc?.iceGatheringState,
+        signalingState: pc?.signalingState,
+        dcReadyState: dc?.readyState,
+        dcBufferedAmount: dc?.bufferedAmount,
+    });
 }
