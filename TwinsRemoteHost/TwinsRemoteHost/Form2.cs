@@ -40,7 +40,9 @@ namespace TwinsRemoteHost
 
                     if (process != null && processId != 0)
                     {
-                        audioProcesses.Add(new Tuple<int, string>((int)processId, process.ProcessName));
+                        var audioTuple = new Tuple<int, string>((int)processId, process.ProcessName);
+                        if (audioProcesses.Contains(audioTuple)) { continue; }
+                        audioProcesses.Add(audioTuple);
                     }
                 }
             }
