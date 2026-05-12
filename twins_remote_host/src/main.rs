@@ -15,6 +15,7 @@ use std::sync::{
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Deserialize;
+use serde_json::json;
 
 use clap::Parser;
 use bytes::Bytes;
@@ -270,6 +271,8 @@ async fn main() -> Result<()> {
     let last_force_keyframe_at = Arc::new(AtomicU64::new(0));
     let last_force_keyframe_at_clone = last_force_keyframe_at.clone();
 
+    let pc = webrtc.peer.clone();
+
     webrtc.peer.on_data_channel(Box::new(move |dc| {
         println!("DataChannel accepted from client: {}", dc.label());
 
@@ -277,16 +280,112 @@ async fn main() -> Result<()> {
         let nvenc_cmd_tx_clone = nvenc_cmd_tx_clone.clone();
         let last_force_keyframe_at_clone = last_force_keyframe_at_clone.clone();
 
+        let pc_clone = pc.clone();
+        let dc_clone = dc.clone();
         Box::pin(async move {
+            let pc_clone_clone = pc_clone.clone();
+            let dc_clone_clone = dc_clone.clone();
             dc.on_open(Box::new(move || {
+                let pc_clone_1 = pc_clone_clone.clone();
+                let dc_clone_1 = dc_clone_clone.clone();
                 println!("[HOST] DataChannel OPEN");
+                pc_clone.on_peer_connection_state_change(Box::new(move |_| {
+                    let pc_clone_clone_clone = pc_clone_1.clone();
+                    let dc_clone_clone_clone = dc_clone_1.clone();
+                    Box::pin(async move {
+                        let my_pc = pc_clone_clone_clone.clone();
+                        let my_dc = dc_clone_clone_clone.clone();
+                        log_pc_state("[HOST] pc.connection_state_change", &my_pc, &my_dc).await;
+                    })
+                }));
+
+                let pc_clone_2 = pc_clone_clone.clone();
+                let dc_clone_2 = dc_clone_clone.clone();
+                pc_clone.on_ice_connection_state_change(Box::new(move |_| {
+                    let pc_clone_clone_clone = pc_clone_2.clone();
+                    let dc_clone_clone_clone = dc_clone_2.clone();
+                    Box::pin(async move {
+                        let my_pc = pc_clone_clone_clone.clone();
+                        let my_dc = dc_clone_clone_clone.clone();
+                        log_pc_state("[HOST] pc.ice_connection_state_change", &my_pc, &my_dc).await;
+                    })
+                }));
+
+                let pc_clone_3 = pc_clone_clone.clone();
+                let dc_clone_3 = dc_clone_clone.clone();
+                pc_clone.on_signaling_state_change(Box::new(move |_| {
+                    let pc_clone_clone_clone = pc_clone_3.clone();
+                    let dc_clone_clone_clone = dc_clone_3.clone();
+                    Box::pin(async move {
+                        let my_pc = pc_clone_clone_clone.clone();
+                        let my_dc = dc_clone_clone_clone.clone();
+                        log_pc_state("[HOST] pc.on_signaling_state_change", &my_pc, &my_dc).await;
+                    })
+                }));
+
+                let pc_clone_4 = pc_clone_clone.clone();
+                let dc_clone_4 = dc_clone_clone.clone();
+                dc_clone.on_close(Box::new(move || {
+                    let pc_clone_clone_clone = pc_clone_4.clone();
+                    let dc_clone_clone_clone = dc_clone_4.clone();
+                    Box::pin(async move {
+                        let my_pc = pc_clone_clone_clone.clone();
+                        let my_dc = dc_clone_clone_clone.clone();
+                        log_pc_state("[HOST] pc.on_close", &my_pc, &my_dc).await;
+                    })
+                }));
+
+                let pc_clone_5 = pc_clone_clone.clone();
+                let dc_clone_5 = dc_clone_clone.clone();
+                dc_clone.on_error(Box::new(move |e| {
+                    let pc_clone_clone_clone = pc_clone_5.clone();
+                    let dc_clone_clone_clone = dc_clone_5.clone();
+                    Box::pin(async move {
+                        let my_pc = pc_clone_clone_clone.clone();
+                        let my_dc = dc_clone_clone_clone.clone();
+                        println!("[HOST] dc.error: {}", e);
+                        log_pc_state("[HOST] dc.error", &my_pc, &my_dc);
+                    })
+                }));
+
+                tokio::spawn(async move {
+                    loop {
+                        println!("[HOST] datachannel buffer = {:?}", dc_clone.buffered_amount().await);
+                        sleep(Duration::from_millis(5000)).await;
+                    }
+                });
+
+                let dc_ping = dc_clone_clone.clone();
+                tokio::spawn(async move {
+                    loop {
+                        sleep(Duration::from_millis(10000)).await;
+
+                        if dc_ping.ready_state() != webrtc::data_channel::data_channel_state::RTCDataChannelState::Open {
+                            break;
+                        }
+
+                        let ping = json!({
+                            "type": "dc_ping",
+                            "t": now_millis(),
+                            "from": "host"
+                        }).to_string();
+
+                        if let Err(e) = dc_ping.send_text(ping).await {
+                            eprintln!("[HOST] failed to send dc_ping: {:?}", e);
+                            break;
+                        }
+                    }
+                });
+                
                 Box::pin(async {})
             }));
 
+            let dc_for_message = dc.clone();
             dc.on_message(Box::new(move |msg: DataChannelMessage| {
                 let controller = controller_clone.clone();
                 let nvenc_cmd_tx = nvenc_cmd_tx_clone.clone();
                 let last_force_keyframe_at = last_force_keyframe_at_clone.clone();
+                let dc = dc_for_message.clone();
 
                 Box::pin(async move {
                     let data = &msg.data;
@@ -317,6 +416,31 @@ async fn main() -> Result<()> {
                     }
 
                     if let Ok(text) = std::str::from_utf8(data) {
+                        if let Ok(v) = serde_json::from_str::<serde_json::Value>(text) {
+                            if v.get("type").and_then(|x| x.as_str()) == Some("dc_ping") {
+                                let t = v.get("t").and_then(|x| x.as_u64()).unwrap_or(0);
+
+                                let pong = json!({
+                                    "type": "dc_pong",
+                                    "t": t,
+                                    "receivedAt": now_millis(),
+                                    "from": "host"
+                                })
+                                .to_string();
+
+                                if let Err(e) = dc.send_text(pong).await {
+                                    eprintln!("[HOST] failed to send dc_pong: {:?}", e);
+                                }
+
+                                return;
+                            }
+
+                            if v.get("type").and_then(|x| x.as_str()) == Some("dc_pong") {
+                                println!("[HOST] dc_pong received: {}", text);
+                                return;
+                            }
+                        }
+
                         if is_force_keyframe_message(text) {
                             let now = now_millis();
                             let prev = last_force_keyframe_at.load(Ordering::Relaxed);
@@ -773,4 +897,29 @@ fn now_millis() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64
+}
+
+async fn log_pc_state(
+    prefix: &str,
+    pc: &Arc<webrtc::peer_connection::RTCPeerConnection>,
+    dc: &webrtc::data_channel::RTCDataChannel
+) {
+    println!("
+        [HOST] {}
+        time: {}
+        pcConnectionState: {:?}
+        iceConnectionState: {:?}
+        iceGatheringState: {:?}
+        signalingState: {:?}
+        dcReadyState: {:?}
+        dcBufferedAmount: {:?}",
+        prefix,
+        now_millis(),
+        pc.connection_state(),
+        pc.ice_connection_state(),
+        pc.ice_gathering_state(),
+        pc.signaling_state(),
+        dc.ready_state(),
+        dc.buffered_amount().await
+    )
 }

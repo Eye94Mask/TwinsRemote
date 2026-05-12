@@ -16,7 +16,6 @@ use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::MediaEngine;
 use webrtc::api::APIBuilder;
 use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
-use webrtc::ice_transport::ice_credential_type::RTCIceCredentialType;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::ice_transport::ice_connection_state::RTCIceConnectionState;
 use webrtc::interceptor::registry::Registry;
@@ -158,7 +157,6 @@ impl WebRtcSender {
                     urls: ice.ice_servers[1].urls.clone(),
                     username: turn_username,
                     credential: turn_credential,
-                    credential_type: RTCIceCredentialType::Password,
                     ..Default::default()
                 },
             ],
