@@ -50,27 +50,33 @@ namespace TwinsRemoteHost
         {
             List<string> customNames = GetCustomModeList();
 
-            modeComboBox.DataSource = null;
             modeComboBox.Items.Clear();
             List<object> modes = [];
             foreach (string customName in customNames)
             {
-                modes.Add(new { Name = customName, Value = customName });
+                modeComboBox.Items.Add(new VideoPresetItem { DisplayName = customName, Key = customName });
             }
-            modes.Add(new { Name = "Balanced", Value = "balanced" });
-            modes.Add(new { Name = "Quality", Value = "quality" });
-            modes.Add(new { Name = "Stable", Value = "stable" });
-            modes.Add(new { Name = "Mobile", Value = "mobile" });
-            modeComboBox.DisplayMember = "Name";
-            modeComboBox.ValueMember = "Value";
-            modeComboBox.DataSource = modes;
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Balanced", Key = "balanced" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Quality", Key = "quality" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Stable", Key = "stable" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Mobile", Key = "mobile" });
 
-            if (previousModeValue == null) modeComboBox.SelectedIndex = 0;
-            else
+            if (previousModeValue != null || previousModeValue == String.Empty)
             {
-                int index = modeComboBox.FindString(previousModeValue) < 0 ? 0 : modeComboBox.FindString(previousModeValue);
-                modeComboBox.SelectedIndex = index;
+                int i = 0;
+                foreach (VideoPresetItem item in modeComboBox.Items)
+                {
+                    if (item.DisplayName == previousModeValue)
+                    {
+                        modeComboBox.SelectedIndex = i;
+                        return;
+                    }
+                    i++;
+                }
+
+                if (i >= modeComboBox.Items.Count) { modeComboBox.SelectedIndex = 0; }
             }
+            else modeComboBox.SelectedIndex = 0;
         }
 
         private void InitializeUi()
@@ -508,8 +514,11 @@ namespace TwinsRemoteHost
         private void createMode_Click(object sender, EventArgs e)
         {
             String selectedModeValue = "";
-            if (modeComboBox.SelectedValue != null) { selectedModeValue = modeComboBox.SelectedValue.ToString(); AppendLog("selectedModeValue: " + selectedModeValue); }
-            
+            if (modeComboBox.SelectedItem != null)
+            {
+                selectedModeValue = modeComboBox.SelectedItem.ToString();
+            }
+
             if (mCreator == null || mCreator.IsDisposed)
             {
                 mCreator = new ModeCreator(this.locale);
@@ -532,8 +541,11 @@ namespace TwinsRemoteHost
         private void updateDeleteCustomMode_Click(object sender, EventArgs e)
         {
             String selectedModeValue = "";
-            if (modeComboBox.SelectedValue != null) { selectedModeValue = modeComboBox.SelectedValue.ToString(); }
-            
+            if (modeComboBox.SelectedItem != null)
+            {
+                selectedModeValue = modeComboBox.SelectedItem.ToString();
+            }
+
             if (mEditor == null || mEditor.IsDisposed)
             {
                 mEditor = new ModeEditor(this.locale);
@@ -566,6 +578,14 @@ namespace TwinsRemoteHost
     {
         public required string Name { get; set; }
         public required string Code { get; set; }
+    }
+
+    public class VideoPresetItem
+    {
+        public string DisplayName { get; set; } = "";
+        public string Key { get; set; } = "";
+
+        public override string ToString() => DisplayName;
     }
 
     public class Locale
