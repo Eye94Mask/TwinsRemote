@@ -45,20 +45,37 @@ namespace TwinsRemoteHost
 
         }
 
-        private void InitializeUi()
+
+        private void ResetModeList(String? previousModeValue = null)
         {
             List<string> customNames = GetCustomModeList();
 
+            modeComboBox.DataSource = null;
             modeComboBox.Items.Clear();
+            List<object> modes = [];
             foreach (string customName in customNames)
             {
-                modeComboBox.Items.Add(new VideoPresetItem { DisplayName = customName, Key = customName });
+                modes.Add(new { Name = customName, Value = customName });
             }
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Balanced", Key = "balanced" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Quality", Key = "quality" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Stable", Key = "stable" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Mobile", Key = "mobile" });
-            modeComboBox.SelectedIndex = 0;
+            modes.Add(new { Name = "Balanced", Value = "balanced" });
+            modes.Add(new { Name = "Quality", Value = "quality" });
+            modes.Add(new { Name = "Stable", Value = "stable" });
+            modes.Add(new { Name = "Mobile", Value = "mobile" });
+            modeComboBox.DisplayMember = "Name";
+            modeComboBox.ValueMember = "Value";
+            modeComboBox.DataSource = modes;
+
+            if (previousModeValue == null) modeComboBox.SelectedIndex = 0;
+            else
+            {
+                int index = modeComboBox.FindString(previousModeValue) < 0 ? 0 : modeComboBox.FindString(previousModeValue);
+                modeComboBox.SelectedIndex = index;
+            }
+        }
+
+        private void InitializeUi()
+        {
+            ResetModeList();
 
             string language = Properties.Settings.Default.Language;
             InitializeLanguageComboBox();
@@ -490,6 +507,9 @@ namespace TwinsRemoteHost
 
         private void createMode_Click(object sender, EventArgs e)
         {
+            String selectedModeValue = "";
+            if (modeComboBox.SelectedValue != null) { selectedModeValue = modeComboBox.SelectedValue.ToString(); AppendLog("selectedModeValue: " + selectedModeValue); }
+            
             if (mCreator == null || mCreator.IsDisposed)
             {
                 mCreator = new ModeCreator(this.locale);
@@ -504,13 +524,16 @@ namespace TwinsRemoteHost
                 mCreator.Activate();
             }
 
-            InitializeUi();
+            ResetModeList(selectedModeValue);
             mCreator.Dispose();
             mCreator = null;
         }
 
         private void updateDeleteCustomMode_Click(object sender, EventArgs e)
         {
+            String selectedModeValue = "";
+            if (modeComboBox.SelectedValue != null) { selectedModeValue = modeComboBox.SelectedValue.ToString(); }
+            
             if (mEditor == null || mEditor.IsDisposed)
             {
                 mEditor = new ModeEditor(this.locale);
@@ -525,7 +548,7 @@ namespace TwinsRemoteHost
                 mEditor.Activate();
             }
 
-            InitializeUi();
+            ResetModeList(selectedModeValue);
             mEditor.Dispose();
             mEditor = null;
         }
@@ -543,14 +566,6 @@ namespace TwinsRemoteHost
     {
         public required string Name { get; set; }
         public required string Code { get; set; }
-    }
-
-    public class VideoPresetItem
-    {
-        public string DisplayName { get; set; } = "";
-        public string Key { get; set; } = "";
-
-        public override string ToString() => DisplayName;
     }
 
     public class Locale
