@@ -8,7 +8,7 @@ namespace TwinsRemoteHost
     public partial class ModeCreator : Form
     {
         private readonly Locale locale;
-        private CustomMode customMode = new();
+        private CustomMode customMode;
 
         // ====================
         // Presets
@@ -1022,61 +1022,61 @@ namespace TwinsRemoteHost
     public class CustomMode
     {
         [JsonProperty("width")]
-        public UInt32 Width { get; set; }
+        public required UInt32 Width { get; set; }
 
         [JsonProperty("height")]
-        public UInt32 Height { get; set; }
+        public required UInt32 Height { get; set; }
 
         [JsonProperty("fps")]
-        public UInt32 Fps { get; set; }
+        public required UInt32 Fps { get; set; }
 
         [JsonProperty("averageBitrate")]
-        public UInt32 AverageBitrate { get; set; }
+        public required UInt32 AverageBitrate { get; set; }
 
         [JsonProperty("maxBitrate")]
-        public UInt32 MaxBitrate { get; set; }
+        public required UInt32 MaxBitrate { get; set; }
 
         [JsonProperty("vbvBufferSize")]
-        public UInt32 VbvBufferSize { get; set; }
+        public required UInt32 VbvBufferSize { get; set; }
 
         [JsonProperty("vbvInitialDelay")]
-        public UInt32 VbvInitialDelay { get; set; }
+        public required UInt32 VbvInitialDelay { get; set; }
 
         [JsonProperty("gopLength")]
-        public UInt32 GopLength { get; set; }
+        public required UInt32 GopLength { get; set; }
 
         [JsonProperty("idrPeriod")]
-        public UInt32 IdrPeriod { get; set; }
+        public required UInt32 IdrPeriod { get; set; }
 
         [JsonProperty("repeatSpsPps")]
-        public bool RepeatSpsPps { get; set; }
+        public required bool RepeatSpsPps { get; set; }
 
         [JsonProperty("outputAud")]
-        public bool OutputAud { get; set; }
+        public required bool OutputAud { get; set; }
 
         [JsonProperty("maxRefFrames")]
-        public UInt32 MaxRefFrames { get; set; }
+        public required UInt32 MaxRefFrames { get; set; }
 
         [JsonProperty("profileGuid")]
-        public string ProfileGuid { get; set; }
+        public required string ProfileGuid { get; set; }
 
         [JsonProperty("presetGuid")]
-        public string PresetGuid { get; set; }
+        public required string PresetGuid { get; set; }
 
         [JsonProperty("tuningInfo")]
-        public string TuningInfo { get; set; }
+        public required string TuningInfo { get; set; }
 
         [JsonProperty("enableLookahead")]
-        public bool EnableLookahead { get; set; }
+        public required bool EnableLookahead { get; set; }
 
         [JsonProperty("lookaheadDepth")]
-        public UInt32 LookaheadDepth { get; set; }
+        public required UInt32 LookaheadDepth { get; set; }
 
         [JsonProperty("disableIadapt")]
-        public bool DisableIadapt { get; set; }
+        public required bool DisableIadapt { get; set; }
 
         [JsonProperty("disableBadapt")]
-        public bool DisableBadapt { get; set; }
+        public required bool DisableBadapt { get; set; }
     }
 
     class PresetMode(
