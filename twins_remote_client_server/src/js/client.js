@@ -152,6 +152,7 @@ let dcKeepaliveTimer = null;
 let dcLastPongAt = 0;
 let dcLastPingAt = 0;
 let reconnecting = false;
+let disconnectedTimer = null;
 
 window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
