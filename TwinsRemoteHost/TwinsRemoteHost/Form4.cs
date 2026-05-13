@@ -20,6 +20,7 @@ namespace TwinsRemoteHost
             this.locale = locale;
             InitializeComponent();
             InitializeUi();
+            InitializeParameter();
             ApplyLanguage();
         }
 
@@ -128,29 +129,46 @@ namespace TwinsRemoteHost
             return (b / 1000 / 1000).ToString();
         }
 
-        private void InitializeParameter()
+        private void SetModeValiables()
         {
-            modeNameTextBox.Text = string.Empty;
-            resolutionWidthTextBox.Text = string.Empty;
-            resolutionHeightTextBox.Text = string.Empty;
-            fpsTextBox.Text = string.Empty;
+            modeNameTextBox.Text = customModeComboBox.Text;
+            resolutionWidthTextBox.Text = this.editMode.Width.ToString();
+            resolutionHeightTextBox.Text = this.editMode.Height.ToString();
+            fpsTextBox.Text = this.editMode.Fps.ToString();
 
             // Advanced Settings
-            averageBitrateTextBox.Text = string.Empty;
-            maxBitrateTextBox.Text = string.Empty;
-            vbvBufferSizeTextBox.Text = string.Empty;
-            vbvInitialDelayTextBox.Text = string.Empty;
-            gopLengthTextBox.Text = string.Empty;
-            idrPeriodTextBox.Text = string.Empty;
-            repeatSpsPpsCheckBox.Checked = false;
-            outputAudCheckBox.Checked = false;
-            maxRefFramesTextBox.Text = string.Empty;
-            presetGuidComboBox.SelectedItem = null;
-            tuningInfoComboBox.SelectedItem = null;
-            enableLookaheadCheckBox.Checked = false;
-            lookaheadDepthTextBox.Text = string.Empty;
-            disableIadaptCheckBox.Checked = false;
-            disableBadaptCheckBox.Checked = false;
+            int presetGuidIndex = presetGuidComboBox.FindStringExact(this.editMode.PresetGuid.ToString());
+            int tuningInfoIndex = tuningInfoComboBox.FindStringExact(this.editMode.TuningInfo.ToString());
+            averageBitrateTextBox.Text = ByteToMbyte(this.editMode.AverageBitrate);
+            maxBitrateTextBox.Text = ByteToMbyte(this.editMode.MaxBitrate);
+            vbvBufferSizeTextBox.Text = ByteToMbyte(this.editMode.VbvBufferSize);
+            vbvInitialDelayTextBox.Text = ByteToMbyte(this.editMode.VbvInitialDelay);
+            gopLengthTextBox.Text = this.editMode.GopLength.ToString();
+            idrPeriodTextBox.Text = this.editMode.IdrPeriod.ToString();
+            repeatSpsPpsCheckBox.Checked = this.editMode.RepeatSpsPps;
+            outputAudCheckBox.Checked = this.editMode.OutputAud;
+            maxRefFramesTextBox.Text = this.editMode.MaxRefFrames.ToString();
+            presetGuidComboBox.SelectedIndex = presetGuidIndex;
+            tuningInfoComboBox.SelectedIndex = tuningInfoIndex;
+            enableLookaheadCheckBox.Checked = this.editMode.EnableLookahead;
+            lookaheadDepthTextBox.Text = this.editMode.LookaheadDepth.ToString();
+            disableIadaptCheckBox.Checked = this.editMode.DisableIadapt;
+            disableBadaptCheckBox.Checked = this.editMode.DisableBadapt;
+
+            this.currentMode = customModeComboBox.SelectedValue.ToString();
+        }
+
+        private void InitializeParameter()
+        {
+            customModeComboBox.SelectedIndex = 0;
+            CustomMode? selectedMode = GetSelectedModeParameter();
+            if (selectedMode == null)
+            {
+                return;
+            }
+
+            this.editMode = selectedMode;
+            SetModeValiables();
         }
 
         private void customModeComboBox_SelectedIndexChanged(object sender, EventArgs e)
@@ -163,29 +181,7 @@ namespace TwinsRemoteHost
             }
 
             this.editMode = selectedMode;
-            modeNameTextBox.Text = customModeComboBox.Text;
-            resolutionWidthTextBox.Text = this.editMode.Width.ToString();
-            resolutionHeightTextBox.Text = this.editMode.Height.ToString();
-            fpsTextBox.Text = this.editMode.Fps.ToString();
-
-            // Advanced Settings
-            averageBitrateTextBox.Text = ByteToMbyte(this.editMode.AverageBitrate);
-            maxBitrateTextBox.Text = ByteToMbyte(this.editMode.MaxBitrate);
-            vbvBufferSizeTextBox.Text = ByteToMbyte(this.editMode.VbvBufferSize);
-            vbvInitialDelayTextBox.Text = ByteToMbyte(this.editMode.VbvInitialDelay);
-            gopLengthTextBox.Text = this.editMode.GopLength.ToString();
-            idrPeriodTextBox.Text = this.editMode.IdrPeriod.ToString();
-            repeatSpsPpsCheckBox.Checked = this.editMode.RepeatSpsPps;
-            outputAudCheckBox.Checked = this.editMode.OutputAud;
-            maxRefFramesTextBox.Text = this.editMode.MaxRefFrames.ToString();
-            presetGuidComboBox.SelectedIndex = presetGuidComboBox.FindString(this.editMode.PresetGuid);
-            tuningInfoComboBox.SelectedIndex = tuningInfoComboBox.FindString(this.editMode.TuningInfo);
-            enableLookaheadCheckBox.Checked = this.editMode.EnableLookahead;
-            lookaheadDepthTextBox.Text = this.editMode.LookaheadDepth.ToString();
-            disableIadaptCheckBox.Checked = this.editMode.DisableIadapt;
-            disableBadaptCheckBox.Checked = this.editMode.DisableBadapt;
-
-            this.currentMode = customModeComboBox.SelectedValue.ToString();
+            SetModeValiables();
         }
 
         private void saveButton_Click(object sender, EventArgs e)
