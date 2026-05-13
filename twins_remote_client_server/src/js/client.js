@@ -890,6 +890,31 @@ async function connect() {
     pc.onconnectionstatechange = () => {
         if (pc && dc) {
             logPcState("pc.connectionstatechange", pc, dc);
+
+            if (pc.connectionState === "connected") {
+                if (disconnectedTimer) {
+                    clearTimeout(disconnectedTimer);
+                    disconnectedTimer = null;
+                }
+
+                return;
+            }
+
+            if (pc.connectionState === "disconnected") {
+                if (disconnectedTimer) return;
+
+                disconnectedTimer = setTimeout(() => {
+                    if (pc.connectionState === "disconnected") {
+                        handleDataChannelDead("pc disconnected timeout");
+                    }
+                }, 15000);
+
+                return;
+            }
+
+            if (pc.connectionState === "failed") {
+                handleDataChannelDead("pc failed");
+            }
         }
     };
 
