@@ -168,7 +168,7 @@ window.addEventListener("gamepaddisconnected", (e) => {
 
 window.addEventListener("DOMContentLoaded", async () => {
     await fetchTtlSeconds();
-    tokenTimeoutMessage = window.setTimeout(tokenTimeout, ttlSeconds);
+    tokenTimeoutMessage = setTimeout(tokenTimeout, ttlSeconds);
 
     const selectedSubtitle = splashSubtitles[getRandomInt(splashSubtitles.length)];
     const subtitle = document.getElementById("splashSubtitle");
@@ -694,7 +694,6 @@ function setStatus(state, text) {
 
 async function connect() {
     cleanupPeerConnection();
-    window.clearTimeout(tokenTimeoutMessage);
 
     sessionId = getOrCreateSessionId();
     log("SESSION ID:", sessionId);
@@ -869,6 +868,7 @@ async function connect() {
 
         if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
             setStatus("connected", "接続完了");
+            clearTimeout(tokenTimeoutMessage);
 
             if (!rtcSummaryIntervalId) {
                 rtcSummaryIntervalId = setInterval(() => {
