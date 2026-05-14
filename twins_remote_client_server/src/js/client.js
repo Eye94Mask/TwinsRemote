@@ -119,7 +119,7 @@ const MAX_RENDER_BACKLOG = 1;
 // "relay-test" | "normal" | "stun-first"
 // !!!! リリース前には絶対に normal に変更すること !!!!
 // =======================================================================================
-let ICE_MODE = "normal"; 
+const ICE_MODE = "normal"; 
 
 let badRttCount = 0;
 let lastIceRestartAt = 0;
@@ -1819,7 +1819,7 @@ function stopDataChannelKeepalive() {
     }
 }
 
-function handleDataChannelDead() {
+function handleDataChannelDead(reason) {
     if (reconnecting) return;
     reconnecting = true;
 
