@@ -147,6 +147,10 @@ let lastVideoBytesAt = null;
 
 let relayMonitorIntervalId = null;
 let lastPostedNetworkMode = null;
+// ==========================
+// Cap 外し予防
+// ==========================
+
 
 let dcKeepaliveTimer = null;
 let dcLastPongAt = 0;
@@ -1703,6 +1707,22 @@ async function logRtcSummary(pc) {
     });
 }
 
+
+function logPcState(prefix, pc, dc) {
+    console.log(`[${prefix}]`, {
+        time: new Date().toISOString(),
+        pcConnectionState: pc?.connectionState,
+        iceConnectionState: pc?.iceConnectionState,
+        iceGatheringState: pc?.iceGatheringState,
+        signalingState: pc?.signalingState,
+        dcReadyState: dc?.readyState,
+        dcBufferedAmount: dc?.bufferedAmount,
+    });
+}
+
+// ==========================
+// Cap 外し予防 Start
+// ==========================
 function estimateVideoBitrateBps(report) {
     const now = performance.now();
 
@@ -1771,6 +1791,9 @@ function disconnectForCapViolation(report, bitrateBps) {
 
     pc = null;
 }
+// ==========================
+// Cap 外し予防 End
+// ==========================
 
 // DataChannel 自動切断防止策1
 function startDataChannelKeepalive(dc, pc) {
@@ -1847,16 +1870,4 @@ function handleDataChannelDead(reason) {
             console.error("[reconnect] failed", e);
         }
     }, 1000);
-}
-
-function logPcState(prefix, pc, dc) {
-    console.log(`[${prefix}]`, {
-        time: new Date().toISOString(),
-        pcConnectionState: pc?.connectionState,
-        iceConnectionState: pc?.iceConnectionState,
-        iceGatheringState: pc?.iceGatheringState,
-        signalingState: pc?.signalingState,
-        dcReadyState: dc?.readyState,
-        dcBufferedAmount: dc?.bufferedAmount,
-    });
 }
