@@ -9,7 +9,7 @@ use anyhow::{anyhow, Result};
 use std::io::{Read, Write};
 use std::process::{Child, ChildStdout, Command, Stdio};
 use std::sync::{
-    atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
+    atomic::{AtomicBool, AtomicU64, Ordering},
     Arc, Mutex,
 };
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -21,16 +21,17 @@ use clap::Parser;
 use bytes::Bytes;
 use rustls::crypto::ring::default_provider;
 use tokio::io::BufReader;
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc};
 use tokio::time::{sleep, Duration};
 
 use webrtc::data_channel::data_channel_message::DataChannelMessage;
+use webrtc::data_channel::data_channel_state::RTCDataChannelState;
 use webrtc::ice_transport::ice_connection_state::RTCIceConnectionState;
 use webrtc::media::Sample;
 
 use crate::audio_encoder::AudioEncoder;
 use crate::consts::{VIDEO_FRAME_DURATION, CAP_THRESHOLD};
-use crate::controller::{Controller, GamepadState, VirtualPadType};
+use crate::controller::{Controller, GamepadState, RumbleState, VirtualPadType};
 use crate::env::IceConfig;
 use crate::webrtc_sender::{WebRtcSender, StreamPolicy};
 
@@ -44,14 +45,6 @@ struct Args {
     session: String
 }
 
-#[derive(Debug)]
-enum HostCommand {
-    AudioOn,
-    AudioOff,
-    Quit
-}
-
-
 #[derive(Debug, Clone)]
 enum NvencCommand {
     ForceIdr,
@@ -61,15 +54,14 @@ enum NvencCommand {
 
 struct AudioHelper {
     child: Child,
-    stdout: ChildStdout,
+    stdout: ChildStdout
 }
 
 enum AudioCommand {
     UsePid(u32),
     UseSystemMix,
-    Stop,
+    Stop
 }
-
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -99,11 +91,34 @@ async fn main() -> Result<()> {
 
     let webrtc = WebRtcSender::new(ice.clone(), &session_id).await?;
     let webrtc_clone = webrtc.clone();
-    let controller = Arc::new(Mutex::new(Controller::new(VirtualPadType::Xbox360)?));
+    // -------------------------------
+    // Controller / Rumble
+    // -------------------------------
+    let (rumble_rx_tx, rumble_rx_std) = std::sync::mpsc::channel::<RumbleState>();
+    let controller_raw = Controller::new(
+        VirtualPadType::Xbox360,
+        rumble_rx_tx
+    )?;
+    let controller = Arc::new(Mutex::new(controller_raw));
 
-    println!("[INFO] launching NvEnc.exe preset={}", preset);
+    // broadcast で DataChannel 再接続時にも subscribe しなおす
+    let (rumble_tx, _) = broadcast::channel::<RumbleState>(32);
+    let rumble_tx_bridge = rumble_tx.clone();
+
+    std::thread::spawn(move || {
+        while let Ok(rumble) = rumble_rx_std.recv() {
+            println!(
+                "[HOST] rumble received from ViGEm: large={} small={} led={}",
+                rumble.large, rumble.small, rumble.led
+            );
+
+            let _ = rumble_tx_bridge.send(rumble);
+        }
+    });
+
+    println!("[INFO] launching NvEnc.exe preset={}", preset_for_nvenc_thread);
     let mut child = Command::new("NvEnc.exe")
-        .arg(&preset)
+        .arg(&preset_for_nvenc_thread)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -267,6 +282,7 @@ async fn main() -> Result<()> {
     // -------------------------------
     let controller_clone = controller.clone();
     let nvenc_cmd_tx_clone = nvenc_cmd_tx.clone();
+    let rumble_tx_for_dc = rumble_tx.clone();
 
     let last_force_keyframe_at = Arc::new(AtomicU64::new(0));
     let last_force_keyframe_at_clone = last_force_keyframe_at.clone();
@@ -279,6 +295,7 @@ async fn main() -> Result<()> {
         let controller_clone = controller_clone.clone();
         let nvenc_cmd_tx_clone = nvenc_cmd_tx_clone.clone();
         let last_force_keyframe_at_clone = last_force_keyframe_at_clone.clone();
+        let rumble_tx_for_dc = rumble_tx_for_dc.clone();
 
         let pc_clone = pc.clone();
         let dc_clone = dc.clone();
@@ -288,6 +305,8 @@ async fn main() -> Result<()> {
             dc.on_open(Box::new(move || {
                 let pc_clone_1 = pc_clone_clone.clone();
                 let dc_clone_1 = dc_clone_clone.clone();
+                let rumble_tx_for_open = rumble_tx_for_dc.clone();
+
                 println!("[HOST] DataChannel OPEN");
                 pc_clone.on_peer_connection_state_change(Box::new(move |_| {
                     let pc_clone_clone_clone = pc_clone_1.clone();
@@ -348,9 +367,10 @@ async fn main() -> Result<()> {
                     })
                 }));
 
+                let dc_buffer = dc_clone_clone.clone();
                 tokio::spawn(async move {
                     loop {
-                        println!("[HOST] datachannel buffer = {:?}", dc_clone.buffered_amount().await);
+                        println!("[HOST] datachannel buffer = {:?}", dc_buffer.buffered_amount().await);
                         sleep(Duration::from_millis(5000)).await;
                     }
                 });
@@ -377,6 +397,59 @@ async fn main() -> Result<()> {
                     }
                 });
                 
+                // -------------------------------
+                // Rumble sender task
+                // -------------------------------
+                let dc_rumble = dc_clone_clone.clone();
+                let mut rumble_rx = rumble_tx_for_open.subscribe();
+
+                tokio::spawn(async move {
+                    loop {
+                        let rumble = match rumble_rx.recv().await {
+                            Ok(v) => v,
+                            Err(broadcast::error::RecvError::Lagged(n)) => {
+                                eprintln!("[HOST] rumble broadcast lagged: {}", n);
+                                continue;
+                            }
+                            Err(broadcast::error::RecvError::Closed) => break,
+                        };
+
+                        if dc_rumble.ready_state() != RTCDataChannelState::Open {
+                            eprintln!("[HOST] dc_rumble is not ready");
+                            break;
+                        }
+
+                        let large = if rumble.large > 0 {
+                            rumble.large
+                        } else {
+                            0
+                        };
+
+                        let small = if rumble.small > 0 {
+                            rumble.small.max(120)
+                        } else {
+                            0
+                        };
+
+                        println!(
+                            "[HOST] send rumble to client: large={} small={}",
+                            large, small
+                        );
+
+                        let msg = json!({
+                            "type": "rumble",
+                            "large": large,
+                            "small": small,
+                            "duration_ms": 120
+                        }).to_string();
+
+                        if let Err(e) = dc_rumble.send_text(msg).await {
+                            eprintln!("[HOST] failed to send rumble: {:?}", e);
+                            break;
+                        }
+                    }
+                });
+
                 Box::pin(async {})
             }));
 
@@ -399,6 +472,7 @@ async fn main() -> Result<()> {
                         let rx = i16::from_le_bytes([data[8], data[9]]);
                         let ry = i16::from_le_bytes([data[10], data[11]]);
 
+
                         if let Ok(mut ctrl) = controller.lock() {
                             let report = GamepadState {
                                 buttons,
@@ -409,7 +483,10 @@ async fn main() -> Result<()> {
                                 rx,
                                 ry,
                             };
-                            let _ = ctrl.update(report);
+
+                            if let Err(e) = ctrl.update(report) {
+                                eprintln!("failed to update: {:?}", e);
+                            }
                         }
 
                         return;
