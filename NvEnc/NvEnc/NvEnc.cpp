@@ -427,13 +427,108 @@ struct DuplicationContext {
     UINT height = 0;
 };
 
+static std::wstring WStringFromAdapterDesc(const DXGI_ADAPTER_DESC& desc) {
+    return std::wstring(desc.Description);
+}
+
+static std::string NarrowFromWide(const std::wstring& w) {
+    if (w.empty()) return {};
+
+    int size = WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        w.c_str(),
+        -1,
+        nullptr,
+        0,
+        nullptr,
+        nullptr
+    );
+
+    std::string s(size - 1, 0);
+
+    WideCharToMultiByte(
+        CP_UTF8,
+        0,
+        w.c_str(),
+        -1,
+        s.data(),
+        size,
+        nullptr,
+        nullptr
+    );
+
+    return s;
+}
+
+static bool AdapterHasOutput(IDXGIAdapter* adapter) {
+    IDXGIOutput* output = nullptr;
+    HRESULT hr = adapter->EnumOutputs(0, &output);
+
+    if (SUCCEEDED(hr) && output) {
+        output->Release();
+        return true;
+    }
+
+    return false;
+}
+
+static IDXGIAdapter1* FindBestNvencAdapter() {
+    IDXGIFactory1* factory = nullptr;
+
+    HRESULT hr = CreateDXGIFactory1(
+        __uuidof(IDXGIFactory1),
+        reinterpret_cast<void**>(&factory)
+    );
+
+    if (FAILED(hr) || !factory) {
+        std::cerr << "[GPU] CreateDXGIFactory1 failed: 0x"
+            << std::hex << hr << std::dec << "\n";
+        return nullptr;
+    }
+
+    IDXGIAdapter1* selected = nullptr;
+
+    for (UINT i = 0;; ++i) {
+        IDXGIAdapter1* adapter = nullptr;
+        hr = factory->EnumAdapters1(i, &adapter);
+
+        if (hr == DXGI_ERROR_NOT_FOUND) break;
+
+        if (FAILED(hr) || !adapter) continue;
+
+        DXGI_ADAPTER_DESC1 desc{};
+        adapter->GetDesc1(&desc);
+
+        std::string name = NarrowFromWide(desc.Description);
+
+        std::cerr << "[INFO] Found adapter[" << i << "]: "
+            << name
+            << " VendorId=0x" << std::hex << desc.VendorId << std::dec
+            << " DedicatedVideoMemory="
+            << static_cast<unsigned long long>(desc.DedicatedVideoMemory / 1024 / 1024)
+            << "MB\n";
+
+        if (desc.VendorId == 0x10DE && AdapterHasOutput(adapter)) {
+            selected = adapter;
+            std::cerr << "[INFO] Selected NVIDIA adapter with output: "
+                << name << "\n";
+            break;
+        }
+
+        adapter->Release();
+    }
+
+    factory->Release();
+
+    return selected;
+}
+
 static DuplicationContext CreateDuplication(ID3D11Device* device) {
     DuplicationContext out{};
 
     IDXGIDevice* dxgiDevice = nullptr;
     IDXGIAdapter* adapter = nullptr;
-    IDXGIOutput* output = nullptr;
-    IDXGIOutput1* output1 = nullptr;
 
     try {
         CheckHr(
@@ -443,39 +538,88 @@ static DuplicationContext CreateDuplication(ID3D11Device* device) {
         );
 
         CheckHr(dxgiDevice->GetAdapter(&adapter), "IDXGIDevice::GetAdapter");
-        CheckHr(adapter->EnumOutputs(0, &output), "IDXGIAdapter::EnumOutputs(0)");
-        CheckHr(
-            output->QueryInterface(__uuidof(IDXGIOutput1),
-                reinterpret_cast<void**>(&output1)),
-            "IDXGIOutput->QueryInterface(IDXGIOutput1)"
-        );
 
-        CheckHr(
-            output1->DuplicateOutput(device, &out.duplication),
-            "IDXGIOutput1::DuplicateOutput"
-        );
+        for (UINT i = 0;; ++i) {
+            IDXGIOutput* output = nullptr;
+            HRESULT hr = adapter->EnumOutputs(i, &output);
 
-        DXGI_OUTDUPL_DESC duplDesc{};
-        out.duplication->GetDesc(&duplDesc);
+            if (hr == DXGI_ERROR_NOT_FOUND) {
+                break;
+            }
 
-        out.width = duplDesc.ModeDesc.Width;
-        out.height = duplDesc.ModeDesc.Height;
+            if (FAILED(hr) || !output) {
+                continue;
+            }
 
-        SafeRelease(output1);
-        SafeRelease(output);
-        SafeRelease(adapter);
-        SafeRelease(dxgiDevice);
-        return out;
+            DXGI_OUTPUT_DESC outputDesc{};
+            output->GetDesc(&outputDesc);
+
+            std::string outputName = NarrowFromWide(outputDesc.DeviceName);
+
+            std::cerr << "[INFO] Output[" << i << "]: "
+                << outputName
+                << " attached=" << outputDesc.AttachedToDesktop
+                << " desktop=("
+                << outputDesc.DesktopCoordinates.left << ","
+                << outputDesc.DesktopCoordinates.top << ")-("
+                << outputDesc.DesktopCoordinates.right << ","
+                << outputDesc.DesktopCoordinates.bottom << ")\n";
+
+            if (!outputDesc.AttachedToDesktop) {
+                output->Release();
+                continue;
+            }
+
+            IDXGIOutput1* output1 = nullptr;
+            hr = output->QueryInterface(
+                __uuidof(IDXGIOutput1),
+                reinterpret_cast<void**>(&output1)
+            );
+
+            if (FAILED(hr) || !output1) {
+                std::cerr << "[WARN] Output[" << i << "] QueryInterface IDXGIOutput1 failed: 0x"
+                    << std::hex << hr << std::dec << "\n";
+                output->Release();
+                continue;
+            }
+
+            hr = output1->DuplicateOutput(device, &out.duplication);
+
+            if (SUCCEEDED(hr)) {
+                DXGI_OUTDUPL_DESC duplDesc{};
+                out.duplication->GetDesc(&duplDesc);
+
+                out.width = duplDesc.ModeDesc.Width;
+                out.height = duplDesc.ModeDesc.Height;
+
+                std::cerr << "[INFO] DuplicateOutput succeeded on Output[" << i << "]: "
+                    << out.width << "x" << out.height << "\n";
+
+                output1->Release();
+                output->Release();
+                SafeRelease(adapter);
+                SafeRelease(dxgiDevice);
+                return out;
+            }
+
+            std::cerr << "[WARN] DuplicateOutput failed on Output[" << i << "]: HRESULT=0x"
+                << std::hex << hr << std::dec << "\n";
+
+            output1->Release();
+            output->Release();
+        }
+
+        throw std::runtime_error("No output could be duplicated");
     }
     catch (...) {
-        SafeRelease(output1);
-        SafeRelease(output);
         SafeRelease(adapter);
         SafeRelease(dxgiDevice);
+
         if (out.duplication) {
             out.duplication->Release();
             out.duplication = nullptr;
         }
+
         throw;
     }
 }
@@ -1158,8 +1302,28 @@ int main(int argc, char** argv) {
 
         UINT flags = 0;
 
-        CheckHr(
-            D3D11CreateDevice(
+        IDXGIAdapter1* nvAdapter = FindBestNvencAdapter();
+
+        HRESULT createHr;
+
+        if (nvAdapter) {
+            createHr = D3D11CreateDevice(
+                nvAdapter,
+                D3D_DRIVER_TYPE_UNKNOWN,
+                nullptr,
+                flags,
+                fls,
+                static_cast<UINT>(std::size(fls)),
+                D3D11_SDK_VERSION,
+                &device,
+                &flOut,
+                &context
+            );
+
+            nvAdapter->Release();
+        }
+        else {
+            createHr = D3D11CreateDevice(
                 nullptr,
                 D3D_DRIVER_TYPE_HARDWARE,
                 nullptr,
@@ -1170,9 +1334,10 @@ int main(int argc, char** argv) {
                 &device,
                 &flOut,
                 &context
-            ),
-            "D3D11CreateDevice"
-        );
+            );
+        }
+
+        CheckHr(createHr, "D3D11CreateDevice");
 
         std::cerr << "[INFO] D3D11 Device Created\n";
 

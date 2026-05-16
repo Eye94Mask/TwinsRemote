@@ -24,7 +24,7 @@ bytes = "1"
 anyhow = "1"
 opus = "0.3.1"
 cpal = "0.17.3"
-vigem-client = "0.1.4"
+vigem-rust = "0.1.1"
 dotenvy = "0.15"
 reqwest = { version="0.12", default-features = false, features = ["json", "rustls-tls"] }
 base64 = "0.22"

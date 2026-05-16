@@ -119,7 +119,7 @@ const MAX_RENDER_BACKLOG = 1;
 // "relay-test" | "normal" | "stun-first"
 // !!!! リリース前には絶対に normal に変更すること !!!!
 // =======================================================================================
-let ICE_MODE = "normal"; 
+const ICE_MODE = "normal"; 
 
 let badRttCount = 0;
 let lastIceRestartAt = 0;
@@ -147,6 +147,9 @@ let lastVideoBytesAt = null;
 
 let relayMonitorIntervalId = null;
 let lastPostedNetworkMode = null;
+// ==========================
+// Cap 外し予防
+// ==========================
 
 let dcKeepaliveTimer = null;
 let dcLastPongAt = 0;
@@ -154,6 +157,15 @@ let dcLastPingAt = 0;
 let reconnecting = false;
 let disconnectedTimer = null;
 
+let rumbleTimer = null;
+let currentRumble = {
+    large: 0,
+    small: 0
+};
+
+// ==================================
+// コントローラー制御 Start
+// ==================================
 window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
     console.log("gamepad connected:", e.gamepad.id, "index=", gamepadIndex);
@@ -165,6 +177,234 @@ window.addEventListener("gamepaddisconnected", (e) => {
         gamepadIndex = null;
     }
 });
+
+function startGamepadLoop() {
+    console.log("startGamepadLoop started");
+
+    function loop() {
+        if (!dc || dc.readyState !== "open") {
+            requestAnimationFrame(loop);
+            return;
+        }
+
+        if (gamepadIndex == null) {
+            requestAnimationFrame(loop);
+            return;
+        }
+
+        const gamepads = navigator.getGamepads();
+        const gamepad = gamepads[gamepadIndex];
+
+        if (!gamepad) {
+            requestAnimationFrame(loop);
+            return;
+        }
+
+        const buttons = encodeButtons(gamepad);
+
+        const buf = new ArrayBuffer(12);
+        const view = new DataView(buf);
+
+        view.setUint16(0, buttons, true);
+        view.setUint8(2, Math.floor(gamepad.buttons[6].value * 255));
+        view.setUint8(3, Math.floor(gamepad.buttons[7].value * 255));
+        view.setInt16(4, Math.floor(gamepad.axes[0] * 32767), true);
+        view.setInt16(6, Math.floor(gamepad.axes[1] * -32767), true);
+        view.setInt16(8, Math.floor(gamepad.axes[2] * 32767), true);
+        view.setInt16(10, Math.floor(gamepad.axes[3] * -32767), true);
+
+        try {
+            dc.send(buf);
+        } catch (e) {
+            console.error("gamepad send failed", e);
+        }
+
+        requestAnimationFrame(loop);
+    }
+
+    requestAnimationFrame(loop);
+}
+
+function getActiveGamepad() {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+
+    for (const pad of pads) {
+        if (pad && pad.connected) {
+            return pad;
+        }
+    }
+
+    return null;
+}
+
+async function handleRumbleMessage(msg) {
+    currentRumble.large = msg.large ?? 0;
+    currentRumble.small = msg.small ?? 0;
+
+    if (rumbleTimer) {
+        clearTimeout(rumbleTimer);
+        rumbleTimer = null;
+    }
+
+    await applyRumbleState();
+
+    // ホストから振動停止通知が来ない / 落ちた場合の保険
+    rumbleTimer = setTimeout(async () => {
+        currentRumble.large = 0;
+        currentRumble.small = 0;
+        await stopRumble();
+    }, 600);
+}
+
+async function applyRumbleState() {
+    const pad = getActiveGamepad();
+    if (!pad) return;
+
+    const actuator = pad.vibrationActuator || pad.hapticActuators?.[0];
+    if (!actuator) return;
+
+    const large = currentRumble.large;
+    const small = currentRumble.small;
+
+    if (large === 0 && small === 0) {
+        await stopRumble();
+        return;
+    }
+
+    const strongMagnitude = clamp01(large / 255);
+    const weakMagnitude = clamp01(small / 255);
+
+    try {
+        if (typeof actuator.playEffect === "function") {
+            await actuator.playEffect("dual-rumble", {
+                startDelay: 0,
+                duration: 1000,
+                strongMagnitude,
+                weakMagnitude
+            });
+        } else if (typeof actuator.pulse === "function") {
+            await actuator.pulse(Math.max(strongMagnitude, weakMagnitude), 1000);
+        }
+    } catch (e) {
+        console.warn("[RUMBLE] apply failed", e);
+    }
+}
+
+async function stopRumble() {
+    const pad = getActiveGamepad();
+    if (!pad) return;
+
+    const actuator = pad.vibrationActuator || pad.hapticActuators?.[0];
+    if (!actuator) return;
+
+    try {
+        if (typeof actuator.playEffect === "function") {
+            await actuator.playEffect("dual-rumble", {
+                startDelay: 0,
+                duration: 1,
+                strongMagnitude: 0,
+                weakMagnitude: 0
+            });
+        } else if (typeof actuator.pulse === "function") {
+            await actuator.pulse(0, 1);
+        }
+    } catch (e) {
+        console.warn("[RUMBLE] stop failed", e);
+    }
+}
+
+function clamp01(v) {
+    if (!Number.isFinite(v)) return 0;
+    return Math.max(0, Math.min(1, v));
+}
+
+function encodeButtons(gamepad) {
+    let b = 0;
+
+    if (gamepad.buttons[0].pressed) b |= 1 << 12;
+    if (gamepad.buttons[1].pressed) b |= 1 << 13;
+    if (gamepad.buttons[2].pressed) b |= 1 << 14;
+    if (gamepad.buttons[3].pressed) b |= 1 << 15;
+
+    if (gamepad.buttons[4].pressed) b |= 1 << 8;
+    if (gamepad.buttons[5].pressed) b |= 1 << 9;
+
+    if (gamepad.buttons[8].pressed) b |= 1 << 5;
+    if (gamepad.buttons[9].pressed) b |= 1 << 4;
+
+    if (gamepad.buttons[10].pressed) b |= 1 << 6;
+    if (gamepad.buttons[11].pressed) b |= 1 << 7;
+
+    if (gamepad.buttons[12].pressed) b |= 1 << 0;
+    if (gamepad.buttons[13].pressed) b |= 1 << 1;
+    if (gamepad.buttons[14].pressed) b |= 1 << 2;
+    if (gamepad.buttons[15].pressed) b |= 1 << 3;
+
+    return b;
+}
+
+// ==================================
+// コントローラー制御 End
+// ==================================
+
+function setupDataChannel(channel) {
+    dc = channel;
+    inputDc = channel;
+
+    dc.onopen = () => {
+        console.log("DataChannel open");
+        startGamepadLoop();
+    };
+
+    dc.onclose = () => {
+        console.log("DataChannel closed");
+    };
+
+    dc.onerror = (err) => {
+        console.error("DataChannel error", err);
+    };
+
+    dc.onmessage = async (ev) => {
+        console.log("DataChannel message:", ev.data);
+
+        if (typeof ev.data !== "string") {
+            return;
+        }
+
+        let msg;
+        try {
+            msg = JSON.parse(ev.data);
+        } catch {
+            return;
+        }
+
+        if (msg.type === "rumble") {
+            console.log("[RUMBLE] received from host", msg);
+            await handleRumbleMessage(msg);
+            return;
+        }
+
+        if (msg.type === "dc_ping") {
+            if (dc?.readyState === "open") {
+                dc.send(JSON.stringify({
+                    type: "dc_pong",
+                    t: msg.t,
+                    receivedAt: Date.now()
+                }));
+            }
+            return;
+        }
+
+        if (msg.type === "dc_pong") {
+            dcLastPongAt = Date.now();
+            console.log("[dc.keepalive] pong", {
+                rtt: dcLastPongAt - msg.t,
+                dcBufferedAmount: dc.bufferedAmount,
+            });
+            return;
+        }
+    };
+}
 
 window.addEventListener("DOMContentLoaded", async () => {
     await fetchTtlSeconds();
@@ -774,57 +1014,8 @@ async function connect() {
     };
 
     pc.ondatachannel = (e) => {
-        dc = e.channel;
-        inputDc = dc;
-
-        console.log("DataChannel received:", dc.label);
-
-        dc.onopen = () => {
-            console.log("DataChannel open");
-            startGamepadLoop();
-        };
-
-        dc.onclose = () => {
-            console.log("DataChannel closed");
-        };
-
-        dc.onerror = (err) => {
-            console.error("DataChannel error", err);
-        };
-
-        dc.onmessage = (ev) => {
-            console.log("DataChannel message:", ev.data);
-
-            let msg;
-
-            try {
-                msg = JSON.parse(event.data);
-            } catch {
-                return;
-            }
-
-            if (msg.type === "dc_ping") {
-                if (dc?.readyState === "open") {
-                    dc.send(JSON.stringify({
-                        type: "dc_pong",
-                        t: msg.t,
-                        receivedAt: Date.now()
-                    }));
-                }
-                return;
-            }
-
-            if (msg.type === "dc_pong") {
-                dcLastPongAt = Date.now();
-
-                console.log("[dc.keepalive] pong", {
-                    rtt: dcLastPongAt - msg.t,
-                    dcBufferedAmount: dc.bufferedAmount,
-                });
-
-                return;
-            }
-        };
+        console.log("DataChannel received:", e.channel.label);
+        setupDataChannel(e.channel);
     };
 
     pc.onicecandidate = async (e) => {
@@ -937,16 +1128,11 @@ async function connect() {
         originalPcClose();
     };
 
-    dc = pc.createDataChannel("input", {
+    const inputChannel = pc.createDataChannel("input", {
         ordered: false,
         maxRetransmits: 0
     });
-
-    dc.onopen = () => {
-        log("[CLIENT] input DataChannel Open");
-        logPcState("dc.open", pc, dc);
-        startGamepadLoop();
-    };
+    setupDataChannel(inputChannel);
 
     dc.onclose = () => {
         log("[CLIENT] input DataChannel closed");
@@ -1237,53 +1423,6 @@ async function onEnableAudio() {
     }
 }
 
-function startGamepadLoop() {
-    console.log("startGamepadLoop started");
-
-    function loop() {
-        if (!dc || dc.readyState !== "open") {
-            requestAnimationFrame(loop);
-            return;
-        }
-
-        if (gamepadIndex == null) {
-            requestAnimationFrame(loop);
-            return;
-        }
-
-        const gamepads = navigator.getGamepads();
-        const gamepad = gamepads[gamepadIndex];
-
-        if (!gamepad) {
-            requestAnimationFrame(loop);
-            return;
-        }
-
-        const buttons = encodeButtons(gamepad);
-
-        const buf = new ArrayBuffer(12);
-        const view = new DataView(buf);
-
-        view.setUint16(0, buttons, true);
-        view.setUint8(2, Math.floor(gamepad.buttons[6].value * 255));
-        view.setUint8(3, Math.floor(gamepad.buttons[7].value * 255));
-        view.setInt16(4, Math.floor(gamepad.axes[0] * 32767), true);
-        view.setInt16(6, Math.floor(gamepad.axes[1] * -32767), true);
-        view.setInt16(8, Math.floor(gamepad.axes[2] * 32767), true);
-        view.setInt16(10, Math.floor(gamepad.axes[3] * -32767), true);
-
-        try {
-            dc.send(buf);
-        } catch (e) {
-            console.error("gamepad send failed", e);
-        }
-
-        requestAnimationFrame(loop);
-    }
-
-    requestAnimationFrame(loop);
-}
-
 async function toggleFullscreen() {
     const player = document.getElementById("player") || canvasEl;
 
@@ -1296,31 +1435,6 @@ async function toggleFullscreen() {
     } catch (e) {
         console.error("fullscreen failed", e);
     }
-}
-
-function encodeButtons(gamepad) {
-    let b = 0;
-
-    if (gamepad.buttons[0].pressed) b |= 1 << 12;
-    if (gamepad.buttons[1].pressed) b |= 1 << 13;
-    if (gamepad.buttons[2].pressed) b |= 1 << 14;
-    if (gamepad.buttons[3].pressed) b |= 1 << 15;
-
-    if (gamepad.buttons[4].pressed) b |= 1 << 8;
-    if (gamepad.buttons[5].pressed) b |= 1 << 9;
-
-    if (gamepad.buttons[8].pressed) b |= 1 << 5;
-    if (gamepad.buttons[9].pressed) b |= 1 << 4;
-
-    if (gamepad.buttons[10].pressed) b |= 1 << 6;
-    if (gamepad.buttons[11].pressed) b |= 1 << 7;
-
-    if (gamepad.buttons[12].pressed) b |= 1 << 0;
-    if (gamepad.buttons[13].pressed) b |= 1 << 1;
-    if (gamepad.buttons[14].pressed) b |= 1 << 2;
-    if (gamepad.buttons[15].pressed) b |= 1 << 3;
-
-    return b;
 }
 
 function closeFrameSafe(frame) {
@@ -1703,6 +1817,22 @@ async function logRtcSummary(pc) {
     });
 }
 
+
+function logPcState(prefix, pc, dc) {
+    console.log(`[${prefix}]`, {
+        time: new Date().toISOString(),
+        pcConnectionState: pc?.connectionState,
+        iceConnectionState: pc?.iceConnectionState,
+        iceGatheringState: pc?.iceGatheringState,
+        signalingState: pc?.signalingState,
+        dcReadyState: dc?.readyState,
+        dcBufferedAmount: dc?.bufferedAmount,
+    });
+}
+
+// ==========================
+// Cap 外し予防 Start
+// ==========================
 function estimateVideoBitrateBps(report) {
     const now = performance.now();
 
@@ -1771,6 +1901,9 @@ function disconnectForCapViolation(report, bitrateBps) {
 
     pc = null;
 }
+// ==========================
+// Cap 外し予防 End
+// ==========================
 
 // DataChannel 自動切断防止策1
 function startDataChannelKeepalive(dc, pc) {
@@ -1819,7 +1952,7 @@ function stopDataChannelKeepalive() {
     }
 }
 
-function handleDataChannelDead() {
+function handleDataChannelDead(reason) {
     if (reconnecting) return;
     reconnecting = true;
 
@@ -1847,16 +1980,4 @@ function handleDataChannelDead() {
             console.error("[reconnect] failed", e);
         }
     }, 1000);
-}
-
-function logPcState(prefix, pc, dc) {
-    console.log(`[${prefix}]`, {
-        time: new Date().toISOString(),
-        pcConnectionState: pc?.connectionState,
-        iceConnectionState: pc?.iceConnectionState,
-        iceGatheringState: pc?.iceGatheringState,
-        signalingState: pc?.signalingState,
-        dcReadyState: dc?.readyState,
-        dcBufferedAmount: dc?.bufferedAmount,
-    });
 }
