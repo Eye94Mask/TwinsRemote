@@ -9,13 +9,13 @@ using System.Windows.Forms;
 
 namespace TwinsRemoteHost
 {
-    public partial class ModeEditor : Form
+    public partial class ModeEditorForm : Form
     {
         private readonly Locale locale;
         private CustomMode editMode;
         private string currentMode;
 
-        public ModeEditor(Locale locale)
+        public ModeEditorForm(Locale locale)
         {
             this.locale = locale;
             InitializeComponent();
@@ -57,14 +57,14 @@ namespace TwinsRemoteHost
         {
             ResetCustomModes();
 
-            var presetGuids = ModeCreator.GetPresetGuids();
+            var presetGuids = ModeCreatorForm.GetPresetGuids();
             presetGuidComboBox.DataSource = null;
             presetGuidComboBox.Items.Clear();
             presetGuidComboBox.DisplayMember = "Name";
             presetGuidComboBox.ValueMember = "Value";
             presetGuidComboBox.DataSource = presetGuids;
 
-            var tuningInfo = ModeCreator.GetTuningInfo();
+            var tuningInfo = ModeCreatorForm.GetTuningInfo();
             tuningInfoComboBox.DataSource = null;
             tuningInfoComboBox.Items.Clear();
             tuningInfoComboBox.DisplayMember = "Name";
@@ -186,7 +186,7 @@ namespace TwinsRemoteHost
 
         private void saveButton_Click(object sender, EventArgs e)
         {
-            List<UInt32>? validatedValues = ModeCreator.ValidateCustomMode(
+            List<UInt32>? validatedValues = ModeCreatorForm.ValidateCustomMode(
                 modeNameTextBox.Text,
                 resolutionWidthTextBox.Text,
                 resolutionHeightTextBox.Text,
@@ -218,7 +218,7 @@ namespace TwinsRemoteHost
             UInt32 maxRefFrames = validatedValues[9];
             UInt32 lookaheadDepth = validatedValues[10];
 
-            this.editMode = ModeCreator.CreateCustomMode(
+            this.editMode = ModeCreatorForm.CreateCustomMode(
                 width, height, fps,
                 averageBitrate, maxBitrate, vbvBufferSize, vbvInitialDelay,
                 gopLength, idrPeriod,

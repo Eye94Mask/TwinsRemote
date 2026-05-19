@@ -1,6 +1,6 @@
 ﻿namespace TwinsRemoteHost
 {
-    partial class ProcessSelector
+    partial class ProcessSelectorForm
     {
         /// <summary>
         /// Required designer variable.
@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(ProcessSelectorForm));
             flowLayoutPanel = new FlowLayoutPanel();
             OkButton = new Button();
             cancelButton = new Button();
@@ -84,6 +85,7 @@
             Controls.Add(cancelButton);
             Controls.Add(flowLayoutPanel);
             Controls.Add(OkButton);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "ProcessSelector";
             Text = "ProcessSelector";
             ResumeLayout(false);

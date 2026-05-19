@@ -1,6 +1,6 @@
 ﻿namespace TwinsRemoteHost
 {
-    partial class ModeCreator
+    partial class ModeCreatorForm
     {
         /// <summary>
         /// Required designer variable.
@@ -29,6 +29,7 @@
         private void InitializeComponent()
         {
             components = new System.ComponentModel.Container();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(ModeCreatorForm));
             resolusionLabel = new Label();
             fpsLabel = new Label();
             presetModeLabel = new Label();
@@ -805,6 +806,7 @@
             Controls.Add(presetModeLabel);
             Controls.Add(fpsLabel);
             Controls.Add(resolusionLabel);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "ModeCreator";
             Text = "ModeCreator";
             detailSettingsFlowLayoutPanel1.ResumeLayout(false);

@@ -1,6 +1,6 @@
 ﻿namespace TwinsRemoteHost
 {
-    partial class ModeEditor
+    partial class ModeEditorForm
     {
         /// <summary>
         /// Required designer variable.
@@ -29,6 +29,7 @@
         private void InitializeComponent()
         {
             components = new System.ComponentModel.Container();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(ModeEditorForm));
             detailSettingsContainerFlowLayoutPanel = new FlowLayoutPanel();
             detailSettingsFlowLayoutPanel1 = new FlowLayoutPanel();
             averageBitrateLabel = new Label();
@@ -656,6 +657,7 @@
             Controls.Add(selectModeLabel);
             Controls.Add(fpsLabel);
             Controls.Add(resolutionLabel);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "ModeEditor";
             Text = "ModeEditor";
             Load += ModeEditor_Load;
