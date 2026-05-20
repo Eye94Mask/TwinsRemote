@@ -28,6 +28,7 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Host));
             modeLabel = new Label();
             sessionIdLabel = new Label();
             statusTitleLabel = new Label();
@@ -42,6 +43,10 @@
             languageComboBox = new ComboBox();
             createCustomModeButton = new Button();
             updateCustomMode = new Button();
+            infoBellPictureBox = new PictureBox();
+            notificationCountLabel = new Label();
+            updateLabel = new Label();
+            ((System.ComponentModel.ISupportInitialize)infoBellPictureBox).BeginInit();
             SuspendLayout();
             // 
             // modeLabel
@@ -172,7 +177,7 @@
             languageComboBox.Size = new Size(182, 50);
             languageComboBox.TabIndex = 11;
             languageComboBox.TabStop = false;
-            languageComboBox.SelectedIndexChanged += comboBoxLanguage_SelectedIndexChanged;
+            languageComboBox.SelectedIndexChanged += languageComboBox_SelectedIndexChanged;
             // 
             // createCustomModeButton
             // 
@@ -198,11 +203,55 @@
             updateCustomMode.UseVisualStyleBackColor = true;
             updateCustomMode.Click += updateDeleteCustomMode_Click;
             // 
+            // infoBellPictureBox
+            // 
+            infoBellPictureBox.BackColor = SystemColors.Control;
+            infoBellPictureBox.Enabled = false;
+            infoBellPictureBox.ErrorImage = null;
+            infoBellPictureBox.Image = (Image)resources.GetObject("infoBellPictureBox.Image");
+            infoBellPictureBox.Location = new Point(1958, 9);
+            infoBellPictureBox.Name = "infoBellPictureBox";
+            infoBellPictureBox.Size = new Size(80, 67);
+            infoBellPictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
+            infoBellPictureBox.TabIndex = 14;
+            infoBellPictureBox.TabStop = false;
+            infoBellPictureBox.Click += infoBellPictureBox_Click;
+            // 
+            // notificationCountLabel
+            // 
+            notificationCountLabel.AutoSize = true;
+            notificationCountLabel.BackColor = Color.Red;
+            notificationCountLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            notificationCountLabel.ForeColor = Color.Cornsilk;
+            notificationCountLabel.Location = new Point(1930, -2);
+            notificationCountLabel.Name = "notificationCountLabel";
+            notificationCountLabel.Size = new Size(35, 42);
+            notificationCountLabel.TabIndex = 15;
+            notificationCountLabel.Text = "1";
+            notificationCountLabel.TextAlign = ContentAlignment.MiddleCenter;
+            notificationCountLabel.Click += notificationCountLabel_Click;
+            // 
+            // updateLabel
+            // 
+            updateLabel.AutoSize = true;
+            updateLabel.BackColor = Color.LimeGreen;
+            updateLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            updateLabel.ForeColor = Color.Cornsilk;
+            updateLabel.Location = new Point(1930, 44);
+            updateLabel.Name = "updateLabel";
+            updateLabel.Size = new Size(42, 42);
+            updateLabel.TabIndex = 16;
+            updateLabel.Text = "↺";
+            updateLabel.TextAlign = ContentAlignment.MiddleCenter;
+            // 
             // Host
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(2304, 1014);
+            Controls.Add(updateLabel);
+            Controls.Add(notificationCountLabel);
+            Controls.Add(infoBellPictureBox);
             Controls.Add(updateCustomMode);
             Controls.Add(createCustomModeButton);
             Controls.Add(languageComboBox);
@@ -217,9 +266,11 @@
             Controls.Add(statusTitleLabel);
             Controls.Add(sessionIdLabel);
             Controls.Add(modeLabel);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "Host";
             Text = "TwinsRemote Host";
             Load += Host_Load;
+            ((System.ComponentModel.ISupportInitialize)infoBellPictureBox).EndInit();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -240,5 +291,8 @@
         private ComboBox languageComboBox;
         private Button createCustomModeButton;
         private Button updateCustomMode;
+        private PictureBox infoBellPictureBox;
+        private Label notificationCountLabel;
+        private Label updateLabel;
     }
 }

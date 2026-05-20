@@ -5,7 +5,7 @@ using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace TwinsRemoteHost
 {
-    public partial class ModeCreator : Form
+    public partial class ModeCreatorForm : Form
     {
         private readonly Locale locale;
         private CustomMode customMode;
@@ -111,7 +111,7 @@ namespace TwinsRemoteHost
             true, true
         );
 
-        public ModeCreator(Locale locale)
+        public ModeCreatorForm(Locale locale)
         {
             this.locale = locale;
             InitializeComponent();

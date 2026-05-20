@@ -1,16 +1,19 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Compile Update="Form1.cs">
+    <Compile Update="TwinsRemoteHost.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Update="Form2.cs">
+    <Compile Update="ProcessSelectorForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Update="Form3.cs">
+    <Compile Update="ModeCreatorForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Update="Form4.cs">
+    <Compile Update="ModeEditorForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Update="NotificationsForm.cs">
       <SubType>Form</SubType>
     </Compile>
   </ItemGroup>

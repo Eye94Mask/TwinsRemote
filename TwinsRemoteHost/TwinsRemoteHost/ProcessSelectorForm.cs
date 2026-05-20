@@ -10,12 +10,12 @@ using System.Windows.Forms;
 
 namespace TwinsRemoteHost
 {
-    public partial class ProcessSelector : Form
+    public partial class ProcessSelectorForm : Form
     {
         private FlowLayoutPanel? selectedPanel;
         private string processId = "";
 
-        public ProcessSelector()
+        public ProcessSelectorForm()
         {
             InitializeComponent();
             DisplayAudioProcess();

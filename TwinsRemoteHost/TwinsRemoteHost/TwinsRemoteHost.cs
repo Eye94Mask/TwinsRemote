@@ -18,12 +18,22 @@ namespace TwinsRemoteHost
 {
     public partial class Host : Form
     {
+        private string version = "1.0.0";
+
+        private bool init = true;
+        private List<string> notifications = [];
+        private string updateNotification = string.Empty;
+        private int notificationCount = 0;
+        private readonly string releaseUrl = "https://github.com/Eye94Mask/TwinsRemote/releases";
+
+        private string signalBaseUrl = "https://play.twins-remote.com";
         private Process? _hostProcess;
         private Locale locale;
-        private ProcessSelector? pSelector = null;
-        private ModeCreator? mCreator = null;
-        private ModeEditor? mEditor = null;
-        private string pId = "";
+        private ProcessSelectorForm? pSelector = null;
+        private ModeCreatorForm? mCreator = null;
+        private ModeEditorForm? mEditor = null;
+        private NotificationsForm? notificationsForm = null;
+        private string pId = string.Empty;
         private Status status = Status.Stop;
 
         public Host()
@@ -40,11 +50,158 @@ namespace TwinsRemoteHost
             FormClosing += Host_FormClosing;
         }
 
-        private void Host_Load(object sender, EventArgs e)
+        private async void Host_Load(object sender, EventArgs e)
         {
 
         }
 
+        private int OrganizeNotificationAndGetCount()
+        {
+            List<string> notifications = [];
+            int count = 0;
+            foreach (string notification in this.notifications)
+            {
+                string notice = notification.Split('@')[0];
+                notifications.Add(notice);
+                DateTime dt = DateTime.Parse(notification.Split('@')[1]);
+
+                // 取得したお知らせが前回のチェック時以降に追加されていた場合
+                if (Properties.Settings.Default.NotificationDate.Date < dt.Date)
+                {
+                    AppendLog("data: " + Properties.Settings.Default.NotificationDate.Date.ToString());
+                    AppendLog("json: " + dt.Date.ToString());
+                    count++;
+                }
+            }
+            this.notifications.Clear();
+            this.notifications = notifications;
+
+            return count;
+        }
+
+        private void SetNotificationCounter()
+        {
+            this.notificationCount = OrganizeNotificationAndGetCount();
+
+            if (this.notificationCount > 0)
+            {
+                infoBellPictureBox.Enabled = true;
+                notificationCountLabel.Text = this.notificationCount.ToString();
+
+                return;
+            }
+
+            if (this.updateNotification != string.Empty)
+            {
+                infoBellPictureBox.Enabled = true;
+            }
+
+            notificationCountLabel.Text = string.Empty;
+        }
+
+        private async Task InitializeNotifications()
+        {
+            this.notificationCount = 0;
+            this.notifications.Clear();
+            this.updateNotification = string.Empty;
+
+            // notices format = "{Notification}@{NotificationDate}"
+            string[] notices = await InformNotifications();
+            foreach (string notice in notices)
+            {
+                if (!this.notifications.Contains(notice)) { this.notifications.Add(notice); }
+            }
+            await InformUpdate();
+
+            SetNotificationCounter();
+        }
+
+        private async Task<string[]> InformNotifications()
+        {
+            using var http = new HttpClient();
+            string url = this.signalBaseUrl.TrimEnd('/') + "/notifications";
+
+            Notifications? resp = await http.GetFromJsonAsync<Notifications>(url);
+            if (resp == null) { return []; }
+
+            switch (languageComboBox.SelectedValue)
+            {
+                case "ja-JP": return resp.Japanese;
+                case "en-US": return resp.English;
+                default: break;
+            }
+
+            return resp.Japanese;
+        }
+
+        private async Task InformUpdate()
+        {
+            (int major, int minor, int patch) = await GetLatestVersion();
+            (int currentMajor, int currentMinor, int currentPatch) = GetCurrentVersion();
+
+            if (major > currentMajor) { NeedToUpdate(); return; }
+            if (minor > currentMinor) { InformNewFeature(); return; }
+            if (patch > currentPatch) { InformNewPatch(); return; }
+        }
+
+        private void NeedToUpdate()
+        {
+            MessageBox.Show($"{this.locale.NewMajorUpdate}\n", locale.Notice,
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            var ps = new Process();
+            ps.StartInfo.UseShellExecute = true;
+            ps.StartInfo.FileName = this.releaseUrl;
+            ps.Start();
+
+            this.Close();
+        }
+
+        private void InformNewFeature()
+        {
+            this.updateNotification = this.locale.NewMinorUpdate;
+            updateLabel.Text = "↺";
+        }
+
+        private void InformNewPatch()
+        {
+            this.updateNotification = this.locale.NewPatchUpdate;
+            updateLabel.Text = "↺";
+        }
+
+        private static (int, int, int) StringVersionToIntVersion(string version)
+        {
+            string[] versions = version.Split('.');
+            if (versions.Length != 3) { return (-1, -1, -1); }
+
+            try
+            {
+                int major = int.Parse(versions[0]);
+                int minor = int.Parse(versions[1]);
+                int patch = int.Parse(versions[2]);
+
+                return (major, minor, patch);
+            }
+            catch { }
+
+            return (-1, -1, -1);
+        }
+
+        private (int, int, int) GetCurrentVersion()
+        {
+            return StringVersionToIntVersion(this.version);
+        }
+
+        private async Task<(int, int, int)> GetLatestVersion()
+        {
+            using var http = new HttpClient();
+            string url = this.signalBaseUrl.TrimEnd('/') + "/latest-host-version";
+
+            LatestHostVersionResponse? resp = await http.GetFromJsonAsync<LatestHostVersionResponse>(url);
+            if (resp == null) { return (0, 0, 0); }
+
+            return StringVersionToIntVersion(resp.Version);
+        }
 
         private void ResetModeList(String? previousModeValue = null)
         {
@@ -79,7 +236,7 @@ namespace TwinsRemoteHost
             else modeComboBox.SelectedIndex = 0;
         }
 
-        private void InitializeUi()
+        private async Task InitializeUi()
         {
             ResetModeList();
 
@@ -90,6 +247,9 @@ namespace TwinsRemoteHost
 
             statusValueLabel.Text = locale.StatusStopped;
             SetRunningState(false);
+
+            await InitializeNotifications();
+            this.init = false;
         }
 
         private void InitializeLanguageComboBox()
@@ -116,6 +276,7 @@ namespace TwinsRemoteHost
             KillProcesses(nvEnc);
             KillProcesses(twinsRemoteHost);
         }
+
         private void KillProcesses(Process[] processes)
         {
             foreach (Process process in processes)
@@ -253,11 +414,11 @@ namespace TwinsRemoteHost
             }
         }
 
-        private async Task<string> IssueHostTokenAsync(string signalBaseUrl, string sessionId)
+        private async Task<string> IssueHostTokenAsync(string sessionId)
         {
             using var http = new HttpClient();
 
-            string url = signalBaseUrl.TrimEnd('/') + "/issue-host-token";
+            string url = this.signalBaseUrl.TrimEnd('/') + "/issue-host-token";
 
             var resp = await http.PostAsJsonAsync(url, new IssueHostTokenRequest
             {
@@ -273,7 +434,7 @@ namespace TwinsRemoteHost
             return body.Token;
         }
 
-        private void comboBoxLanguage_SelectedIndexChanged(object sender, EventArgs e)
+        private async void languageComboBox_SelectedIndexChanged(object sender, EventArgs e)
         {
             string lang = languageComboBox.Text.ToString() ?? "Japanese";
 
@@ -284,6 +445,8 @@ namespace TwinsRemoteHost
             }
 
             ApplyLanguage();
+
+            if (!this.init) { await InitializeNotifications(); }
         }
 
         private void SetLocale()
@@ -327,7 +490,7 @@ namespace TwinsRemoteHost
                 case Status.Disconnected: return this.locale.StatusDisconnected;
             }
 
-            return "";
+            return string.Empty;
         }
 
         private void ApplyLanguage()
@@ -435,10 +598,9 @@ namespace TwinsRemoteHost
                 CreateNoWindow = true
             };
 
-            string signalBaseUrl = "https://play.twins-remote.com";
-            string hostToken = await IssueHostTokenAsync(signalBaseUrl, sessionId);
+            string hostToken = await IssueHostTokenAsync(sessionId);
 
-            psi.Environment["SIGNAL_BASE_URL"] = signalBaseUrl;
+            psi.Environment["SIGNAL_BASE_URL"] = this.signalBaseUrl;
             psi.Environment["WEBRTC_CONFIG_TOKEN"] = hostToken;
 
             _hostProcess = new Process
@@ -478,7 +640,7 @@ namespace TwinsRemoteHost
         {
             if (pSelector == null || pSelector.IsDisposed)
             {
-                pSelector = new ProcessSelector();
+                pSelector = new ProcessSelectorForm();
                 pSelector.Left = this.Left + 200;
                 pSelector.Top = this.Top + 200;
                 pSelector.StartPosition = FormStartPosition.Manual;
@@ -493,10 +655,10 @@ namespace TwinsRemoteHost
 
             pSelector.Dispose();
             pSelector = null;
-            if (pId != "")
+            if (pId != string.Empty)
             {
                 SendCommand(pId);
-                pId = "";
+                pId = string.Empty;
 
             }
         }
@@ -513,56 +675,90 @@ namespace TwinsRemoteHost
 
         private void createMode_Click(object sender, EventArgs e)
         {
-            String selectedModeValue = "";
+            String selectedModeValue = string.Empty;
             if (modeComboBox.SelectedItem != null)
             {
                 selectedModeValue = modeComboBox.SelectedItem.ToString();
             }
 
-            if (mCreator == null || mCreator.IsDisposed)
+            if (this.mCreator == null || this.mCreator.IsDisposed)
             {
-                mCreator = new ModeCreator(this.locale);
-                mCreator.Left = this.Left + 200;
-                mCreator.Top = this.Top + 200;
-                mCreator.StartPosition = FormStartPosition.Manual;
-                mCreator.ShowDialog();
+                this.mCreator = new ModeCreatorForm(this.locale);
+                this.mCreator.Left = this.Left + 200;
+                this.mCreator.Top = this.Top + 200;
+                this.mCreator.StartPosition = FormStartPosition.Manual;
+                this.mCreator.ShowDialog();
             }
             else
             {
-                mCreator.WindowState = FormWindowState.Normal;
-                mCreator.Activate();
+                this.mCreator.WindowState = FormWindowState.Normal;
+                this.mCreator.Activate();
             }
 
             ResetModeList(selectedModeValue);
-            mCreator.Dispose();
-            mCreator = null;
+            this.mCreator.Dispose();
+            this.mCreator = null;
         }
 
         private void updateDeleteCustomMode_Click(object sender, EventArgs e)
         {
-            String selectedModeValue = "";
+            String selectedModeValue = string.Empty;
             if (modeComboBox.SelectedItem != null)
             {
                 selectedModeValue = modeComboBox.SelectedItem.ToString();
             }
 
-            if (mEditor == null || mEditor.IsDisposed)
+            if (this.mEditor == null || this.mEditor.IsDisposed)
             {
-                mEditor = new ModeEditor(this.locale);
-                mEditor.Left = this.Left + 200;
-                mEditor.Top = this.Top + 200;
-                mEditor.StartPosition = FormStartPosition.Manual;
-                mEditor.ShowDialog();
+                this.mEditor = new ModeEditorForm(this.locale);
+                this.mEditor.Left = this.Left + 200;
+                this.mEditor.Top = this.Top + 200;
+                this.mEditor.StartPosition = FormStartPosition.Manual;
+                this.mEditor.ShowDialog();
             }
             else
             {
-                mEditor.WindowState = FormWindowState.Normal;
-                mEditor.Activate();
+                this.mEditor.WindowState = FormWindowState.Normal;
+                this.mEditor.Activate();
             }
 
             ResetModeList(selectedModeValue);
-            mEditor.Dispose();
-            mEditor = null;
+            this.mEditor.Dispose();
+            this.mEditor = null;
+        }
+
+        private void infoBellPictureBox_Click(object sender, EventArgs e)
+        {
+            OpenNotificationForm();
+        }
+
+        private void notificationCountLabel_Click(object sender, EventArgs e)
+        {
+            OpenNotificationForm();
+        }
+
+        private void OpenNotificationForm()
+        {
+            if (this.notificationsForm == null || this.notificationsForm.IsDisposed)
+            {
+                this.notificationsForm = new NotificationsForm(this.notifications, this.updateNotification, this.releaseUrl);
+                this.notificationsForm.Left = this.Left + 200;
+                this.notificationsForm.Top = this.Top + 200;
+                this.notificationsForm.ShowDialog();
+            }
+            else
+            {
+                this.notificationsForm.WindowState = FormWindowState.Normal;
+                this.notificationsForm.Activate();
+            }
+
+            Properties.Settings.Default.NotificationDate = DateTime.Now;
+            Properties.Settings.Default.Save();
+            this.notificationCount = 0;
+            notificationCountLabel.Text = "";
+
+            this.notificationsForm.Dispose();
+            this.notificationsForm = null;
         }
     }
 
@@ -582,8 +778,8 @@ namespace TwinsRemoteHost
 
     public class VideoPresetItem
     {
-        public string DisplayName { get; set; } = "";
-        public string Key { get; set; } = "";
+        public string DisplayName { get; set; } = string.Empty;
+        public string Key { get; set; } = string.Empty;
 
         public override string ToString() => DisplayName;
     }
@@ -679,6 +875,9 @@ namespace TwinsRemoteHost
 
         [JsonProperty("readLocaleFailed")]
         public required string ReadLocaleFailed { get; set; }
+
+        [JsonProperty("notice")]
+        public required string Notice{ get; set; }
 
         [JsonProperty("confirm")]
         public required string Confirm { get; set; }
@@ -904,20 +1103,44 @@ namespace TwinsRemoteHost
 
         [JsonProperty("failedToUpdateCustom")]
         public required string FailedToUpdateCustom { get; set; }
+
+        [JsonProperty("newMajorUpdate")]
+        public required string NewMajorUpdate { get; set; }
+
+        [JsonProperty("newMinorUpdate")]
+        public required string NewMinorUpdate { get; set; }
+
+        [JsonProperty("newPatchUpdate")]
+        public required string NewPatchUpdate { get; set; }
     }
 
     public class IssueHostTokenRequest
     {
         [JsonPropertyName("sessionId")]
-        public string SessionId { get; set; } = "";
+        public string SessionId { get; set; } = string.Empty;
     }
 
     public class IssueHostTokenResponse
     {
         [JsonPropertyName("token")]
-        public string Token { get; set; } = "";
+        public string Token { get; set; } = string.Empty;
 
         [JsonPropertyName("expiresIn")]
         public int ExpiresIn { get; set; }
+    }
+
+    public class LatestHostVersionResponse
+    {
+        [JsonPropertyName("version")]
+        public string Version { get; set; } = string.Empty;
+    }
+
+    public class Notifications
+    {
+        [JsonPropertyName("japanese")]
+        public string[] Japanese { get; set; } = [];
+
+        [JsonPropertyName("english")]
+        public string[] English { get; set; } = [];
     }
 }
