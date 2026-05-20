@@ -225,9 +225,8 @@
             notificationCountLabel.ForeColor = Color.Cornsilk;
             notificationCountLabel.Location = new Point(1930, -2);
             notificationCountLabel.Name = "notificationCountLabel";
-            notificationCountLabel.Size = new Size(35, 42);
+            notificationCountLabel.Size = new Size(0, 42);
             notificationCountLabel.TabIndex = 15;
-            notificationCountLabel.Text = "1";
             notificationCountLabel.TextAlign = ContentAlignment.MiddleCenter;
             notificationCountLabel.Click += notificationCountLabel_Click;
             // 
@@ -239,9 +238,8 @@
             updateLabel.ForeColor = Color.Cornsilk;
             updateLabel.Location = new Point(1930, 44);
             updateLabel.Name = "updateLabel";
-            updateLabel.Size = new Size(42, 42);
+            updateLabel.Size = new Size(0, 42);
             updateLabel.TabIndex = 16;
-            updateLabel.Text = "↺";
             updateLabel.TextAlign = ContentAlignment.MiddleCenter;
             // 
             // Host

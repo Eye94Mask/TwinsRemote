@@ -50,7 +50,7 @@ namespace TwinsRemoteHost
             FormClosing += Host_FormClosing;
         }
 
-        private async void Host_Load(object sender, EventArgs e)
+        private void Host_Load(object sender, EventArgs e)
         {
 
         }
@@ -83,9 +83,13 @@ namespace TwinsRemoteHost
         {
             this.notificationCount = OrganizeNotificationAndGetCount();
 
-            if (this.notificationCount > 0)
+            if (this.notifications.Count > 0)
             {
                 infoBellPictureBox.Enabled = true;
+            }
+
+            if (this.notificationCount > 0)
+            {
                 notificationCountLabel.Text = this.notificationCount.ToString();
 
                 return;
