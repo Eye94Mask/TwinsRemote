@@ -45,6 +45,7 @@
             updateCustomMode = new Button();
             infoBellPictureBox = new PictureBox();
             notificationCountLabel = new Label();
+            updateLabel = new Label();
             ((System.ComponentModel.ISupportInitialize)infoBellPictureBox).BeginInit();
             SuspendLayout();
             // 
@@ -222,17 +223,33 @@
             notificationCountLabel.BackColor = Color.Red;
             notificationCountLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             notificationCountLabel.ForeColor = Color.Cornsilk;
-            notificationCountLabel.Location = new Point(1934, 9);
+            notificationCountLabel.Location = new Point(1930, -2);
             notificationCountLabel.Name = "notificationCountLabel";
-            notificationCountLabel.Size = new Size(0, 42);
+            notificationCountLabel.Size = new Size(35, 42);
             notificationCountLabel.TabIndex = 15;
+            notificationCountLabel.Text = "1";
+            notificationCountLabel.TextAlign = ContentAlignment.MiddleCenter;
             notificationCountLabel.Click += notificationCountLabel_Click;
+            // 
+            // updateLabel
+            // 
+            updateLabel.AutoSize = true;
+            updateLabel.BackColor = Color.LimeGreen;
+            updateLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            updateLabel.ForeColor = Color.Cornsilk;
+            updateLabel.Location = new Point(1930, 44);
+            updateLabel.Name = "updateLabel";
+            updateLabel.Size = new Size(42, 42);
+            updateLabel.TabIndex = 16;
+            updateLabel.Text = "↺";
+            updateLabel.TextAlign = ContentAlignment.MiddleCenter;
             // 
             // Host
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(2304, 1014);
+            Controls.Add(updateLabel);
             Controls.Add(notificationCountLabel);
             Controls.Add(infoBellPictureBox);
             Controls.Add(updateCustomMode);
@@ -276,5 +293,6 @@
         private Button updateCustomMode;
         private PictureBox infoBellPictureBox;
         private Label notificationCountLabel;
+        private Label updateLabel;
     }
 }

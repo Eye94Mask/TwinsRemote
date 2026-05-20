@@ -8,5 +8,8 @@
     <Setting Name="Mode" Type="System.String" Scope="User">
       <Value Profile="(Default)">Balanced</Value>
     </Setting>
+    <Setting Name="NotificationDate" Type="System.DateTime" Scope="User">
+      <Value Profile="(Default)">1970-01-01</Value>
+    </Setting>
   </Settings>
 </SettingsFile>

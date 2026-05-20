@@ -18,11 +18,11 @@ namespace TwinsRemoteHost
 {
     public partial class Host : Form
     {
-        private string version = "0.0.0";
+        private string version = "1.0.0";
 
         private bool init = true;
         private List<string> notifications = [];
-        private string updateNotification = "";
+        private string updateNotification = string.Empty;
         private int notificationCount = 0;
         private readonly string releaseUrl = "https://github.com/Eye94Mask/TwinsRemote/releases";
 
@@ -33,7 +33,7 @@ namespace TwinsRemoteHost
         private ModeCreatorForm? mCreator = null;
         private ModeEditorForm? mEditor = null;
         private NotificationsForm? notificationsForm = null;
-        private string pId = "";
+        private string pId = string.Empty;
         private Status status = Status.Stop;
 
         public Host()
@@ -55,10 +55,33 @@ namespace TwinsRemoteHost
 
         }
 
+        private int OrganizeNotificationAndGetCount()
+        {
+            List<string> notifications = [];
+            int count = 0;
+            foreach (string notification in this.notifications)
+            {
+                string notice = notification.Split('@')[0];
+                notifications.Add(notice);
+                DateTime dt = DateTime.Parse(notification.Split('@')[1]);
+
+                // 取得したお知らせが前回のチェック時以降に追加されていた場合
+                if (Properties.Settings.Default.NotificationDate.Date < dt.Date)
+                {
+                    AppendLog("data: " + Properties.Settings.Default.NotificationDate.Date.ToString());
+                    AppendLog("json: " + dt.Date.ToString());
+                    count++;
+                }
+            }
+            this.notifications.Clear();
+            this.notifications = notifications;
+
+            return count;
+        }
+
         private void SetNotificationCounter()
         {
-            this.notificationCount += this.notifications.Count;
-            if (this.updateNotification != string.Empty) { this.notificationCount++; }
+            this.notificationCount = OrganizeNotificationAndGetCount();
 
             if (this.notificationCount > 0)
             {
@@ -68,6 +91,11 @@ namespace TwinsRemoteHost
                 return;
             }
 
+            if (this.updateNotification != string.Empty)
+            {
+                infoBellPictureBox.Enabled = true;
+            }
+
             notificationCountLabel.Text = string.Empty;
         }
 
@@ -75,8 +103,9 @@ namespace TwinsRemoteHost
         {
             this.notificationCount = 0;
             this.notifications.Clear();
-            this.updateNotification = "";
+            this.updateNotification = string.Empty;
 
+            // notices format = "{Notification}@{NotificationDate}"
             string[] notices = await InformNotifications();
             foreach (string notice in notices)
             {
@@ -131,11 +160,13 @@ namespace TwinsRemoteHost
         private void InformNewFeature()
         {
             this.updateNotification = this.locale.NewMinorUpdate;
+            updateLabel.Text = "↺";
         }
 
         private void InformNewPatch()
         {
             this.updateNotification = this.locale.NewPatchUpdate;
+            updateLabel.Text = "↺";
         }
 
         private static (int, int, int) StringVersionToIntVersion(string version)
@@ -459,7 +490,7 @@ namespace TwinsRemoteHost
                 case Status.Disconnected: return this.locale.StatusDisconnected;
             }
 
-            return "";
+            return string.Empty;
         }
 
         private void ApplyLanguage()
@@ -624,10 +655,10 @@ namespace TwinsRemoteHost
 
             pSelector.Dispose();
             pSelector = null;
-            if (pId != "")
+            if (pId != string.Empty)
             {
                 SendCommand(pId);
-                pId = "";
+                pId = string.Empty;
 
             }
         }
@@ -644,7 +675,7 @@ namespace TwinsRemoteHost
 
         private void createMode_Click(object sender, EventArgs e)
         {
-            String selectedModeValue = "";
+            String selectedModeValue = string.Empty;
             if (modeComboBox.SelectedItem != null)
             {
                 selectedModeValue = modeComboBox.SelectedItem.ToString();
@@ -671,7 +702,7 @@ namespace TwinsRemoteHost
 
         private void updateDeleteCustomMode_Click(object sender, EventArgs e)
         {
-            String selectedModeValue = "";
+            String selectedModeValue = string.Empty;
             if (modeComboBox.SelectedItem != null)
             {
                 selectedModeValue = modeComboBox.SelectedItem.ToString();
@@ -721,6 +752,11 @@ namespace TwinsRemoteHost
                 this.notificationsForm.Activate();
             }
 
+            Properties.Settings.Default.NotificationDate = DateTime.Now;
+            Properties.Settings.Default.Save();
+            this.notificationCount = 0;
+            notificationCountLabel.Text = "";
+
             this.notificationsForm.Dispose();
             this.notificationsForm = null;
         }
@@ -742,8 +778,8 @@ namespace TwinsRemoteHost
 
     public class VideoPresetItem
     {
-        public string DisplayName { get; set; } = "";
-        public string Key { get; set; } = "";
+        public string DisplayName { get; set; } = string.Empty;
+        public string Key { get; set; } = string.Empty;
 
         public override string ToString() => DisplayName;
     }
@@ -1081,13 +1117,13 @@ namespace TwinsRemoteHost
     public class IssueHostTokenRequest
     {
         [JsonPropertyName("sessionId")]
-        public string SessionId { get; set; } = "";
+        public string SessionId { get; set; } = string.Empty;
     }
 
     public class IssueHostTokenResponse
     {
         [JsonPropertyName("token")]
-        public string Token { get; set; } = "";
+        public string Token { get; set; } = string.Empty;
 
         [JsonPropertyName("expiresIn")]
         public int ExpiresIn { get; set; }
@@ -1096,7 +1132,7 @@ namespace TwinsRemoteHost
     public class LatestHostVersionResponse
     {
         [JsonPropertyName("version")]
-        public string Version { get; set; } = "";
+        public string Version { get; set; } = string.Empty;
     }
 
     public class Notifications

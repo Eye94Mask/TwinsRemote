@@ -376,6 +376,7 @@ button {
     display: flex;
     justify-content: flex-end;
     gap: 0.5rem;
+    padding-top: 10px;
 }
 
 .btn-sns {
@@ -498,5 +499,53 @@ button {
   }
   50% {
     transform: translateY(-4px);
+  }
+}
+
+.ticker {
+  position: relative;
+  height: 50px;
+  background: #3e6095;
+  border-radius: 5px;
+  overflow: hidden;
+
+  & li {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 1;
+
+    & .active {
+      position: absolute;
+      top: 0;
+      left: 0;
+      opacity: 1;
+    }
+
+    & .inactive {
+      opacity: 0;
+      transform: translateY(-100%);
+    }
+
+    & div {
+      box-sizing: border-box;
+      display: grid;
+      place-content: center start;
+      height: 100%;
+      color: #fff;
+      font-size: 24px;
+      text-decoration: none;
+      padding: 0 0.5em;
+      line-height: 1;
+    }
+
+    & span {
+      width: 100%;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
   }
 }

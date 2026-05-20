@@ -163,6 +163,9 @@ let currentRumble = {
     small: 0
 };
 
+let noticesJa = null;
+let noticesEn = null;
+
 // ==================================
 // コントローラー制御 Start
 // ==================================
@@ -408,7 +411,42 @@ function setupDataChannel(channel) {
 
 window.addEventListener("DOMContentLoaded", async () => {
     await fetchTtlSeconds();
+    await fetchNotifications();
     tokenTimeoutMessage = setTimeout(tokenTimeout, ttlSeconds);
+
+    if (noticesJa || noticesEn) {
+        // 多言語対応必須
+        const noticesList = document.getElementById("noticeList");
+
+        const notices = noticesJa;
+
+        notices.forEach(notice => {
+            const noticeContent = notice.split("@")[0];
+            const div = document.createElement("div");
+            const span = document.createElement("span");
+            span.textContent = noticeContent;
+            div.appendChild(span)
+            noticesList.appendChild(div);
+        });
+
+        if (notices.length > 1) {
+            const Items = document.getElementById("noticeList").children;
+            let currentIndex = 0;
+            
+            setInterval(() => {
+                Items[currentIndex].classList.remove("active");
+                Items[currentIndex].classList.add("inactive");
+                currentIndex = (currentIndex + 1) % Items.length;
+
+                const nextItem = Items[currentIndex];
+                nextItem.classList.remove("inactive");
+                nextItem.classList.add("active");
+            }, 5000);
+        } else if (notices < 1) {
+            const ticker = document.getElementById("ticker");
+            ticker.removeChild();
+        }
+    }
 
     const selectedSubtitle = splashSubtitles[getRandomInt(splashSubtitles.length)];
     const subtitle = document.getElementById("splashSubtitle");
@@ -731,12 +769,21 @@ async function fetchWebRtcConfig() {
 async function fetchTtlSeconds() {
     const res = await fetch("/ttl-seconds");
 
-    if (!res.ok) {
-        return;
-    }
+    if (!res.ok) { return; }
 
     const json = await res.json();
     ttlSeconds = json.ttlSeconds * 1000;
+}
+
+async function fetchNotifications() {
+    const res = await fetch("/notifications")
+
+    if (!res.ok) { return; }
+
+    const json = await res.json();
+    console.log(json);
+    noticesJa = json.japanese;
+    noticesEn = json.english;
 }
 
 async function postJson(url, body) {
