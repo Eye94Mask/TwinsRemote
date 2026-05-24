@@ -1,6 +1,7 @@
 let pc;
 let dc;
 let inputDc = null;
+let controllerDc = null;
 let gamepadIndex = null;
 
 let remoteAudioStream = new MediaStream();
@@ -217,7 +218,7 @@ function startGamepadLoop() {
         view.setInt16(10, Math.floor(gamepad.axes[3] * -32767), true);
 
         try {
-            dc.send(buf);
+            controllerDc.send(buf);
         } catch (e) {
             console.error("gamepad send failed", e);
         }
@@ -350,13 +351,13 @@ function encodeButtons(gamepad) {
 // コントローラー制御 End
 // ==================================
 
-function setupDataChannel(channel) {
+function setupDataChannel(channel, stream) {
     dc = channel;
     inputDc = channel;
+    controllerDc = stream;
 
     dc.onopen = () => {
         console.log("DataChannel open");
-        startGamepadLoop();
     };
 
     dc.onclose = () => {
@@ -370,20 +371,12 @@ function setupDataChannel(channel) {
     dc.onmessage = async (ev) => {
         console.log("DataChannel message:", ev.data);
 
-        if (typeof ev.data !== "string") {
-            return;
-        }
+        if (typeof ev.data !== "string") { return; }
 
         let msg;
         try {
             msg = JSON.parse(ev.data);
         } catch {
-            return;
-        }
-
-        if (msg.type === "rumble") {
-            console.log("[RUMBLE] received from host", msg);
-            await handleRumbleMessage(msg);
             return;
         }
 
@@ -407,6 +400,38 @@ function setupDataChannel(channel) {
             return;
         }
     };
+
+    controllerDc.onopen = () => {
+        console.log("Stream DataChannel open");
+        startGamepadLoop();
+    };
+
+    controllerDc.onclose = () => {
+        console.log("Stream DataChannel close");
+    }
+
+    controllerDc.onerror = (err) => {
+        console.error("Stream DataChannel error", err);
+    }
+
+    controllerDc.onmessage = async (ev) => {
+        console.log("DataChannel message:", ev.data);
+
+        if (typeof ev.data !== "string") { return; }
+
+        let msg;
+        try {
+            msg = JSON.parse(ev.data);
+        } catch {
+            return;
+        }
+
+        if (msg.type === "rumble") {
+            console.log("[RUMBLE] received from host", msg);
+            await handleRumbleMessage(msg);
+            return;
+        }
+    }
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
@@ -444,7 +469,7 @@ window.addEventListener("DOMContentLoaded", async () => {
             }, 5000);
         } else if (notices < 1) {
             const ticker = document.getElementById("ticker");
-            ticker.removeChild();
+            ticker.remove();
         }
     }
 
@@ -1010,10 +1035,10 @@ async function connect() {
             if (event.receiver) {
                 try {
                     if ("playoutDelayHint" in event.receiver) {
-                        event.receiver.playoutDelayHint = 0.02;
+                        event.receiver.playoutDelayHint = 0.00;
                     }
                     if ("jitterBufferTarget" in event.receiver) {
-                        event.receiver.jitterBufferTarget = 0;
+                        event.receiver.jitterBufferTarget = 0.00;
                     }
                 } catch (e) {
                     console.warn("video receiver tuning failed", e);
@@ -1179,7 +1204,12 @@ async function connect() {
         ordered: false,
         maxRetransmits: 0
     });
-    setupDataChannel(inputChannel);
+
+    const controllerChannel = pc.createDataChannel("controller", {
+        ordered: false,
+        maxRetransmits: 0
+    });
+    setupDataChannel(inputChannel, controllerChannel);
 
     dc.onclose = () => {
         log("[CLIENT] input DataChannel closed");

@@ -405,6 +405,7 @@ async fn main() -> Result<()> {
 
                 tokio::spawn(async move {
                     loop {
+                        if dc_rumble.label() != "controller" { break; }
                         let rumble = match rumble_rx.recv().await {
                             Ok(v) => v,
                             Err(broadcast::error::RecvError::Lagged(n)) => {
@@ -431,11 +432,6 @@ async fn main() -> Result<()> {
                             0
                         };
 
-                        println!(
-                            "[HOST] send rumble to client: large={} small={}",
-                            large, small
-                        );
-
                         let msg = json!({
                             "type": "rumble",
                             "large": large,
@@ -461,9 +457,11 @@ async fn main() -> Result<()> {
                 let dc = dc_for_message.clone();
 
                 Box::pin(async move {
+                    let dc_controller = dc.clone();
                     let data = &msg.data;
 
                     if data.len() == 12 {
+
                         let buttons = u16::from_le_bytes([data[0], data[1]]);
                         let lt = data[2];
                         let rt = data[3];
@@ -513,7 +511,6 @@ async fn main() -> Result<()> {
                             }
 
                             if v.get("type").and_then(|x| x.as_str()) == Some("dc_pong") {
-                                println!("[HOST] dc_pong received: {}", text);
                                 return;
                             }
                         }
