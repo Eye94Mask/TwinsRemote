@@ -2016,46 +2016,6 @@ function disconnectForCapViolation(report, bitrateBps) {
 // Cap 外し予防 End
 // ==========================
 
-// DataChannel 自動切断防止策1
-// function startDataChannelKeepalive(dc, pc) {
-//     stopDataChannelKeepalive();
-
-//     dcLastPongAt = Date.now();
-
-//     dcKeepaliveTimer = setInterval(() => {
-//         if (!dc || dc.readyState !== "open") return;
-
-//         const now = Date.now();
-
-//         // 60秒以上 pong が帰ってこない -> 異常検知
-//         if (now - dcLastPongAt > 60000) {
-//             console.warn("[dc.keepalive] pong timeout", {
-//                 now, dcLastPongAt,
-//                 pcConnectionState: pc?.connectionState,
-//                 iceConnectionState: pc?.iceConnectionState,
-//                 signalingState: pc?.signalingState,
-//                 dcReadyState: dc?.readyState,
-//                 dcBufferedAmount: dc?.bufferedAmount,
-//             });
-
-//             handleDataChannelDead("pong timeout");
-//             return;
-//         }
-
-//         dcLastPingAt = now;
-
-//         try {
-//             dc.send(JSON.stringify({
-//                 type: "dc_ping",
-//                 t: now
-//             }));
-//         } catch (e) {
-//             console.error("[dc.keepalive] send failed", e);
-//             handleDataChannelDead("ping send failed");
-//         }
-//     }, 10000);
-// }
-
 function stopDataChannelKeepalive() {
     if (dcKeepaliveTimer) {
         clearInterval(dcKeepaliveTimer);
