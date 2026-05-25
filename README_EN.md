@@ -1,10 +1,10 @@
-# Twins Remote Play
+# Twins Remote
 
 日本語版ReadMeは[こちら](https://github.com/MeuShirokuma/TwinsRemote/blob/master/README.md)
 
 Low-latency peer-to-peer remote play system for Windows.
 
-Twins Remote Play allows a host PC to stream video/audio to a remote client through the browser with very low latency.
+Twins Remote allows a host PC to stream video/audio to a remote client through the browser with very low latency.
 The client can also send controller input back to the host, allowing remote gameplay similar to Steam Remote Play Together — but without being limited to Steam games.
 
 ---
@@ -168,7 +168,6 @@ After the host finishes processing, the stream will begin automatically.
 
 ## Not Yet Implemented
 
-* Controller vibration feedback
 * Dynamic resolution switching during streaming
 * Multi-monitor selection
 * CPU encoding
@@ -183,7 +182,7 @@ After the host finishes processing, the stream will begin automatically.
 
 # Networking
 
-Twins Remote Play supports:
+Twins Remote supports:
 
 * P2P WebRTC communication
 * IPv4
@@ -248,7 +247,7 @@ Planned features include:
 
 No.
 
-Twins Remote Play is not tied to Steam and can be used with:
+Twins Remote is not tied to Steam and can be used with:
 
 * Non-Steam games
 * Emulators
@@ -275,7 +274,7 @@ The client only needs a supported browser.
 
 This project originally started as a system built for the developer and their twin brother to play games remotely together.
 
-The name "Twins Remote Play" comes from:
+The name "Twins Remote" comes from:
 
 * The original use case between twins
 * The goal of making two distant PCs feel as synchronized as possible
