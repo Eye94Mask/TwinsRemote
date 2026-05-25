@@ -367,14 +367,6 @@ async fn main() -> Result<()> {
                     })
                 }));
 
-                let dc_buffer = dc_clone_clone.clone();
-                tokio::spawn(async move {
-                    loop {
-                        println!("[HOST] datachannel buffer = {:?}", dc_buffer.buffered_amount().await);
-                        sleep(Duration::from_millis(5000)).await;
-                    }
-                });
-
                 let dc_ping = dc_clone_clone.clone();
                 tokio::spawn(async move {
                     loop {
@@ -457,11 +449,9 @@ async fn main() -> Result<()> {
                 let dc = dc_for_message.clone();
 
                 Box::pin(async move {
-                    let dc_controller = dc.clone();
                     let data = &msg.data;
 
                     if data.len() == 12 {
-
                         let buttons = u16::from_le_bytes([data[0], data[1]]);
                         let lt = data[2];
                         let rt = data[3];
