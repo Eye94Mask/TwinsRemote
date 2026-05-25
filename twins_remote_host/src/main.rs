@@ -367,14 +367,6 @@ async fn main() -> Result<()> {
                     })
                 }));
 
-                let dc_buffer = dc_clone_clone.clone();
-                tokio::spawn(async move {
-                    loop {
-                        println!("[HOST] datachannel buffer = {:?}", dc_buffer.buffered_amount().await);
-                        sleep(Duration::from_millis(5000)).await;
-                    }
-                });
-
                 let dc_ping = dc_clone_clone.clone();
                 tokio::spawn(async move {
                     loop {
@@ -405,6 +397,7 @@ async fn main() -> Result<()> {
 
                 tokio::spawn(async move {
                     loop {
+                        if dc_rumble.label() != "controller" { break; }
                         let rumble = match rumble_rx.recv().await {
                             Ok(v) => v,
                             Err(broadcast::error::RecvError::Lagged(n)) => {
@@ -430,11 +423,6 @@ async fn main() -> Result<()> {
                         } else {
                             0
                         };
-
-                        println!(
-                            "[HOST] send rumble to client: large={} small={}",
-                            large, small
-                        );
 
                         let msg = json!({
                             "type": "rumble",
@@ -513,7 +501,6 @@ async fn main() -> Result<()> {
                             }
 
                             if v.get("type").and_then(|x| x.as_str()) == Some("dc_pong") {
-                                println!("[HOST] dc_pong received: {}", text);
                                 return;
                             }
                         }

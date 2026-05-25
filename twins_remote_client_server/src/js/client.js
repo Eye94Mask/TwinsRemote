@@ -1,6 +1,6 @@
 let pc;
-let dc;
 let inputDc = null;
+let controllerDc = null;
 let gamepadIndex = null;
 
 let remoteAudioStream = new MediaStream();
@@ -169,6 +169,14 @@ let noticesEn = null;
 // ==================================
 // コントローラー制御 Start
 // ==================================
+let lastGamepadPacket = null;
+let lastGamepadSendAt = 0;
+
+const GAMEPAD_SEND_INTERVAL_MS = 16;    // 最大60Hz
+const GAMEPAD_KEEPALIVE_MS = 500;       // 入力がない場合は0.5秒に1回
+const GAMEPAD_BUFFER_LIMIT = 16 * 1024; // 詰まり防止
+const AXIS_DEADZONE = 0.05;
+
 window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
     console.log("gamepad connected:", e.gamepad.id, "index=", gamepadIndex);
@@ -181,48 +189,79 @@ window.addEventListener("gamepaddisconnected", (e) => {
     }
 });
 
+function axisToI16(v, invert = false) {
+    if (!Number.isFinite(v)) v = 0;
+    if (Math.abs(v) < AXIS_DEADZONE) v = 0;
+    if (invert) v = -v;
+
+    v = Math.max(-1, Math.min(1, v));
+    return Math.round(v * 32767);
+}
+
+function buildGamepadPacket(gamepad) {
+    const buttons = encodeButtons(gamepad);
+
+    const buf = new ArrayBuffer(12);
+    const view = new DataView(buf);
+
+    view.setUint16(0, buttons, true);
+    view.setUint8(2, Math.round(gamepad.buttons[6].value * 255));
+    view.setUint8(3, Math.round(gamepad.buttons[7].value * 255));
+    view.setInt16(4, axisToI16(gamepad.axes[0]), true);
+    view.setInt16(6, axisToI16(gamepad.axes[1], true), true);
+    view.setInt16(8, axisToI16(gamepad.axes[2]), true);
+    view.setInt16(10, axisToI16(gamepad.axes[3], true), true);
+
+    return buf;
+}
+
+function samePacket(a, b) {
+    if (!a || !b || a.byteLength !== b.byteLength) return false;
+
+    const aa = new Uint8Array(a);
+    const bb = new Uint8Array(b);
+
+    for (let i = 0; i < aa.length; i++) {
+        if (aa[i] !== bb[i]) return false;
+    }
+
+    return true;
+}
+
 function startGamepadLoop() {
     console.log("startGamepadLoop started");
 
     function loop() {
-        if (!dc || dc.readyState !== "open") {
-            requestAnimationFrame(loop);
-            return;
-        }
+        requestAnimationFrame(loop);
 
-        if (gamepadIndex == null) {
-            requestAnimationFrame(loop);
-            return;
-        }
+        if (!controllerDc || controllerDc.readyState !== "open") { return; }
+        if (gamepadIndex == null) { return; }
 
         const gamepads = navigator.getGamepads();
         const gamepad = gamepads[gamepadIndex];
 
-        if (!gamepad) {
-            requestAnimationFrame(loop);
+        if (!gamepad) { return; }
+
+        const now = performance.now();
+        if (now - lastGamepadSendAt < GAMEPAD_SEND_INTERVAL_MS) { return; }
+
+        if (controllerDc.bufferedAmount > GAMEPAD_BUFFER_LIMIT) {
+            console.warn("[GAMEPAD] skip send: bufferedAmount = ", dcKeepaliveTimer.bufferedAmount);
             return;
         }
 
-        const buttons = encodeButtons(gamepad);
-
-        const buf = new ArrayBuffer(12);
-        const view = new DataView(buf);
-
-        view.setUint16(0, buttons, true);
-        view.setUint8(2, Math.floor(gamepad.buttons[6].value * 255));
-        view.setUint8(3, Math.floor(gamepad.buttons[7].value * 255));
-        view.setInt16(4, Math.floor(gamepad.axes[0] * 32767), true);
-        view.setInt16(6, Math.floor(gamepad.axes[1] * -32767), true);
-        view.setInt16(8, Math.floor(gamepad.axes[2] * 32767), true);
-        view.setInt16(10, Math.floor(gamepad.axes[3] * -32767), true);
+        const packet = buildGamepadPacket(gamepad);
+        const changed = !samePacket(packet, lastGamepadPacket);
+        const keepalive = now - lastGamepadSendAt >= GAMEPAD_KEEPALIVE_MS;
+        if (!changed && !keepalive) { return; }
 
         try {
-            dc.send(buf);
+            controllerDc.send(packet);
+            lastGamepadPacket = packet.slice(0);
+            lastGamepadSendAt = now;
         } catch (e) {
             console.error("gamepad send failed", e);
         }
-
-        requestAnimationFrame(loop);
     }
 
     requestAnimationFrame(loop);
@@ -350,29 +389,72 @@ function encodeButtons(gamepad) {
 // コントローラー制御 End
 // ==================================
 
-function setupDataChannel(channel) {
-    dc = channel;
+function setupDataChannel(channel, controller) {
     inputDc = channel;
+    controllerDc = controller;
 
-    dc.onopen = () => {
-        console.log("DataChannel open");
+    inputDc.onopen = () => {
+        console.log("Input DataChannel open");
+    };
+
+    inputDc.onclose = () => {
+        console.log("Input DataChannel closed");
+    };
+
+    inputDc.onerror = (err) => {
+        console.error("Input DataChannel error", err);
+    };
+
+    inputDc.onmessage = async (ev) => {
+        console.log("Input DataChannel message:", ev.data);
+
+        if (typeof ev.data !== "string") { return; }
+
+        let msg;
+        try {
+            msg = JSON.parse(ev.data);
+        } catch {
+            return;
+        }
+
+        if (msg.type === "dc_ping") {
+            if (inputDc?.readyState === "open") {
+                inputDc.send(JSON.stringify({
+                    type: "dc_pong",
+                    t: msg.t,
+                    receivedAt: Date.now()
+                }));
+            }
+            return;
+        }
+
+        if (msg.type === "dc_pong") {
+            dcLastPongAt = Date.now();
+            console.log("[dc.keepalive] pong", {
+                rtt: dcLastPongAt - msg.t,
+                dcBufferedAmount: inputDc.bufferedAmount,
+            });
+            return;
+        }
+    };
+
+    controllerDc.onopen = () => {
+        console.log("Controller DataChannel open");
         startGamepadLoop();
     };
 
-    dc.onclose = () => {
-        console.log("DataChannel closed");
-    };
+    controllerDc.onclose = () => {
+        console.log("Controller DataChannel close");
+    }
 
-    dc.onerror = (err) => {
-        console.error("DataChannel error", err);
-    };
+    controllerDc.onerror = (err) => {
+        console.error("Controller DataChannel error", err);
+    }
 
-    dc.onmessage = async (ev) => {
-        console.log("DataChannel message:", ev.data);
+    controllerDc.onmessage = async (ev) => {
+        console.log("Controller DataChannel message:", ev.data);
 
-        if (typeof ev.data !== "string") {
-            return;
-        }
+        if (typeof ev.data !== "string") { return; }
 
         let msg;
         try {
@@ -386,27 +468,7 @@ function setupDataChannel(channel) {
             await handleRumbleMessage(msg);
             return;
         }
-
-        if (msg.type === "dc_ping") {
-            if (dc?.readyState === "open") {
-                dc.send(JSON.stringify({
-                    type: "dc_pong",
-                    t: msg.t,
-                    receivedAt: Date.now()
-                }));
-            }
-            return;
-        }
-
-        if (msg.type === "dc_pong") {
-            dcLastPongAt = Date.now();
-            console.log("[dc.keepalive] pong", {
-                rtt: dcLastPongAt - msg.t,
-                dcBufferedAmount: dc.bufferedAmount,
-            });
-            return;
-        }
-    };
+    }
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
@@ -444,7 +506,7 @@ window.addEventListener("DOMContentLoaded", async () => {
             }, 5000);
         } else if (notices < 1) {
             const ticker = document.getElementById("ticker");
-            ticker.removeChild();
+            ticker.remove();
         }
     }
 
@@ -1010,10 +1072,10 @@ async function connect() {
             if (event.receiver) {
                 try {
                     if ("playoutDelayHint" in event.receiver) {
-                        event.receiver.playoutDelayHint = 0.02;
+                        event.receiver.playoutDelayHint = 0.00;
                     }
                     if ("jitterBufferTarget" in event.receiver) {
-                        event.receiver.jitterBufferTarget = 0;
+                        event.receiver.jitterBufferTarget = 0.00;
                     }
                 } catch (e) {
                     console.warn("video receiver tuning failed", e);
@@ -1096,8 +1158,8 @@ async function connect() {
     pc.oniceconnectionstatechange = async () => {
         console.log("iceConnectionState =", pc.iceConnectionState);
 
-        if (pc && dc) {
-            logPcState("pc.iceconnectionstatechange", pc, dc);
+        if (pc && inputDc && controllerDc) {
+            logPcState("pc.iceconnectionstatechange", pc, inputDc, controllerDc);
         }
 
         if (pc.iceConnectionState === "checking") {
@@ -1127,8 +1189,8 @@ async function connect() {
     };
 
     pc.onconnectionstatechange = () => {
-        if (pc && dc) {
-            logPcState("pc.connectionstatechange", pc, dc);
+        if (pc && inputDc && controllerDc) {
+            logPcState("pc.connectionstatechange", pc, inputDc, controllerDc);
 
             if (pc.connectionState === "connected") {
                 if (disconnectedTimer) {
@@ -1158,14 +1220,14 @@ async function connect() {
     };
 
     pc.onicegatheringstatechange = () => {
-        if (pc && dc) {
-            logPcState("pc.connectionstatechange", pc, dc);
+        if (pc && inputDc && controllerDc) {
+            logPcState("pc.connectionstatechange", pc, inputDc, controllerDc);
         }
     };
 
     pc.onsignalingstatechange = () => {
-        if (pc && dc) {
-            logPcState("pc.connectionstatechange", pc, dc);
+        if (pc && inputDc && controllerDc) {
+            logPcState("pc.connectionstatechange", pc, inputDc, controllerDc);
         }
     };
 
@@ -1179,17 +1241,22 @@ async function connect() {
         ordered: false,
         maxRetransmits: 0
     });
-    setupDataChannel(inputChannel);
 
-    dc.onclose = () => {
-        log("[CLIENT] input DataChannel closed");
-        logPcState("dc.close", pc, dc);
-    }
+    const controllerChannel = pc.createDataChannel("controller", {
+        ordered: false,
+        maxRetransmits: 0
+    });
+    setupDataChannel(inputChannel, controllerChannel);
 
-    dc.onerror = (err) => {
-        console.error("[CLIENT] input DataChannel error", err);
-        logPcState("dc.error", pc, dc);
-    }
+    // dc.onclose = () => {
+    //     log("[CLIENT] input DataChannel closed");
+    //     logPcState("dc.close", pc, dc);
+    // }
+
+    // dc.onerror = (err) => {
+    //     console.error("[CLIENT] input DataChannel error", err);
+    //     logPcState("dc.error", pc, dc);
+    // }
 
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
@@ -1417,14 +1484,19 @@ function cleanupPeerConnection() {
         videoEl.srcObject = null;
     }
 
-    if (dc) {
+    if (inputDc) {
         try {
-            dc.close();
+            inputDc.close();
         } catch (_) {}
-        dc = null;
+        inputDc = null;
     }
 
-    inputDc = null;
+    if (controllerDc) {
+        try {
+            controllerDc.close();
+        } catch (_) {}
+        controllerDc = null;
+    }
 
     if (pc) {
         try {
@@ -1865,15 +1937,17 @@ async function logRtcSummary(pc) {
 }
 
 
-function logPcState(prefix, pc, dc) {
+function logPcState(prefix, pc, inputDc, controllerDc) {
     console.log(`[${prefix}]`, {
         time: new Date().toISOString(),
         pcConnectionState: pc?.connectionState,
         iceConnectionState: pc?.iceConnectionState,
         iceGatheringState: pc?.iceGatheringState,
         signalingState: pc?.signalingState,
-        dcReadyState: dc?.readyState,
-        dcBufferedAmount: dc?.bufferedAmount,
+        inputDcReadyState: inputDc?.readyState,
+        inputDcBufferedAmount: inputDc?.bufferedAmount,
+        controllerDcReadyState: controllerDc?.readyState,
+        controllerDcBufferedAmount: controllerDc?.bufferedAmount,
     });
 }
 
@@ -1953,44 +2027,44 @@ function disconnectForCapViolation(report, bitrateBps) {
 // ==========================
 
 // DataChannel 自動切断防止策1
-function startDataChannelKeepalive(dc, pc) {
-    stopDataChannelKeepalive();
+// function startDataChannelKeepalive(dc, pc) {
+//     stopDataChannelKeepalive();
 
-    dcLastPongAt = Date.now();
+//     dcLastPongAt = Date.now();
 
-    dcKeepaliveTimer = setInterval(() => {
-        if (!dc || dc.readyState !== "open") return;
+//     dcKeepaliveTimer = setInterval(() => {
+//         if (!dc || dc.readyState !== "open") return;
 
-        const now = Date.now();
+//         const now = Date.now();
 
-        // 60秒以上 pong が帰ってこない -> 異常検知
-        if (now - dcLastPongAt > 60000) {
-            console.warn("[dc.keepalive] pong timeout", {
-                now, dcLastPongAt,
-                pcConnectionState: pc?.connectionState,
-                iceConnectionState: pc?.iceConnectionState,
-                signalingState: pc?.signalingState,
-                dcReadyState: dc?.readyState,
-                dcBufferedAmount: dc?.bufferedAmount,
-            });
+//         // 60秒以上 pong が帰ってこない -> 異常検知
+//         if (now - dcLastPongAt > 60000) {
+//             console.warn("[dc.keepalive] pong timeout", {
+//                 now, dcLastPongAt,
+//                 pcConnectionState: pc?.connectionState,
+//                 iceConnectionState: pc?.iceConnectionState,
+//                 signalingState: pc?.signalingState,
+//                 dcReadyState: dc?.readyState,
+//                 dcBufferedAmount: dc?.bufferedAmount,
+//             });
 
-            handleDataChannelDead("pong timeout");
-            return;
-        }
+//             handleDataChannelDead("pong timeout");
+//             return;
+//         }
 
-        dcLastPingAt = now;
+//         dcLastPingAt = now;
 
-        try {
-            dc.send(JSON.stringify({
-                type: "dc_ping",
-                t: now
-            }));
-        } catch (e) {
-            console.error("[dc.keepalive] send failed", e);
-            handleDataChannelDead("ping send failed");
-        }
-    }, 10000);
-}
+//         try {
+//             dc.send(JSON.stringify({
+//                 type: "dc_ping",
+//                 t: now
+//             }));
+//         } catch (e) {
+//             console.error("[dc.keepalive] send failed", e);
+//             handleDataChannelDead("ping send failed");
+//         }
+//     }, 10000);
+// }
 
 function stopDataChannelKeepalive() {
     if (dcKeepaliveTimer) {
@@ -2008,8 +2082,11 @@ function handleDataChannelDead(reason) {
     stopDataChannelKeepalive();
 
     try {
-        if (dc && dc.readyState !== "closed") {
-            dc.close();
+        if (inputDc && inputDc.readyState !== "closed") {
+            inputDc.close();
+        }
+        if (controllerDc && controllerDc.readyState !== "closed") {
+            controllerDc.close();
         }
     } catch {}
 
@@ -2018,13 +2095,4 @@ function handleDataChannelDead(reason) {
             pc.close();
         }
     } catch {}
-
-    setTimeout(async () => {
-        try {
-            reconnecting = false;
-            await connect();
-        } catch (e) {
-            console.error("[reconnect] failed", e);
-        }
-    }, 1000);
 }
