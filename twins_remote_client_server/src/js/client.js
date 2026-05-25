@@ -1248,16 +1248,6 @@ async function connect() {
     });
     setupDataChannel(inputChannel, controllerChannel);
 
-    // dc.onclose = () => {
-    //     log("[CLIENT] input DataChannel closed");
-    //     logPcState("dc.close", pc, dc);
-    // }
-
-    // dc.onerror = (err) => {
-    //     console.error("[CLIENT] input DataChannel error", err);
-    //     logPcState("dc.error", pc, dc);
-    // }
-
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
 
