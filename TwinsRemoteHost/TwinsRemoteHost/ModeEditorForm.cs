@@ -33,7 +33,7 @@ namespace TwinsRemoteHost
         {
             if (customModeComboBox.SelectedValue == null) { return null; }
             string editJson = customModeComboBox.SelectedValue.ToString() + ".json";
-            string customDirectory = @"./exes/customs/";
+            string customDirectory = Host.GetCustomDirectory();
 
             if (File.Exists(customDirectory + editJson) is false)
             {
@@ -233,8 +233,8 @@ namespace TwinsRemoteHost
             var customMode = JsonConvert.SerializeObject(this.editMode);
             string customJsonName = modeNameTextBox.Text + ".json";
 
-            string customDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "exes", "customs");
-            string customJsonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "exes", "customs", customJsonName);
+            string customDirectory = Host.GetCustomDirectory();
+            string customJsonPath = customDirectory + "/" + customJsonName;
 
             // モード名がほかのカスタムモードと被っている場合
             if (ConflictsWithOtherModes(modeNameTextBox.Text))
@@ -245,7 +245,7 @@ namespace TwinsRemoteHost
             }
 
             // モード名を変更している場合があるため古いカスタムモードは削除
-            string oldModePath = @"./exes/customs/" + this.currentMode + ".json";
+            string oldModePath = Host.GetCustomDirectory() + "/" + this.currentMode + ".json";
             if (!DeleteMode(oldModePath))
             {
                 MessageBox.Show(this.locale.FailedToUpdateCustom, this.locale.Error,
@@ -273,12 +273,19 @@ namespace TwinsRemoteHost
 
         private void deleteButton_Click(object sender, EventArgs e)
         {
-            string modePath = @"./exes/customs/" + customModeComboBox.SelectedValue + ".json";
+            string modePath = Host.GetCustomDirectory() + "/" + customModeComboBox.SelectedValue + ".json";
             if (!DeleteMode(modePath))
             {
                 MessageBox.Show(this.locale.FailedToDeleteCustom, this.locale.Error,
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
+            }
+
+            MessageBox.Show(this.locale.DeleteCustomSuccess + customModeComboBox.SelectedValue, this.locale.Confirm,
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (Host.GetCustomModeList().Count < 1)
+            {
+                this.Close();
             }
             InitializeUi();
         }
