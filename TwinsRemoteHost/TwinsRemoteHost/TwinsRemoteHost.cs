@@ -252,6 +252,8 @@ namespace TwinsRemoteHost
             statusValueLabel.Text = locale.StatusStopped;
             SetRunningState(false);
 
+            SetCustomEditorButton();
+
             await InitializeNotifications();
             this.init = false;
         }

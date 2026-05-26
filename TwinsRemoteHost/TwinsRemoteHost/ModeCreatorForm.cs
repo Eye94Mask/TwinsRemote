@@ -15,18 +15,18 @@ namespace TwinsRemoteHost
         // ====================
         // Casual Presets
         private readonly PresetMode balanced = new(
-            1920, 1080, 60,
-            12, 16, 12, 6,
+            1920, 1080, 30,
+            4, 6, 2, 2,
             60, 60,
             true, false,
-            3,
+            1,
             "NV_ENC_PRESET_P4_GUID", "NV_ENC_TUNING_INFO_LOW_LATENCY",
             false, 0,
             true, true
         );
         private readonly PresetMode stable = new(
             1280, 720, 30,
-            4, 5, 4, 2,
+            2, 4, 1, 1,
             60, 60,
             true, false,
             1,
@@ -37,8 +37,8 @@ namespace TwinsRemoteHost
 
         // Low Latency Presets
         private readonly PresetMode lowLatency = new(
-            1920, 1080, 60,
-            10, 12, 40, 20,
+            1920, 1080, 30,
+            4, 6, 2, 2,
             999999, 999999,
             true, false,
             1,
@@ -47,8 +47,8 @@ namespace TwinsRemoteHost
             true, true
         );
         private readonly PresetMode ultraLowLatency = new(
-            1920, 1080, 60,
-            10, 12, 40, 20,
+            1920, 1080, 30,
+            4, 6, 2, 2,
             999999, 999999,
             true, false,
             1,
@@ -59,18 +59,18 @@ namespace TwinsRemoteHost
 
         // Quality Presets
         private readonly PresetMode highFps = new(
-            1920, 1080, 120,
-            12, 16, 12, 6,
+            1920, 1080, 60,
+            6, 8, 3, 3,
             60, 60,
             true, false,
-            3,
+            1,
             "NV_ENC_PRESET_P4_GUID", "NV_ENC_TUNING_INFO_LOW_LATENCY",
             false, 0,
             true, true
         );
         private readonly PresetMode fourK = new(
             3840, 2160, 30,
-            12, 16, 12, 6,
+            12, 16, 6, 6,
             60, 60,
             true, false,
             3,
@@ -82,7 +82,7 @@ namespace TwinsRemoteHost
         // Reducing Network Load Presets
         private readonly PresetMode mobile = new(
             1280, 720, 30,
-            0.25F, 3, 0.25F, 0.12F,
+            0.5F, 2, 0.25F, 0.25F,
             30, 30,
             true, false,
             1,
@@ -92,7 +92,7 @@ namespace TwinsRemoteHost
         );
         private readonly PresetMode ipv4 = new(
             960, 540, 30,
-            0.14F, 0.18F, 0.14F, 0.07F,
+            0.14F, 0.18F, 0.07F, 0.07F,
             30, 30,
             true, false,
             1,
@@ -102,7 +102,7 @@ namespace TwinsRemoteHost
         );
         private readonly PresetMode restrictedIpv4 = new(
             854, 480, 30,
-            0.09F, 0.12F, 0.09F, 0.045F,
+            0.09F, 0.12F, 0.045F, 0.045F,
             30, 30,
             true, false,
             1,
@@ -123,31 +123,31 @@ namespace TwinsRemoteHost
         private void InitializePreset()
         {
             modeNameTextBox.Text = string.Empty;
-            resolutionWidthTextBox.Text = string.Empty;
-            resolutionHeightTextBox.Text = string.Empty;
-            fpsTextBox.Text = string.Empty;
+            resolutionWidthTextBox.Text = this.balanced.Width.ToString();
+            resolutionHeightTextBox.Text = this.balanced.Height.ToString();
+            fpsTextBox.Text = this.balanced.Fps.ToString();
 
-            averageBitrateTextBox.Text = string.Empty;
-            maxBitrateTextBox.Text = string.Empty;
-            vbvBufferSizeTextBox.Text = string.Empty;
-            vbvInitialDelayTextBox.Text = string.Empty;
+            averageBitrateTextBox.Text = this.balanced.AverageBitrate.ToString();
+            maxBitrateTextBox.Text = this.balanced.MaxBitrate.ToString();
+            vbvBufferSizeTextBox.Text = this.balanced.VbvBufferSize.ToString();
+            vbvInitialDelayTextBox.Text = this.balanced.VbvInitialDelay.ToString();
 
-            gopLengthTextBox.Text = string.Empty;
-            idrPeriodTextBox.Text = string.Empty;
+            gopLengthTextBox.Text = this.balanced.GopLength.ToString();
+            idrPeriodTextBox.Text = this.balanced.IdrPeriod.ToString();
 
-            repeatSpsPpsCheckBox.Checked = false;
-            outputAudCheckBox.Checked = false;
+            repeatSpsPpsCheckBox.Checked = this.balanced.RepeatSpsPps;
+            outputAudCheckBox.Checked = this.balanced.OutputAud;
 
-            maxRefFramesTextBox.Text = string.Empty;
+            maxRefFramesTextBox.Text = this.balanced.MaxRefFrames.ToString();
 
             presetGuidComboBox.SelectedIndex = presetGuidComboBox.FindString(this.balanced.PresetGuid.ToString());
             tuningInfoComboBox.SelectedIndex = tuningInfoComboBox.FindString(this.balanced.TuningInfo.ToString());
 
-            enableLookaheadCheckBox.Checked = false;
-            lookaheadDepthTextBox.Text = string.Empty;
+            enableLookaheadCheckBox.Checked = this.balanced.EnableLookahead;
+            lookaheadDepthTextBox.Text = this.balanced.LookaheadDepth.ToString();
 
-            disableIadaptCheckBox.Checked = false;
-            disableBadaptCheckBox.Checked = false;
+            disableIadaptCheckBox.Checked = this.balanced.DisableIadapt;
+            disableBadaptCheckBox.Checked = this.balanced.DisableBadapt;
         }
 
         public static object GetPresetGuids()

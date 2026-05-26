@@ -33,7 +33,7 @@ namespace TwinsRemoteHost
         {
             if (customModeComboBox.SelectedValue == null) { return null; }
             string editJson = customModeComboBox.SelectedValue.ToString() + ".json";
-            string customDirectory = Host.GetCustomDirectory();
+            string customDirectory = Host.GetCustomDirectory() + "/";
 
             if (File.Exists(customDirectory + editJson) is false)
             {
