@@ -113,13 +113,14 @@
             // 
             // connectButton
             // 
+            connectButton.BackColor = Color.White;
             connectButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             connectButton.Location = new Point(1228, 41);
             connectButton.Name = "connectButton";
             connectButton.Size = new Size(162, 59);
             connectButton.TabIndex = 6;
             connectButton.Text = "button1";
-            connectButton.UseVisualStyleBackColor = true;
+            connectButton.UseVisualStyleBackColor = false;
             connectButton.Click += connectButton_Click;
             // 
             // audioOnButton
@@ -181,6 +182,7 @@
             // 
             // createCustomModeButton
             // 
+            createCustomModeButton.BackColor = Color.White;
             createCustomModeButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             createCustomModeButton.Location = new Point(1887, 88);
             createCustomModeButton.Name = "createCustomModeButton";
@@ -188,11 +190,12 @@
             createCustomModeButton.TabIndex = 12;
             createCustomModeButton.TabStop = false;
             createCustomModeButton.Text = "button1";
-            createCustomModeButton.UseVisualStyleBackColor = true;
+            createCustomModeButton.UseVisualStyleBackColor = false;
             createCustomModeButton.Click += createMode_Click;
             // 
             // updateCustomMode
             // 
+            updateCustomMode.BackColor = Color.White;
             updateCustomMode.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             updateCustomMode.Location = new Point(1887, 178);
             updateCustomMode.Name = "updateCustomMode";
@@ -200,7 +203,7 @@
             updateCustomMode.TabIndex = 13;
             updateCustomMode.TabStop = false;
             updateCustomMode.Text = "button1";
-            updateCustomMode.UseVisualStyleBackColor = true;
+            updateCustomMode.UseVisualStyleBackColor = false;
             updateCustomMode.Click += updateDeleteCustomMode_Click;
             // 
             // infoBellPictureBox

@@ -618,14 +618,14 @@ namespace TwinsRemoteHost
             var customMode = JsonConvert.SerializeObject(this.customMode);
             string customJsonName = modeNameTextBox.Text + ".json";
 
-            string customsDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "exes", "customs");
-            if (!Directory.Exists(customsDirectory))
+            string customDirectory = Host.GetCustomDirectory();
+            if (!Directory.Exists(customDirectory))
             {
-                DirectoryInfo di = new(customsDirectory);
+                DirectoryInfo di = new(customDirectory);
                 di.Create();
             }
 
-            string customJsonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "exes", "customs", customJsonName);
+            string customJsonPath = customDirectory + "/" + customJsonName;
             if (!File.Exists(customJsonPath))
             {
                 using FileStream fs = File.Create(customJsonPath);

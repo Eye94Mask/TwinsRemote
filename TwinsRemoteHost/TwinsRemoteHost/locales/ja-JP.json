@@ -104,5 +104,6 @@
   "failedToReadCustom": "カスタムモードの取得に失敗しました",
   "customModeNameConflictsWithOthers": "入力されたモードは既に存在しています\n別の名前で保存してください",
   "failedToDeleteCustom": "カスタムモードの削除に失敗しました",
+  "deleteCustomSuccess": "モードを削除しました: ",
   "failedToUpdateCustom": "カスタムモードの更新に失敗しました"
 }

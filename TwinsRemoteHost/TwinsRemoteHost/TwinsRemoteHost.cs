@@ -26,7 +26,7 @@ namespace TwinsRemoteHost
         private int notificationCount = 0;
         private readonly string releaseUrl = "https://github.com/Eye94Mask/TwinsRemote/releases";
 
-        private string signalBaseUrl = "https://play.twins-remote.com";
+        private readonly string signalBaseUrl = "https://play.twins-remote.com";
         private Process? _hostProcess;
         private Locale locale;
         private ProcessSelectorForm? pSelector = null;
@@ -513,18 +513,22 @@ namespace TwinsRemoteHost
             updateCustomMode.Text = this.locale.UpdateCustomMode;
         }
 
+        public static string GetCustomDirectory()
+        {
+            string customDir = System.Environment.GetFolderPath(Environment.SpecialFolder.Personal) + "/Twins Remote/customs";
+            return customDir;
+        }
+
         public static List<string> GetCustomModeList()
         {
             List<string> customNames = [];
 
-            string customDir = @"./exes/customs";
-
-            if (!Directory.Exists(customDir))
+            if (!Directory.Exists(GetCustomDirectory()))
             {
                 return customNames;
             }
 
-            string[] customs = Directory.GetFiles(customDir);
+            string[] customs = Directory.GetFiles(GetCustomDirectory());
 
             foreach (string custom in customs)
             {
@@ -534,6 +538,17 @@ namespace TwinsRemoteHost
             }
 
             return customNames;
+        }
+
+        private void SetCustomEditorButton()
+        {
+            int customLength = GetCustomModeList().Count;
+            if (customLength < 1)
+            {
+                updateCustomMode.Enabled = false;
+                return;
+            }
+            updateCustomMode.Enabled = true;
         }
 
         private async void connectButton_Click(object sender, EventArgs e)
@@ -699,6 +714,7 @@ namespace TwinsRemoteHost
                 this.mCreator.Activate();
             }
 
+            SetCustomEditorButton();
             ResetModeList(selectedModeValue);
             this.mCreator.Dispose();
             this.mCreator = null;
@@ -726,6 +742,7 @@ namespace TwinsRemoteHost
                 this.mEditor.Activate();
             }
 
+            SetCustomEditorButton();
             ResetModeList(selectedModeValue);
             this.mEditor.Dispose();
             this.mEditor = null;
@@ -761,6 +778,7 @@ namespace TwinsRemoteHost
             this.notificationCount = 0;
             notificationCountLabel.Text = "";
 
+            SetCustomEditorButton();
             this.notificationsForm.Dispose();
             this.notificationsForm = null;
         }
@@ -1101,6 +1119,9 @@ namespace TwinsRemoteHost
 
         [JsonProperty("customModeNameConflictsWithOthers")]
         public required string CustomModeNameConflictsWithOthers { get; set; }
+
+        [JsonProperty("deleteCustomSuccess")]
+        public required string DeleteCustomSuccess { get; set; }
 
         [JsonProperty("failedToDeleteCustom")]
         public required string FailedToDeleteCustom { get; set; }
