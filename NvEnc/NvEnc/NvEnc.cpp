@@ -1,4 +1,5 @@
 ﻿#include <windows.h>
+#include <ShlObj.h>
 #include <d3d11.h>
 #include <dxgi1_2.h>
 #include <io.h>
@@ -20,6 +21,7 @@
 #include <mutex>
 #include <sstream>
 
+#pragma comment(lib, "Shell32.lib")
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
 
@@ -195,10 +197,10 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
         return StreamConfig{
             1280, 720,
             30,
-            4 * 1000 * 1000,
-            5 * 1000 * 1000,
-            4 * 1000 * 1000,
             2 * 1000 * 1000,
+            4 * 1000 * 1000,
+            1 * 1000 * 1000,
+            1 * 1000 * 1000,
             60,
             60,
             true,
@@ -217,10 +219,10 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
         return StreamConfig{
             1920, 1080,
             30,
-            10 * 1000 * 1000,
-            12 * 1000 * 1000,
-            10 * 1000 * 1000,
+            4 * 1000 * 1000,
             6 * 1000 * 1000,
+            2 * 1000 * 1000,
+            2 * 1000 * 1000,
             60,
             60,
             true,
@@ -239,10 +241,10 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
         return StreamConfig{
             1920, 1080,
             60,
-            10 * 1000 * 1000,
-            12 * 1000 * 1000,
-            10 * 1000 * 1000,
             6 * 1000 * 1000,
+            8 * 1000 * 1000,
+            3 * 1000 * 1000,
+            3 * 1000 * 1000,
             60,
             60,
             true,
@@ -261,16 +263,16 @@ static StreamConfig GetStreamConfig(StreamPreset preset) {
         return StreamConfig{
             1280, 720,
             30,
+            5000 * 1000,
+            2 * 1000 * 1000,
             2500 * 1000,
-            3 * 1000 * 1000,
             2500 * 1000,
-            1200 * 1000,
             30,
             30,
             true,
             false,
             1,
-            NV_ENC_H264_PROFILE_BASELINE_GUID,
+            NV_ENC_H264_PROFILE_HIGH_GUID,
             NV_ENC_PRESET_P2_GUID,
             NV_ENC_TUNING_INFO_LOW_LATENCY,
             false,
@@ -1107,16 +1109,64 @@ static StreamConfig GetStreamConfigByName(
     return GetStreamConfig(StreamPreset::Balanced);
 }
 
+static std::string WideToUtf8(const std::wstring& wstr) {
+    if (wstr.empty()) return {};
+
+    int sizeNeeded = WideCharToMultiByte(
+        CP_ACP,
+        0,
+        wstr.c_str(),
+        (int)wstr.size(),
+        nullptr,
+        0,
+        nullptr,
+        nullptr
+    );
+
+    std::string result(sizeNeeded, 0);
+
+    WideCharToMultiByte(
+        CP_ACP,
+        0,
+        wstr.c_str(),
+        (int)wstr.size(),
+        result.data(),
+        sizeNeeded,
+        nullptr,
+        nullptr
+    );
+
+    return result;
+}
+
+static std::string GetMyDocumentPath() {
+    PWSTR path = nullptr;
+
+    HRESULT hr = SHGetKnownFolderPath(FOLDERID_Documents, 0, nullptr, &path);
+
+    if (SUCCEEDED(hr)) {
+        std::wstring wpath(path);
+        std::string utf8Path = WideToUtf8(wpath);
+
+        CoTaskMemFree(path);
+        return utf8Path;
+    }
+
+    return "";
+}
+
 // ----------------------------------------------------
 // Main
 // ----------------------------------------------------
 int main(int argc, char** argv) {
     _setmode(_fileno(stdout), _O_BINARY);
     _setmode(_fileno(stdin), _O_BINARY);
-
-    std::string customDirectoryPath = "./customs";
+    
+    std::string customDirectoryPath = GetMyDocumentPath() + "/Twins Remote/customs";
     std::vector<std::string> customFileNames = GetCustomFilesInFolder(customDirectoryPath);
     std::vector<std::pair<StreamConfig, std::string>> customModes;
+
+    std::cerr << "[INFO] " << customDirectoryPath << std::endl;
 
     std::cerr << "[INFO] Before getting custom files list" << std::endl;
     for (std::string customFileName : customFileNames) {
