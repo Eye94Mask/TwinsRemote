@@ -123,31 +123,31 @@ namespace TwinsRemoteHost
         private void InitializePreset()
         {
             modeNameTextBox.Text = string.Empty;
-            resolutionWidthTextBox.Text = string.Empty;
-            resolutionHeightTextBox.Text = string.Empty;
-            fpsTextBox.Text = string.Empty;
+            resolutionWidthTextBox.Text = this.balanced.Width.ToString();
+            resolutionHeightTextBox.Text = this.balanced.Height.ToString();
+            fpsTextBox.Text = this.balanced.Fps.ToString();
 
-            averageBitrateTextBox.Text = string.Empty;
-            maxBitrateTextBox.Text = string.Empty;
-            vbvBufferSizeTextBox.Text = string.Empty;
-            vbvInitialDelayTextBox.Text = string.Empty;
+            averageBitrateTextBox.Text = this.balanced.AverageBitrate.ToString();
+            maxBitrateTextBox.Text = this.balanced.MaxBitrate.ToString();
+            vbvBufferSizeTextBox.Text = this.balanced.VbvBufferSize.ToString();
+            vbvInitialDelayTextBox.Text = this.balanced.VbvInitialDelay.ToString();
 
-            gopLengthTextBox.Text = string.Empty;
-            idrPeriodTextBox.Text = string.Empty;
+            gopLengthTextBox.Text = this.balanced.GopLength.ToString();
+            idrPeriodTextBox.Text = this.balanced.IdrPeriod.ToString();
 
-            repeatSpsPpsCheckBox.Checked = false;
-            outputAudCheckBox.Checked = false;
+            repeatSpsPpsCheckBox.Checked = this.balanced.RepeatSpsPps;
+            outputAudCheckBox.Checked = this.balanced.OutputAud;
 
-            maxRefFramesTextBox.Text = string.Empty;
+            maxRefFramesTextBox.Text = this.balanced.MaxRefFrames.ToString();
 
             presetGuidComboBox.SelectedIndex = presetGuidComboBox.FindString(this.balanced.PresetGuid.ToString());
             tuningInfoComboBox.SelectedIndex = tuningInfoComboBox.FindString(this.balanced.TuningInfo.ToString());
 
-            enableLookaheadCheckBox.Checked = false;
-            lookaheadDepthTextBox.Text = string.Empty;
+            enableLookaheadCheckBox.Checked = this.balanced.EnableLookahead;
+            lookaheadDepthTextBox.Text = this.balanced.LookaheadDepth.ToString();
 
-            disableIadaptCheckBox.Checked = false;
-            disableBadaptCheckBox.Checked = false;
+            disableIadaptCheckBox.Checked = this.balanced.DisableIadapt;
+            disableBadaptCheckBox.Checked = this.balanced.DisableBadapt;
         }
 
         public static object GetPresetGuids()
