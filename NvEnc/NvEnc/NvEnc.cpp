@@ -1109,7 +1109,7 @@ static StreamConfig GetStreamConfigByName(
     return GetStreamConfig(StreamPreset::Balanced);
 }
 
-static std::string WideToUtf8(const std::wstring& wstr) {
+static std::string WideToSjis(const std::wstring& wstr) {
     if (wstr.empty()) return {};
 
     int sizeNeeded = WideCharToMultiByte(
@@ -1146,7 +1146,7 @@ static std::string GetMyDocumentPath() {
 
     if (SUCCEEDED(hr)) {
         std::wstring wpath(path);
-        std::string utf8Path = WideToUtf8(wpath);
+        std::string utf8Path = WideToSjis(wpath);
 
         CoTaskMemFree(path);
         return utf8Path;
