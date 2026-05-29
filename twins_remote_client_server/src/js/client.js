@@ -178,6 +178,7 @@ const GAMEPAD_SEND_INTERVAL_MS = 16;    // 最大60Hz
 const GAMEPAD_KEEPALIVE_MS = 500;       // 入力がない場合は0.5秒に1回
 const GAMEPAD_BUFFER_LIMIT = 16 * 1024; // 詰まり防止
 const AXIS_DEADZONE = 0.05;
+const GAMEPAD_PACKET_SIZE = 12;
 
 window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
@@ -225,7 +226,7 @@ function samePacket(a, b) {
     const aa = new Uint8Array(a);
     const bb = new Uint8Array(b);
 
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < GAMEPAD_PACKET_SIZE; i++) {
         if (aa[i] !== bb[i]) return false;
     }
 
