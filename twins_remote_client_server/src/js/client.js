@@ -8,7 +8,6 @@ let remoteAudioStream = new MediaStream();
 let statsIntervalId = null;
 let rtcSummaryIntervalId = null;
 let videoStatsMonitorAbort = null;
-let videoWatchdogIntervalId = null;
 let hostCandidatePollIntervalId = null;
 let answerPollIntervalId = null;
 
@@ -16,9 +15,6 @@ let audioEl = null;
 let videoEl = null;
 let canvasEl = null;
 let canvasCtx = null;
-
-let forceKeyframeCooldownUntil = 0;
-const FORCE_KEYFRAME_COOLDOWN_MS = 2500;
 
 // ---- video processor state ----
 let videoProcessor = null;
@@ -110,16 +106,30 @@ const splashSubtitles = [
     "Together, frame by frame."
 ];
 
-const VIDEO_STALL_MS = 700;
+let videoWatchdogIntervalId = null;
+let lastVideoStats = {
+    checkedAt: 0,
+    framesDecoded: 0,
+    bytesReceived: 0,
+    packetsReceived: 0,
+    freezeCount: 0,
+    totalFreezesDuration: 0,
+};
+let lastForceKeyframeAt = 0;
+let forceKeyframeCooldownUntil = 0;
+
+const VIDEO_WATCHDOG_INTERVAL_MS = 500;
+const VIDEO_STALL_MS = 1000;
+const FORCE_KEYFRAME_COOLDOWN_MS = 3000;
 const RENDER_IDLE_WAIT_MS = 8;
 const MAX_FRAME_AGE_MS = 150;
 const MAX_RENDER_BACKLOG = 1;
 
 // =======================================================================================
 // "relay-test" | "normal" | "stun-first"
-// !!!! リリース前には絶対に normal に変更すること !!!!
+// !!!! リリース前には絶対に const ICE_MODE = "normal"; に変更すること !!!!
 // =======================================================================================
-const ICE_MODE = "normal"; 
+const ICE_MODE = "normal";
 
 let badRttCount = 0;
 let lastIceRestartAt = 0;
@@ -683,8 +693,13 @@ function nowMs() {
     return performance.now();
 }
 
-function log(...args) {
-    console.log(...args);
+function log(type = 0, ...args) {
+    switch(type) {
+        case 0: console.log(...args); break;
+        case 1: console.warn(...args); break;
+        case 2: console.error(...args); break;
+    }
+
     const el = document.getElementById("log");
     if (!el) return;
 
@@ -1721,26 +1736,103 @@ function startRenderLoop() {
     });
 }
 
+async function getInboundVideoStats() {
+    if (!pc) return null;
+
+    const stats = await pc.getStats();
+
+    for (const report of stats.values()) {
+        if (
+            report.type === "inbound-rtp" &&
+            report.kind === "video" &&
+            !report.isRemote
+        ) {
+            return report;
+        }
+    }
+
+    return null;
+}
+
 function startVideoWatchdog() {
     if (videoWatchdogIntervalId) {
         clearInterval(videoWatchdogIntervalId);
     }
 
-    videoWatchdogIntervalId = setInterval(() => {
+    videoWatchdogIntervalId = setInterval(async () => {
         if (!pc) return;
         if (pc.connectionState !== "connected" && pc.connectionState !== "connecting") return;
 
+        const now = nowMs();
+
         if (!firstVideoFrameArrived) {
-            sendForceKeyframe("waiting_first_frame");
+            if (now - lastForceKeyframeAt > FORCE_KEYFRAME_COOLDOWN_MS) {
+                lastForceKeyframeAt = now;
+                sendForceKeyframe("waiting_first_frame");
+            }
             return;
         }
 
-        const age = nowMs() - lastFrameArrivedAt;
-        if (age > VIDEO_STALL_MS) {
-            console.warn("[VIDEO WATCHDOG] stall detected age=", Math.floor(age), "ms");
+        const stats = await getInboundVideoStats();
+        if (!stats) return;
+
+        const framesDecoded = stats.framesDecoded ?? 0;
+        const bytesReceived = stats.bytesReceived ?? 0;
+        const packetsReceived = stats.packetsReceived ?? 0;
+        const freezeCount = stats.freezeCount ?? 0;
+        const totalFreezesDuration = stats.totalFreezesDuration ?? 0;
+
+        const age = now - lastFrameArrivedAt;
+
+        const framesNotMoving = framesDecoded <= lastVideoStats.framesDecoded;
+
+        const bytesNotMoving = bytesReceived <= lastVideoStats.framesDecoded;
+
+        const packetsNotMoving = packetsReceived <= lastVideoStats.packetsReceived;
+
+        const freezeIncreased = 
+            freezeCount > lastVideoStats.freezeCount ||
+            totalFreezesDuration > lastVideoStats.totalFreezesDuration;
+        
+        const reallyStalled = 
+            age > VIDEO_STALL_MS &&
+            framesNotMoving &&
+            bytesNotMoving &&
+            packetsNotMoving;
+        
+        const browserDetectedFreeze =
+            age > VIDEO_STALL_MS &&
+            freezeIncreased &&
+            framesNotMoving;
+        
+        if (
+            (reallyStalled || browserDetectedFreeze) &&
+            now- lastForceKeyframeAt > FORCE_KEYFRAME_COOLDOWN_MS
+        ) {
+            log(1, "[VIDEO WATCHDOG] stall detected", {
+                age: Math.floor(age),
+                framesDecoded,
+                bytesReceived,
+                packetsReceived,
+                freezeCount,
+                totalFreezesDuration,
+                reallyStalled,
+                browserDetectedFreeze
+            });
+
+            lastForceKeyframeAt = now;
             sendForceKeyframe("video_stall");
         }
-    }, 250);
+
+        lastVideoStats = {
+            checkedAt: now,
+            framesDecoded,
+            bytesReceived,
+            packetsReceived,
+            freezeCount,
+            totalFreezesDuration
+        };
+    }, VIDEO_WATCHDOG_INTERVAL_MS);
 }
 
 function startStatsMonitor() {
