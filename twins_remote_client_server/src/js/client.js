@@ -171,6 +171,8 @@ let noticesEn = null;
 // ==================================
 let lastGamepadPacket = null;
 let lastGamepadSendAt = 0;
+let gamepadSeq = 0;
+let lastGamepadSendLogAt = 0;
 
 const GAMEPAD_SEND_INTERVAL_MS = 16;    // 最大60Hz
 const GAMEPAD_KEEPALIVE_MS = 500;       // 入力がない場合は0.5秒に1回
@@ -179,11 +181,11 @@ const AXIS_DEADZONE = 0.05;
 
 window.addEventListener("gamepadconnected", (e) => {
     gamepadIndex = e.gamepad.index;
-    console.log("gamepad connected:", e.gamepad.id, "index=", gamepadIndex);
+    log("gamepad connected:", e.gamepad.id, "index=", gamepadIndex);
 });
 
 window.addEventListener("gamepaddisconnected", (e) => {
-    console.log("gamepad disconnected:", e.gamepad.id, "index=", e.gamepad.index);
+    log("gamepad disconnected:", e.gamepad.id, "index=", e.gamepad.index);
     if (gamepadIndex === e.gamepad.index) {
         gamepadIndex = null;
     }
@@ -198,30 +200,32 @@ function axisToI16(v, invert = false) {
     return Math.round(v * 32767);
 }
 
-function buildGamepadPacket(gamepad) {
+function buildGamepadPacket(gamepad, seq) {
     const buttons = encodeButtons(gamepad);
 
-    const buf = new ArrayBuffer(12);
+    const buf = new ArrayBuffer(16);
     const view = new DataView(buf);
 
     view.setUint16(0, buttons, true);
-    view.setUint8(2, Math.round(gamepad.buttons[6].value * 255));
-    view.setUint8(3, Math.round(gamepad.buttons[7].value * 255));
+    view.setUint8(2, Math.round((gamepad.buttons[6]?.value || 0)* 255));
+    view.setUint8(3, Math.round((gamepad.buttons[7]?.value || 0)* 255));
     view.setInt16(4, axisToI16(gamepad.axes[0]), true);
     view.setInt16(6, axisToI16(gamepad.axes[1], true), true);
     view.setInt16(8, axisToI16(gamepad.axes[2]), true);
     view.setInt16(10, axisToI16(gamepad.axes[3], true), true);
 
+    view.setUint32(12, seq, true);
+
     return buf;
 }
 
 function samePacket(a, b) {
-    if (!a || !b || a.byteLength !== b.byteLength) return false;
+    if (!a || !b) return false;
 
     const aa = new Uint8Array(a);
     const bb = new Uint8Array(b);
 
-    for (let i = 0; i < aa.length; i++) {
+    for (let i = 0; i < 12; i++) {
         if (aa[i] !== bb[i]) return false;
     }
 
@@ -250,13 +254,27 @@ function startGamepadLoop() {
             return;
         }
 
-        const packet = buildGamepadPacket(gamepad);
+        const seq = (gamepadSeq + 1) >>> 0;
+        const packet = buildGamepadPacket(gamepad, seq);
         const changed = !samePacket(packet, lastGamepadPacket);
         const keepalive = now - lastGamepadSendAt >= GAMEPAD_KEEPALIVE_MS;
         if (!changed && !keepalive) { return; }
 
         try {
             controllerDc.send(packet);
+
+            const nowLog = performance.now();
+            if (nowLog - lastGamepadSendLogAt > 1000) {
+                console.log("[GAMEPAD SEND]", {
+                    seq,
+                    bufferedAmount: controllerDc.bufferedAmount,
+                    pcConnectionState: pc?.connectionState,
+                    iceConnectionState: pc?.iceConnectionState,
+                    dcReadyState: controllerDc?.readyState,
+                });
+                lastGamepadSendLogAt = nowLog;
+            }
+            gamepadSeq = seq;
             lastGamepadPacket = packet.slice(0);
             lastGamepadSendAt = now;
         } catch (e) {
@@ -1238,13 +1256,11 @@ async function connect() {
     };
 
     const inputChannel = pc.createDataChannel("input", {
-        ordered: false,
-        maxRetransmits: 0
+        ordered: false
     });
 
     const controllerChannel = pc.createDataChannel("controller", {
-        ordered: false,
-        maxRetransmits: 0
+        ordered: false
     });
     setupDataChannel(inputChannel, controllerChannel);
 

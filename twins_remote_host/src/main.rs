@@ -9,7 +9,7 @@ use anyhow::{anyhow, Result};
 use std::io::{Read, Write};
 use std::process::{Child, ChildStdout, Command, Stdio};
 use std::sync::{
-    atomic::{AtomicBool, AtomicU64, Ordering},
+    atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
     Arc, Mutex,
 };
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -288,6 +288,7 @@ async fn main() -> Result<()> {
     let last_force_keyframe_at_clone = last_force_keyframe_at.clone();
 
     let pc = webrtc.peer.clone();
+    let last_gamepad_seq = Arc::new(AtomicU32::new(0));
 
     webrtc.peer.on_data_channel(Box::new(move |dc| {
         println!("DataChannel accepted from client: {}", dc.label());
@@ -296,10 +297,12 @@ async fn main() -> Result<()> {
         let nvenc_cmd_tx_clone = nvenc_cmd_tx_clone.clone();
         let last_force_keyframe_at_clone = last_force_keyframe_at_clone.clone();
         let rumble_tx_for_dc = rumble_tx_for_dc.clone();
+        let last_gamepad_seq_clone = last_gamepad_seq.clone();
 
         let pc_clone = pc.clone();
         let dc_clone = dc.clone();
         Box::pin(async move {
+            let last_gamepad_seq = last_gamepad_seq_clone.clone();
             let pc_clone_clone = pc_clone.clone();
             let dc_clone_clone = dc_clone.clone();
             dc.on_open(Box::new(move || {
@@ -447,11 +450,12 @@ async fn main() -> Result<()> {
                 let nvenc_cmd_tx = nvenc_cmd_tx_clone.clone();
                 let last_force_keyframe_at = last_force_keyframe_at_clone.clone();
                 let dc = dc_for_message.clone();
+                let last_gamepad_seq_clone = last_gamepad_seq.clone();
 
                 Box::pin(async move {
                     let data = &msg.data;
 
-                    if data.len() == 12 {
+                    if data.len() == 12 || data.len() == 16 {
                         let buttons = u16::from_le_bytes([data[0], data[1]]);
                         let lt = data[2];
                         let rt = data[3];
@@ -460,6 +464,11 @@ async fn main() -> Result<()> {
                         let rx = i16::from_le_bytes([data[8], data[9]]);
                         let ry = i16::from_le_bytes([data[10], data[11]]);
 
+                        let seq = if data.len() >= 16 {
+                            Some(u32::from_le_bytes([data[12], data[13], data[14], data[15]]))
+                        } else {
+                            None
+                        };
 
                         if let Ok(mut ctrl) = controller.lock() {
                             let report = GamepadState {
@@ -472,8 +481,29 @@ async fn main() -> Result<()> {
                                 ry,
                             };
 
-                            if let Err(e) = ctrl.update(report) {
-                                eprintln!("failed to update: {:?}", e);
+                            let result = ctrl.update(report);
+                            
+                            if let Some(seq) = seq {
+                                let prev = last_gamepad_seq_clone.swap(seq, Ordering::Relaxed);
+
+                                if prev != 0 {
+                                    let expected = prev.wrapping_add(1);
+                                    if seq != expected {
+                                        println!(
+                                            "[HOST GAMEPAD GAP] prev={} current={} lost_or_reordered={}",
+                                            prev,
+                                            seq,
+                                            seq.wrapping_sub(expected)
+                                        );
+                                    }
+                                }
+
+                                if seq % 60 == 0 {
+                                    println!(
+                                        "[HOST GAMEPAD RECV] seq={} update={:?} buttons={} lt={} rt={} lx={} ly={} rx={} ry={}",
+                                        seq, result, buttons, lt, rt, lx, ly, rx, ry
+                                    );
+                                }
                             }
                         }
 
