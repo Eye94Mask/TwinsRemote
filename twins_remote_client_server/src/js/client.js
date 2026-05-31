@@ -526,8 +526,6 @@ function getNoticesByLanguage() {
 function setNotices() {
     const notices = getNoticesByLanguage();
 
-    console.log(notices);
-
     if (notices) {
         const noticesList = document.getElementById("noticeList");
         noticesList.innerHTML = "";
