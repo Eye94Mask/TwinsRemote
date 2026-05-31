@@ -13,5 +13,6 @@
     "failedToCopySessionId": "Failed to copy Session ID",
     "validateAudio": "Audio has been enabled",
     "failedToValidateAudio": "Failed to enable audio",
-    "capViolationWarning": "Connection was terminated because the quality limit for the TURN relay was exceeded."
+    "capViolationWarning": "Connection was terminated because the quality limit for the TURN relay was exceeded.",
+    "saveLog": "Save Log"
 }
