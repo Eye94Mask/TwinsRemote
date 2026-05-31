@@ -1,0 +1,17 @@
+{
+    "connectionStatus": "Connection Status：",
+    "notConnected": "Not Connected",
+    "preparingConnection": "Connecting...",
+    "connecting": "Waiting for Connection",
+    "waitingForHost": "Waiting for the host to respond",
+    "connected": "Connected",
+    "disconnected": "Connection Ended",
+    "connectionFailure": "Connection Error",
+    "fullScreen": "Full Screen",
+    "invalidToken": "Your token has expired\n Click OK to reload the page",
+    "copiedSessionId": "Copied Session ID",
+    "failedToCopySessionId": "Failed to copy Session ID",
+    "validateAudio": "Audio has been enabled",
+    "failedToValidateAudio": "Failed to enable audio",
+    "capViolationWarning": "Connection was terminated because the quality limit for the TURN relay was exceeded."
+}

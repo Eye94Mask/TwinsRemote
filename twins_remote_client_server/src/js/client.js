@@ -1,3 +1,6 @@
+import japanese from "./locales/ja-JP.json" with {type: 'json'};;
+import english from "./locales/en-US.json" with {type: 'json'};;
+
 let pc;
 let inputDc = null;
 let controllerDc = null;
@@ -34,6 +37,17 @@ let lateDroppedFrames = 0;
 let ttlSeconds = 600 * 1000;
 let tokenTimeoutMessage = null;
 
+let status = Object.freeze({
+    notConnected: "notConnected",
+    preparingConnection: "preparingConnection",
+    connecting: "connecting",
+    waitingForHost: "waitingForHost",
+    connected: "connected",
+    disconnected: "disconnected",
+    connectionFailure: "connectionFailure",
+    capViolationWarning: "capViolationWarning"
+});
+let currentStatus = status.notConnected;
 let connectStatus = null;
 let seenRemoteCandidates = new Set();
 let pendingRemoteCandidates = [];
@@ -500,16 +514,23 @@ function setupDataChannel(channel, controller) {
     }
 }
 
-window.addEventListener("DOMContentLoaded", async () => {
-    await fetchTtlSeconds();
-    await fetchNotifications();
-    tokenTimeoutMessage = setTimeout(tokenTimeout, ttlSeconds);
+function getNoticesByLanguage() {
+    const selectedLanguage = document.getElementById("language-select").value;
+    switch (selectedLanguage) {
+        case "ja-JP": return noticesJa;
+        case "en-US": return noticesEn;
+        default: return noticesJa;
+    }
+}
 
-    if (noticesJa || noticesEn) {
-        // 多言語対応必須
+function setNotices() {
+    const notices = getNoticesByLanguage();
+
+    if (notices) {
         const noticesList = document.getElementById("noticeList");
+        if (noticesList == null) return;
 
-        const notices = noticesJa;
+        noticesList.innerHTML = "";
 
         notices.forEach(notice => {
             const noticeContent = notice.split("@")[0];
@@ -538,6 +559,15 @@ window.addEventListener("DOMContentLoaded", async () => {
             ticker.remove();
         }
     }
+}
+
+window.addEventListener("DOMContentLoaded", async () => {
+    loadLanguage();
+    await fetchTtlSeconds();
+    await fetchNotifications();
+    tokenTimeoutMessage = setTimeout(tokenTimeout, ttlSeconds);
+    
+    setNotices();
 
     const selectedSubtitle = splashSubtitles[getRandomInt(splashSubtitles.length)];
     const subtitle = document.getElementById("splashSubtitle");
@@ -643,7 +673,7 @@ function startSplash() {
 }
 
 function tokenTimeout() {
-    if (!alert("トークンの有効期限が切れました\nページの再読み込みをします")) {
+    if (!alert(locale.invalidToken)) {
         location.reload();
     }
     window.clearTimeout(tokenTimeoutMessage);
@@ -777,10 +807,10 @@ async function copySessionId() {
     if (!btn) {
         try {
             await navigator.clipboard.writeText(text);
-            showToast("Session IDをコピーしました");
+            showToast(locale.copiedSessionId);
         } catch (e) {
             console.warn("failed to copy sessionId", e);
-            showToast("コピーに失敗しました", "error");
+            showToast(locale.failedToCopySessionId, "error");
         }
         return;
     }
@@ -796,7 +826,7 @@ async function copySessionId() {
 
         btn.textContent = "✓";
         btn.classList.add("copy-success");
-        showToast("Session IDをコピーしました");
+        showToast(locale.copiedSessionId);
 
         copySessionResetTimer = setTimeout(() => {
             btn.classList.remove("copy-success");
@@ -807,7 +837,7 @@ async function copySessionId() {
 
         btn.textContent = "Failed";
         btn.classList.add("copy-error");
-        showToast("コピーに失敗しました", "error");
+        showToast(locale.failedToCopySessionId, "error");
 
         copySessionResetTimer = setTimeout(() => {
             btn.classList.remove("copy-error");
@@ -1081,7 +1111,8 @@ async function connect() {
     sessionId = getOrCreateSessionId();
     log("SESSION ID:", sessionId);
 
-    setStatus("connecting", "接続準備中");
+    setStatus("connecting", locale.preparingConnection);
+    currentStatus = status.preparingConnection;
 
     const config = await fetchWebRtcConfig();
     log("ICE CONFIG:", config);
@@ -1174,19 +1205,19 @@ async function connect() {
         console.log("CANDIDATE: ", cand);
 
         if (cand.includes("typ relay")) {
-            console.log("✅ relay candidate generated");
+            log("✅ relay candidate generated");
         }
 
         try {
             await postClientCandidate(e.candidate.toJSON());
-            console.log("client candidate posted");
+            log("client candidate posted");
         } catch (err) {
-            console.warn("failed to post client candidate", err);
+            log(1, "failed to post client candidate", err);
         }
     };
 
     pc.onicecandidateerror = (e) => {
-        console.warn("ICE candidate warning", e);
+        log(1, "ICE candidate warning", e);
     };
 
     pc.oniceconnectionstatechange = async () => {
@@ -1197,11 +1228,13 @@ async function connect() {
         }
 
         if (pc.iceConnectionState === "checking") {
-            setStatus("connecting", "接続待機中");
+            setStatus("connecting", locale.connecting);
+            currentStatus = status.connecting;
         }
 
         if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
-            setStatus("connected", "接続完了");
+            setStatus("connected", locale.connected);
+            currentStatus = status.connected;
             clearTimeout(tokenTimeoutMessage);
 
             if (!rtcSummaryIntervalId) {
@@ -1214,11 +1247,13 @@ async function connect() {
         }
 
         if (pc.iceConnectionState === "disconnected") {
-            setStatus("disconnected", "接続終了");
+            setStatus("disconnected", locale.disconnected);
+            currentStatus = status.disconnected;
         }
 
         if (pc.iceConnectionState === "failed") {
-            setStatus("failed", "接続エラー");
+            setStatus("failed", locale.connectionFailure);
+            currentStatus = status.connectionFailure;
         }
     };
 
@@ -1286,7 +1321,8 @@ async function connect() {
     await resetSession();
     await postOffer(pc.localDescription?.toJSON ? pc.localDescription.toJSON() : pc.localDescription);
 
-    setStatus("waiting", "ホストの応答待ち");
+    setStatus("waiting", locale.waitingForHost);
+    currentStatus = status.waitingForHost;
 
     seenRemoteCandidates.clear();
     pendingRemoteCandidates = [];
@@ -1552,7 +1588,7 @@ async function onEnableAudio() {
         if (on) on.checked = true;
 
         setAudioUiState("on");
-        showToast("音声を有効化しました");
+        showToast(locale.validateAudio);
     } catch (e) {
         console.error("failed to enable audio", e);
 
@@ -1560,7 +1596,7 @@ async function onEnableAudio() {
         if (off) off.checked = true;
 
         setAudioUiState("off");
-        showToast("音声の有効化に失敗しました", "error");
+        showToast(locale.failedToValidateAudio, "error");
     }
 }
 
@@ -1574,7 +1610,7 @@ async function toggleFullscreen() {
             await document.exitFullscreen();
         }
     } catch (e) {
-        console.error("fullscreen failed", e);
+        log(2, "fullscreen failed", e);
     }
 }
 
@@ -1597,14 +1633,14 @@ async function startVideoTrackProcessor(track) {
     stopVideoTrackProcessor();
 
     if (typeof MediaStreamTrackProcessor === "undefined") {
-        console.warn("MediaStreamTrackProcessor is not available in this browser/context");
-        console.warn("falling back to direct video element playback");
+        log(1, "MediaStreamTrackProcessor is not available in this browser/context");
+        log(1, "falling back to direct video element playback");
 
         if (videoEl) {
             videoEl.style.display = "block";
             videoEl.srcObject = new MediaStream([track]);
             await videoEl.play().catch((e) => {
-                console.warn("video.play rejected", e);
+                log(1, "video.play rejected", e);
             });
         }
         return;
@@ -1644,11 +1680,11 @@ async function startVideoTrackProcessor(track) {
             }
         } catch (e) {
             if (!processorAbort?.aborted) {
-                console.error("videoReader.read failed", e);
+                log(2, "videoReader.read failed", e);
                 sendForceKeyframe("video_reader_error");
             }
         } finally {
-            console.log("[VIDEO] processor loop ended");
+            log("[VIDEO] processor loop ended");
         }
     })();
 }
@@ -1698,7 +1734,7 @@ function drawVideoFrame(frame) {
         canvasCtx.drawImage(frame, 0, 0, canvasEl.width, canvasEl.height);
         renderedFrames++;
     } catch (e) {
-        console.error("drawImage failed", e);
+        log(2, "drawImage failed", e);
         sendForceKeyframe("video_draw_error");
     }
 }
@@ -1731,7 +1767,7 @@ function startRenderLoop() {
 
     loop().catch((e) => {
         renderLoopActive = false;
-        console.error("[VIDEO] render loop failed", e);
+        log(2, "[VIDEO] render loop failed", e);
         sendForceKeyframe("render_loop_error");
     });
 }
@@ -2110,7 +2146,8 @@ function disconnectForCapViolation(report, bitrateBps) {
         bitrateMbps: bitrateBps ? bitrateBps / 1_000_000 : null
     });
 
-    setStatus("failed", "TURN relay 中の品質制限を超えたため切断しました");
+    setStatus("failed", locale.capViolationWarning);
+    currentStatus = status.capViolationWarning;
 
     log("!!! [WARN] Cap Violation is detected !!!");
     log("!!! Disconnected from the host !!!");
@@ -2155,3 +2192,106 @@ function handleDataChannelDead(reason) {
         }
     } catch {}
 }
+
+// ===========================
+// 多言語対応 Start
+// ===========================
+const locales = [
+    { name: "日本語", value: "ja-JP"},
+    { name: "English", value: "en-US"}
+]
+
+let locale = japanese;
+let isLanguageInitialized = false;
+
+function getLocale() {
+    const selectedLanguage = document.getElementById("language-select").value;
+    
+    switch (selectedLanguage) {
+        case "ja-JP": return japanese;
+        case "en-US": return english;
+    }
+
+    return japanese;
+}
+
+function setLanguageList() {
+    const languageSelect = document.getElementById("language-select");
+    locales.forEach(locale => {
+        const languageOption = document.createElement("option");
+        
+        languageOption.text = locale.name;
+        languageOption.value = locale.value;
+
+        languageSelect.add(languageOption, null);
+    });
+}
+
+function getLocaleStatus() {
+    switch (currentStatus) {
+        case status.notConnected: return locale.notConnected;
+        case status.preparingConnection: return locale.preparingConnection;
+        case status.connecting: return locale.connecting;
+        case status.waitingForHost: return locale.waitingForHost;
+        case status.connected: return locale.connected;
+        case status.disconnected: return locale.disconnected;
+        case status.connectionFailure: return locale.connectionFailure;
+        case status.capViolationWarning: return locale.capViolationWarning;
+    }
+}
+
+function applyLanguage(language) {
+    locale = language;
+
+    const statusLabel = document.getElementById("status-label");
+    const el = document.getElementById("status");
+    const fullscreenBtn = document.getElementById("fullscreenBtn");
+    const statusLabelText = locale.connectionStatus;
+
+    statusLabel.textContent = statusLabelText;
+    el.textContent = getLocaleStatus();
+    fullscreenBtn.textContent = locale.fullScreen;
+
+    setNotices();
+}
+
+function getLanguageFromStorage() {
+    switch (localStorage.getItem("language")) {
+        case "ja-JP": return japanese;
+        case "en-US": return english;
+        default: return japanese;
+    }
+}
+
+function setSelectElementValue(language) {
+    const languageSelect = document.getElementById("language-select");
+    const options = languageSelect.children;
+    
+    for (let i = 0; i < options.length; i++) {
+        if (options[i].value === language) {
+            languageSelect.selectedIndex = i;
+            break;
+        }
+    }
+}
+
+function loadLanguage() {
+    setLanguageList();
+
+    const languageSelect = document.getElementById("language-select");
+    setSelectElementValue(localStorage.getItem("language"));
+    applyLanguage(getLanguageFromStorage());
+
+    languageSelect.addEventListener("change", (event) => {
+        if (!isLanguageInitialized) return;
+        const languageSelect = document.getElementById("language-select");
+        localStorage.setItem("language", languageSelect.value);
+
+        applyLanguage(getLocale());
+    });
+
+    isLanguageInitialized = true;
+}
+// ===========================
+// 多言語対応 End
+// ===========================

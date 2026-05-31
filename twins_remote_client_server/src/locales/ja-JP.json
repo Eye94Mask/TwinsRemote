@@ -1,0 +1,17 @@
+{
+    "connectionStatus": "接続ステータス：",
+    "notConnected": "未接続",
+    "preparingConnection": "接続準備中",
+    "connecting": "接続待機中",
+    "waitingForHost": "ホストの対応待ち",
+    "connected": "接続完了",
+    "disconnected": "接続終了",
+    "connectionFailure": "接続エラー",
+    "fullScreen": "フルスクリーン",
+    "invalidToken": "トークンの有効期限が切れました\nページを再読み込みします",
+    "copiedSessionId": "Session ID をコピーしました",
+    "failedToCopySessionId": "Session ID のコピーに失敗しました",
+    "validateAudio": "音声を有効化しました",
+    "failedToValidateAudio": "音声の有効化に失敗しました",
+    "capViolationWarning": "TURN relay 中の品質制限を超えたため切断しました"
+}
