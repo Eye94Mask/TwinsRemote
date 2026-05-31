@@ -2331,13 +2331,37 @@ window.downloadLogToFile = downloadLogToFile;
 // ===========================
 let wakeLock = null;
 
+if (navigator.userAgent.match(/(iPhone|iPad|iPod|Android)/i)) {
+  // mobile
+  document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState === "visible") {
+      await startWakeLock();
+    }
+
+    if (document.visibilityState === "hidden") {
+      await releaseWakeLock();
+    }
+  });
+} else {
+  window.addEventListener("focus", async () => {
+    await startWakeLock();
+  });
+  window.addEventListener("blur", async () => {
+    await releaseWakeLock();
+  });
+}
+
 async function startWakeLock() {
     wakeLock = await navigator.wakeLock.request("screen");
 }
 
 async function releaseWakeLock() {
-    if (wakeLock == null) return;
-    await waleLock.release();
+    if (wakeLock == null) {
+        console.log("wakeLock is null");
+        return;
+    }
+    log("End ScreenWakeLock");
+    await wakeLock.release();
 }
 // ===========================
 // スリープ機能ロック End
