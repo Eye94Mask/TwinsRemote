@@ -105,5 +105,7 @@
   "customModeNameConflictsWithOthers": "The mode you entered already exists\nPlease save it under a different name",
   "failedToDeleteCustom": "Failed to delete the custom mode",
   "deleteCustomSuccess": "Delete mode: ",
-  "failedToUpdateCustom": "Failed to update the custom mode"
+  "failedToUpdateCustom": "Failed to update the custom mode",
+  "saveLog": "Save Log",
+  "logHasBeenSaved": "The log has been saved"
 }

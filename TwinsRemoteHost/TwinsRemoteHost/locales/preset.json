@@ -105,5 +105,7 @@
   "customModeNameConflictsWithOthers": "",
   "failedToDeleteCustom": "",
   "deleteCustomSuccess": "",
-  "failedToUpdateCustom": ""
+  "failedToUpdateCustom": "",
+  "saveLog": "",
+  "logHasBeenSaved": ""
 }

@@ -513,6 +513,7 @@ namespace TwinsRemoteHost
             audioSystemButton.Text = this.locale.ButtonAudioSystemText;
             createCustomModeButton.Text = this.locale.CreateCustomMode;
             updateCustomMode.Text = this.locale.UpdateCustomMode;
+            saveLogButton.Text = this.locale.SaveLog;
         }
 
         public static string GetCustomDirectory()
@@ -783,6 +784,24 @@ namespace TwinsRemoteHost
             SetCustomEditorButton();
             this.notificationsForm.Dispose();
             this.notificationsForm = null;
+        }
+
+        private void saveLogButton_Click(object sender, EventArgs e)
+        {
+            // ログファイル（例：TwinsRemote_Host_2020_01_01_12_00_00.txt）
+            DateTime now = DateTime.Now;
+            string dt = now.ToString("yyyy_MM_dd_HH_mm_ss");
+            string fileName = "TwinsRemote_Host_" + dt + ".txt";
+            string filePath = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory) + "/" + fileName;
+
+            string log = logTextBox.Text;
+            StreamWriter sw = new StreamWriter(filePath, false, Encoding.UTF8);
+            sw.Write(log);
+            sw.Close();
+
+            // 保存先の通知
+            MessageBox.Show(this.locale.LogHasBeenSaved + "\n" + filePath, locale.Confirm,
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
     }
 
@@ -1139,6 +1158,12 @@ namespace TwinsRemoteHost
 
         [JsonProperty("newPatchUpdate")]
         public required string NewPatchUpdate { get; set; }
+
+        [JsonProperty("saveLog")]
+        public required string SaveLog { get; set; }
+
+        [JsonProperty("logHasBeenSaved")]
+        public required string LogHasBeenSaved { get; set; }
     }
 
     public class IssueHostTokenRequest
