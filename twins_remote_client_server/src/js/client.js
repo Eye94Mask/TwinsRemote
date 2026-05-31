@@ -2246,11 +2246,12 @@ function applyLanguage(language) {
     const statusLabel = document.getElementById("status-label");
     const el = document.getElementById("status");
     const fullscreenBtn = document.getElementById("fullscreenBtn");
-    const statusLabelText = locale.connectionStatus;
+    const saveLogBtn = document.getElementById("save-log")
 
-    statusLabel.textContent = statusLabelText;
+    statusLabel.textContent = locale.connectionStatus;
     el.textContent = getLocaleStatus();
     fullscreenBtn.textContent = locale.fullScreen;
+    saveLogBtn.textContent = locale.saveLog;
 
     setNotices();
 }
@@ -2294,4 +2295,32 @@ function loadLanguage() {
 }
 // ===========================
 // 多言語対応 End
+// ===========================
+
+// ===========================
+// ログ保存 Start
+// ===========================
+function downloadLogToFile() {
+    const log = document.getElementById("log").textContent;
+    if (log == null) { return; }
+
+    const blob = new Blob([log], { type: "text/plain" });
+
+    // ログファイル(例：TwinsRemote_Client_2020_1_1_12_00_00.txt)
+    const now = new Date();
+    const fileName = "TwinsRemote_Client_" +
+        now.getFullYear() + "_" + (now.getMonth() + 1) + "_" + now.getDate() +
+        "_" + now.getHours() + "_" + now.getMinutes() + "_" + now.getSeconds() + ".txt";
+
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = fileName;
+    a.click();
+
+    a.remove();
+}
+
+window.downloadLogToFile = downloadLogToFile;
+// ===========================
+// ログ保存 End
 // ===========================
