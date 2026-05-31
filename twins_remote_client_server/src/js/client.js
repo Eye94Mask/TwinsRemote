@@ -528,6 +528,8 @@ function setNotices() {
 
     if (notices) {
         const noticesList = document.getElementById("noticeList");
+        if (noticesList == null) return;
+
         noticesList.innerHTML = "";
 
         notices.forEach(notice => {
