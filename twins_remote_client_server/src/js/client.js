@@ -563,6 +563,7 @@ function setNotices() {
 
 window.addEventListener("DOMContentLoaded", async () => {
     loadLanguage();
+    await startWakeLock();
     await fetchTtlSeconds();
     await fetchNotifications();
     tokenTimeoutMessage = setTimeout(tokenTimeout, ttlSeconds);
@@ -2323,4 +2324,42 @@ function downloadLogToFile() {
 window.downloadLogToFile = downloadLogToFile;
 // ===========================
 // ログ保存 End
+// ===========================
+
+// ===========================
+// スリープ機能ロック Start
+// ===========================
+let wakeLock = null;
+
+if (navigator.userAgent.match(/(iPhone|iPad|iPod|Android)/i)) {
+  // mobile
+  document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState === "visible") {
+      await startWakeLock();
+    }
+
+    if (document.visibilityState === "hidden") {
+      await releaseWakeLock();
+    }
+  });
+} else {
+  window.addEventListener("focus", async () => {
+    await startWakeLock();
+  });
+  window.addEventListener("blur", async () => {
+    await releaseWakeLock();
+  });
+}
+
+async function startWakeLock() {
+    wakeLock = await navigator.wakeLock.request("screen");
+}
+
+async function releaseWakeLock() {
+    if (wakeLock == null) return;
+    log("End ScreenWakeLock");
+    await wakeLock.release();
+}
+// ===========================
+// スリープ機能ロック End
 // ===========================
