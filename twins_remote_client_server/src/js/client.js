@@ -2300,7 +2300,7 @@ function loadLanguage() {
 // ===========================
 // ログ保存 Start
 // ===========================
-function downloadToFile() {
+function downloadLogToFile() {
     const log = document.getElementById("log").textContent;
     if (log == null) { return; }
 
@@ -2320,7 +2320,7 @@ function downloadToFile() {
     a.remove();
 }
 
-window.downloadToFile = downloadToFile;
+window.downloadLogToFile = downloadLogToFile;
 // ===========================
 // ログ保存 End
 // ===========================
