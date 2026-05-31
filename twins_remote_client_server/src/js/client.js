@@ -2356,10 +2356,7 @@ async function startWakeLock() {
 }
 
 async function releaseWakeLock() {
-    if (wakeLock == null) {
-        console.log("wakeLock is null");
-        return;
-    }
+    if (wakeLock == null) return;
     log("End ScreenWakeLock");
     await wakeLock.release();
 }
