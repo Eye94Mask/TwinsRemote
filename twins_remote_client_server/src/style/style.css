@@ -604,3 +604,24 @@ button {
 .languages select:focus {
   outline: 1px solid #2589d0;
 }
+
+#save-log {
+  background: #2c2c2c;
+  color: #ffffff;
+  border: none;
+  padding: 14px 36px;
+  font-size: 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  box-shadow: 8px 8px 16px #1a1a1a, -8px -8px 16px #3e3e3e;
+  transition: all 0.3s ease;
+}
+
+#save-log:hover {
+  box-shadow: 6px 6px 12px #1a1a1a, -6px -6px 12px #3e3e3e;
+}
+
+#save-log:active {
+  box-shadow: inset 4px 4px 8px #1a1a1a, inset -4px -4px 8px #3e3e3e;
+}
