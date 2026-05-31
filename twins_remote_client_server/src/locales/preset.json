@@ -1,0 +1,17 @@
+{
+    "connectionStatus": "",
+    "notConnected": "",
+    "preparingConnection": "",
+    "connecting": "",
+    "waitingForHost": "",
+    "connected": "",
+    "disconnected": "",
+    "connectionFailure": "",
+    "fullScreen": "",
+    "invalidToken": "",
+    "copiedSessionId": "",
+    "failedToCopySessionId": "",
+    "validateAudio": "",
+    "failedToValidateAudio": "",
+    "capViolationWarning": ""
+}

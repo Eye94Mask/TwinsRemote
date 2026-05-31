@@ -549,3 +549,58 @@ button {
     }
   }
 }
+
+.languages {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  height: 30px;
+  padding: 20px 0;
+}
+
+.languages::before,
+.languages::after {
+  position: absolute;
+  content: '';
+  pointer-events: none;
+}
+
+.languages::before {
+  right: 0;
+  display: inline-block;
+  width: 2.8em;
+  height: 2.8em;
+  border-radius: 0 25px 25px 0;
+  background-color: #2589d0;
+  content: '';
+}
+
+.languages::after {
+  position: absolute;
+  top: 60%;
+  right: 1.4em;
+  transform: translate(50%, -50%) rotate(45deg);
+  width: 6px;
+  height: 6px;
+  border-bottom: 3px solid #fff;
+  border-right: 3px solid #fff;
+  content: '';
+}
+
+.languages select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  min-width: 230px;
+  height: 2.8em;
+  padding: .4em 3.6em .4em .8em;
+  border: 2px solid #2589d0;
+  border-radius: 25px;
+  color: #333333;
+  font-size: 1em;
+  cursor: pointer;
+}
+
+.languages select:focus {
+  outline: 1px solid #2589d0;
+}
