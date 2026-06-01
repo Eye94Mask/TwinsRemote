@@ -7,6 +7,50 @@ Low-latency peer-to-peer remote play system for Windows.
 Twins Remote allows a host PC to stream video/audio to a remote client through the browser with very low latency.
 The client can also send controller input back to the host, allowing remote gameplay similar to Steam Remote Play Together — but without being limited to Steam games.
 
+# Table of Contents
+- [Features](#features)
+  - [Low Latency Streaming](#low-latency-streaming)
+  - [Browser-Based Client](#browser-based-client)
+- [Supported Features](#supported-features)
+  - [Video Streaming](#video-streaming)
+  - [Audio Sharing](#audio-sharing)
+  - [Controller Input](#controller-input)
+- [Architecture](#architecture)
+  - [Host Side](#host-side)
+    - [Rust](#rust)
+    - [C++](#c)
+    - [C#](#c-1)
+  - [Client Side](#client-side)
+    - [Vanilla JavaScript](#vanilla-javascript)
+- [How To Use](#how-to-use)
+  - [Host](#host)
+  - [Client](#client)
+- [Troubleshooting](#troubleshooting)
+- [Requirements](#requirements)
+  - [Host PC](#host-pc)
+  - [Client](#client-1)
+- [Current Limitation](#current-limitations)
+  - [Not Yet Implemented](#not-yet-implemented)
+  - [Current Restrictions](#current-restrictions)
+- [Networking](#networking)
+- [Development](#development)
+  - [Technologies Used](#technologies-used)
+    - [Host](#host-1)
+    - [Client](#client-2)
+- [Building](#building)
+- [Future Plans](#future-plans)
+- [Report]
+  - [For Developers](#for-developers)
+  - [Feature Request](#feature-request)
+  - [Bug Report](#bug-report)
+- [FAQ](#faq)
+  - [Does this only work with Steam games?](#does-this-only-work-with-steam-games)
+  - [Does the client need to install anything?](#does-the-client-need-to-install-anything)
+  - [Why is ViGEm required?](#why-is-vigem-required)
+- [Project Background](#project-background)
+- [Status](#status)
+- [Disclaimer](#disclaimer)
+
 ---
 
 # Features
@@ -147,6 +191,14 @@ After the host finishes processing, the stream will begin automatically.
 
 ---
 
+## Troubleshooting
+If you try to run the host on a gaming laptop, it may not work properly.
+
+You may need to review your PC settings.
+Click [here](https://github.com/Eye94Mask/TwinsRemote/issues/31#issuecomment-4591541905) for more details
+
+---
+
 # Requirements
 
 ## Host PC
@@ -167,6 +219,9 @@ After the host finishes processing, the stream will begin automatically.
 # Current Limitations
 
 ## Not Yet Implemented
+The following are examples.
+
+It is not yet determined whether these will be implemented in the future.
 
 * Dynamic resolution switching during streaming
 * Multi-monitor selection
@@ -230,9 +285,13 @@ These projects are managed through a Visual Studio solution.
 ---
 
 # Future Plans
+Please feel free to submit any feature requests or bug reports.
 
-Planned features include:
+Please submit your reports via GitHub Issues or in the comments section of the X post below.
 
+We plan to actively incorporate any suggestions that do not stray too far from the core philosophy of Twins Remote.
+
+Here is some examples:
 * Keyboard and mouse input support
 * Host-side input permission settings
 * Dynamic resolution switching
@@ -240,6 +299,16 @@ Planned features include:
 * More flexible display selection
 
 ---
+
+# Report
+## For Developers
+I also welcome GitHub issues
+
+## Feature Request
+Please reply to [This Post](https://x.com/Eye94MaskTech/status/2061413873991946547) on X
+
+## Bug Report
+Please reply to [This Post](https://x.com/Eye94MaskTech/status/2061414643021824433) on X
 
 # FAQ
 
