@@ -18,7 +18,7 @@ namespace TwinsRemoteHost
 {
     public partial class Host : Form
     {
-        private string version = "1.0.0";
+        private readonly string version = "1.0.0";
 
         private bool init = true;
         private List<string> notifications = [];
@@ -45,7 +45,7 @@ namespace TwinsRemoteHost
                 return;
             }
 
-            InitializeUi();
+            _ = InitializeUi();
 
             FormClosing += Host_FormClosing;
         }
@@ -107,7 +107,7 @@ namespace TwinsRemoteHost
             this.notifications.Clear();
             this.updateNotification = string.Empty;
 
-            // notices format = "{Notification}@{NotificationDate}"
+            // notices format: "{Notification}@{NotificationDate}"
             string[] notices = await InformNotifications();
             foreach (string notice in notices)
             {
@@ -240,6 +240,7 @@ namespace TwinsRemoteHost
 
         private async Task InitializeUi()
         {
+            versionLabel.Text = "v" + this.version;
             ResetModeList();
 
             string language = Properties.Settings.Default.Language;
