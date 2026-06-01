@@ -48,6 +48,7 @@
             updateLabel = new Label();
             saveLogButton = new Button();
             audioLabel = new Label();
+            versionLabel = new Label();
             ((System.ComponentModel.ISupportInitialize)infoBellPictureBox).BeginInit();
             SuspendLayout();
             // 
@@ -270,11 +271,24 @@
             audioLabel.TabIndex = 18;
             audioLabel.Text = "label1";
             // 
+            // versionLabel
+            // 
+            versionLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            versionLabel.ImageAlign = ContentAlignment.MiddleRight;
+            versionLabel.Location = new Point(2044, 999);
+            versionLabel.Name = "versionLabel";
+            versionLabel.RightToLeft = RightToLeft.No;
+            versionLabel.Size = new Size(248, 42);
+            versionLabel.TabIndex = 19;
+            versionLabel.Text = "label1";
+            versionLabel.TextAlign = ContentAlignment.MiddleRight;
+            // 
             // Host
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(2304, 1050);
+            Controls.Add(versionLabel);
             Controls.Add(audioLabel);
             Controls.Add(saveLogButton);
             Controls.Add(updateLabel);
@@ -324,5 +338,6 @@
         private Label updateLabel;
         private Button saveLogButton;
         private Label audioLabel;
+        private Label versionLabel;
     }
 }
