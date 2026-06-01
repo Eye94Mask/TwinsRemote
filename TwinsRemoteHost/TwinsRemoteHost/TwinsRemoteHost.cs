@@ -68,8 +68,6 @@ namespace TwinsRemoteHost
                 // 取得したお知らせが前回のチェック時以降に追加されていた場合
                 if (Properties.Settings.Default.NotificationDate.Date < dt.Date)
                 {
-                    AppendLog("data: " + Properties.Settings.Default.NotificationDate.Date.ToString());
-                    AppendLog("json: " + dt.Date.ToString());
                     count++;
                 }
             }
