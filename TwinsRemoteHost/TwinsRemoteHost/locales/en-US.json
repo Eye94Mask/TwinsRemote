@@ -3,7 +3,7 @@
   "labelSessionIdText": "Session ID",
   "labelStatusTitleText": "Connection Status",
   "buttonStartText": "Connect",
-  "audioLabel": "audio",
+  "audioSharingLabel": "Audio Sharing",
   "buttonAudioOnText": "Share App Audio",
   "buttonAudioOffText": "Stop Audio Sharing",
   "buttonAudioSystemText": "Share System Audio",

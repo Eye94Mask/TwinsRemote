@@ -55,19 +55,19 @@
             // 
             modeLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             modeLabel.ImageAlign = ContentAlignment.MiddleRight;
-            modeLabel.Location = new Point(37, 49);
+            modeLabel.Location = new Point(96, 49);
             modeLabel.Name = "modeLabel";
             modeLabel.RightToLeft = RightToLeft.Yes;
             modeLabel.Size = new Size(207, 42);
             modeLabel.TabIndex = 0;
             modeLabel.Text = "label1";
-            modeLabel.TextAlign = ContentAlignment.MiddleLeft;
+            modeLabel.TextAlign = ContentAlignment.MiddleRight;
             // 
             // sessionIdLabel
             // 
             sessionIdLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             sessionIdLabel.ImageAlign = ContentAlignment.MiddleRight;
-            sessionIdLabel.Location = new Point(508, 49);
+            sessionIdLabel.Location = new Point(567, 49);
             sessionIdLabel.Name = "sessionIdLabel";
             sessionIdLabel.RightToLeft = RightToLeft.Yes;
             sessionIdLabel.Size = new Size(276, 42);
@@ -100,7 +100,7 @@
             // 
             modeComboBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             modeComboBox.FormattingEnabled = true;
-            modeComboBox.Location = new Point(250, 41);
+            modeComboBox.Location = new Point(309, 41);
             modeComboBox.Name = "modeComboBox";
             modeComboBox.Size = new Size(322, 50);
             modeComboBox.TabIndex = 4;
@@ -108,7 +108,7 @@
             // sessionIdTextBox
             // 
             sessionIdTextBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            sessionIdTextBox.Location = new Point(790, 41);
+            sessionIdTextBox.Location = new Point(849, 41);
             sessionIdTextBox.Name = "sessionIdTextBox";
             sessionIdTextBox.Size = new Size(318, 49);
             sessionIdTextBox.TabIndex = 5;

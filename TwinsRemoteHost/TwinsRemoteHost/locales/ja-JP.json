@@ -3,7 +3,7 @@
   "labelSessionIdText": "セッションID",
   "labelStatusTitleText": "接続ステータス",
   "buttonStartText": "接続",
-  "audioLabel": "音声",
+  "audioSharingLabel": "音声共有",
   "buttonAudioOnText": "アプリ音声共有",
   "buttonAudioOffText": "音声共有停止",
   "buttonAudioSystemText": "PC音声共有",

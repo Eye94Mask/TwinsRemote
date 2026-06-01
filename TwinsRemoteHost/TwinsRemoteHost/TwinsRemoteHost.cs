@@ -508,7 +508,7 @@ namespace TwinsRemoteHost
             statusTitleLabel.Text = this.locale.LabelStatusTitleText;
             statusValueLabel.Text = GetCurrentStatus();
             connectButton.Text = this.locale.ButtonStartText;
-            audioLabel.Text = this.locale.AudioLabel;
+            audioLabel.Text = this.locale.AudioSharingLabel;
             audioOnButton.Text = this.locale.ButtonAudioOnText;
             audioOffButton.Text = this.locale.ButtonAudioOffText;
             audioSystemButton.Text = this.locale.ButtonAudioSystemText;
@@ -842,8 +842,8 @@ namespace TwinsRemoteHost
         [JsonProperty("buttonStartText")]
         public required string ButtonStartText { get; set; }
 
-        [JsonProperty("audioLabel")]
-        public required string AudioLabel { get; set; }
+        [JsonProperty("audioSharingLabel")]
+        public required string AudioSharingLabel { get; set; }
 
         [JsonProperty("buttonAudioOnText")]
         public required string ButtonAudioOnText { get; set; }
