@@ -195,7 +195,7 @@ After the host finishes processing, the stream will begin automatically.
 If you try to run the host on a gaming laptop, it may not work properly.
 
 You may need to review your PC settings.
-Click [here](https://github.com/Eye94Mask/TwinsRemote/issues/31#issuecomment-4591541905) for more details
+Click [here](https://github.com/Eye94Mask/TwinsRemote/issues/31#issuecomment-4591706536) for more details
 
 ---
 
