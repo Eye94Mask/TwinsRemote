@@ -47,6 +47,7 @@
             notificationCountLabel = new Label();
             updateLabel = new Label();
             saveLogButton = new Button();
+            audioLabel = new Label();
             ((System.ComponentModel.ISupportInitialize)infoBellPictureBox).BeginInit();
             SuspendLayout();
             // 
@@ -258,11 +259,23 @@
             saveLogButton.UseVisualStyleBackColor = true;
             saveLogButton.Click += saveLogButton_Click;
             // 
+            // audioLabel
+            // 
+            audioLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            audioLabel.ImageAlign = ContentAlignment.MiddleRight;
+            audioLabel.Location = new Point(100, 162);
+            audioLabel.Name = "audioLabel";
+            audioLabel.RightToLeft = RightToLeft.No;
+            audioLabel.Size = new Size(248, 42);
+            audioLabel.TabIndex = 18;
+            audioLabel.Text = "label1";
+            // 
             // Host
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(2304, 1050);
+            Controls.Add(audioLabel);
             Controls.Add(saveLogButton);
             Controls.Add(updateLabel);
             Controls.Add(notificationCountLabel);
@@ -310,5 +323,6 @@
         private Label notificationCountLabel;
         private Label updateLabel;
         private Button saveLogButton;
+        private Label audioLabel;
     }
 }
