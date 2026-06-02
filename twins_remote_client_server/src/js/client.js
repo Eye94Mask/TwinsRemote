@@ -578,7 +578,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     await startWakeLock();
     await fetchTtlSeconds();
     await fetchNotifications();
-    tokenTimeoutMessage = setTimeout(tokenTimeout, ttlSeconds);
+    tokenTimeoutMessage = setTimeout(await tokenTimeout, ttlSeconds);
     
     setNotices();
 
@@ -686,7 +686,8 @@ function startSplash() {
     }, 2400);
 }
 
-function tokenTimeout() {
+async function tokenTimeout() {
+    await releaseWakeLock();
     if (!alert(locale.invalidToken)) {
         location.reload();
     }
