@@ -278,7 +278,7 @@ function startGamepadLoop() {
 
         if (controllerDc.bufferedAmount > GAMEPAD_BUFFER_LIMIT) {
             console.warn("[GAMEPAD] skip send: bufferedAmount = ", dcKeepaliveTimer.bufferedAmount);
-            log("[WARN] [GAMEPAD] skip send: bufferedAmount = ", dcKeepaliveTimer.bufferedAmount)
+            log("[WARN] [GAMEPAD] skip send: bufferedAmount = ", dcKeepaliveTimer.bufferedAmount);
             return;
         }
 
