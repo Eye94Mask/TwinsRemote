@@ -278,6 +278,7 @@ function startGamepadLoop() {
 
         if (controllerDc.bufferedAmount > GAMEPAD_BUFFER_LIMIT) {
             console.warn("[GAMEPAD] skip send: bufferedAmount = ", dcKeepaliveTimer.bufferedAmount);
+            log("[WARN] [GAMEPAD] skip send: bufferedAmount = ", dcKeepaliveTimer.bufferedAmount)
             return;
         }
 
@@ -306,6 +307,7 @@ function startGamepadLoop() {
             lastGamepadSendAt = now;
         } catch (e) {
             console.error("gamepad send failed", e);
+            log("[ERR] gamepad send failed", e);
         }
     }
 
@@ -374,6 +376,7 @@ async function applyRumbleState() {
         }
     } catch (e) {
         console.warn("[RUMBLE] apply failed", e);
+        log("[RUMBLE] apply failed", e);
     }
 }
 
@@ -397,6 +400,7 @@ async function stopRumble() {
         }
     } catch (e) {
         console.warn("[RUMBLE] stop failed", e);
+        log("[WARN] [RUMBLE] stop failed", e);
     }
 }
 
@@ -440,14 +444,17 @@ function setupDataChannel(channel, controller) {
 
     inputDc.onopen = () => {
         console.log("Input DataChannel open");
+        log("Input DataChannel open");
     };
 
     inputDc.onclose = () => {
         console.log("Input DataChannel closed");
+        log("Input DataChannel closed");
     };
 
     inputDc.onerror = (err) => {
         console.error("Input DataChannel error", err);
+        log("Input DataChannel error", err);
     };
 
     inputDc.onmessage = async (ev) => {
@@ -485,15 +492,18 @@ function setupDataChannel(channel, controller) {
 
     controllerDc.onopen = () => {
         console.log("Controller DataChannel open");
+        log("Controller DataChannel open");
         startGamepadLoop();
     };
 
     controllerDc.onclose = () => {
         console.log("Controller DataChannel close");
+        log("Controller DataChannel close")
     }
 
     controllerDc.onerror = (err) => {
         console.error("Controller DataChannel error", err);
+        log("[ERR] Controller DataChannel error", err);
     }
 
     controllerDc.onmessage = async (ev) => {
@@ -651,6 +661,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         await connect();
     } catch (e) {
         console.error("initial connect failed", e);
+        log("[ERR] Initial connect failed", e);
     }
 
     startSplash();
@@ -726,13 +737,7 @@ function nowMs() {
     return performance.now();
 }
 
-function log(type = 0, ...args) {
-    switch(type) {
-        case 0: console.log(...args); break;
-        case 1: console.warn(...args); break;
-        case 2: console.error(...args); break;
-    }
-
+function log(...args) {
     const el = document.getElementById("log");
     if (!el) return;
 
@@ -813,6 +818,7 @@ async function copySessionId() {
             showToast(locale.copiedSessionId);
         } catch (e) {
             console.warn("failed to copy sessionId", e);
+            log("[WARN] failed to copy sessionId", e);
             showToast(locale.failedToCopySessionId, "error");
         }
         return;
@@ -837,6 +843,7 @@ async function copySessionId() {
         }, 1600);
     } catch (e) {
         console.warn("failed to copy sessionId", e);
+        log("[WARN] failed to copy sessionId", e);
 
         btn.textContent = "Failed";
         btn.classList.add("copy-error");
@@ -868,8 +875,10 @@ function sendForceKeyframe(reason) {
     try {
         inputDc.send(msg);
         console.log("[CLIENT] sent force_keyframe:", reason);
+        log("[CLIENT] sent force_keyframe:", reason);
     } catch (e) {
         console.warn("[CLIENT] force_keyframe send failed:", e);
+        log("[WARN] [CLIENT] force_keyframe send failed:", e);
     }
 }
 
@@ -1002,6 +1011,7 @@ function startAnswerPolling() {
             }
         } catch (e) {
             console.warn("pollAnswer failed", e);
+            log("[WARN] pollAnswer failed", e);
         }
     }, 500);
 }
@@ -1035,6 +1045,7 @@ async function pollHostCandidates() {
         }
     } catch (e) {
         console.warn("pollHostCandidates failed", e);
+        log("[WARN] pollHostCandidates failed", e)
     }
 }
 
@@ -1046,8 +1057,10 @@ async function flushPendingRemoteCandidates() {
         try {
             await pc.addIceCandidate(new RTCIceCandidate(c));
             console.log("Queued host ICE candidate added:", c);
+            log("Queued host ICE candidate added:", c);
         } catch (e) {
             console.warn("failed to add queued host candidate", e, c);
+            log("[WARN] failed to add queued host candidate", e, c)
         }
     }
 }
@@ -1067,6 +1080,7 @@ async function resetSession() {
         await postJson(buildSessionUrl("/reset"), {});
     } catch (e) {
         console.warn("resetSession failed", e);
+        log("[WARN] resetSession failed", e);
     }
 }
 
@@ -1087,6 +1101,7 @@ async function monitorVideoStats(videoReceiver, abortSignal) {
         } catch (e) {
             if (!abortSignal.aborted) {
                 console.error("[monitorVideoStats error]", e);
+                log("[ERR] [monitorVideoStats error]", e);
             }
         }
 
@@ -1147,6 +1162,7 @@ async function connect() {
                     }
                 } catch (e) {
                     console.warn("video receiver tuning failed", e);
+                    log("[WARN] video receiver tuning failed", e);
                 }
 
                 if (videoStatsMonitorAbort) {
@@ -1178,6 +1194,7 @@ async function connect() {
                     }
                 } catch (e) {
                     console.warn("audio receiver tuning failed", e);
+                    log("[WARN] audio receiver tuning failed", e);
                 }
             }
 
@@ -1185,6 +1202,7 @@ async function connect() {
                 audioEl.srcObject = remoteAudioStream;
                 await audioEl.play().catch((e) => {
                     console.warn("audio.play rejected", e);
+                    log("[WARN] audio.play rejected", e);
                 });
             }
         }
@@ -1215,12 +1233,14 @@ async function connect() {
             await postClientCandidate(e.candidate.toJSON());
             log("client candidate posted");
         } catch (err) {
-            log(1, "failed to post client candidate", err);
+            console.warn("failed to post client candidate", err);
+            log("[WARN] failed to post client candidate", err);
         }
     };
 
     pc.onicecandidateerror = (e) => {
-        log(1, "ICE candidate warning", e);
+        console.warn("ICE candidate warning", e);
+        log("[WARN] ICE candidate warning", e);
     };
 
     pc.oniceconnectionstatechange = async () => {
@@ -1306,6 +1326,7 @@ async function connect() {
     const originalPcClose = pc.close.bind(pc);
     pc.close = () => {
         console.warn("pc.close called", new Error().stack);
+        log("[WARN] pc.close called", new Error().stack);
         originalPcClose();
     };
 
@@ -1370,6 +1391,7 @@ async function maybeRestartIceByRtt(selectedPair) {
     lastIceRestartAt = now;
 
     console.warn("[ICE] RTT degraded, restarting ICE", rtt);
+    log("[WARN] [ICE] RTT degraded, restarting ICE", rtt);
 
     const offer = await pc.createOffer({ iceRestart: true });
     await pc.setLocalDescription(offer);
@@ -1485,6 +1507,7 @@ function startRelayMonitoring() {
             }
         } catch (e) {
             console.warn("relay monitoring failed", e);
+            log("[WARN] relay monitoring failed", e);
         }
     }, 1000);
 }
@@ -1598,6 +1621,7 @@ async function onEnableAudio() {
         showToast(locale.validateAudio);
     } catch (e) {
         console.error("failed to enable audio", e);
+        log("[ERR] failed to enable audio", e);
 
         const off = document.getElementById("audioOff");
         if (off) off.checked = true;
@@ -1617,7 +1641,8 @@ async function toggleFullscreen() {
             await document.exitFullscreen();
         }
     } catch (e) {
-        log(2, "fullscreen failed", e);
+        console.error("fullscreen failed", e);
+        log("[ERR] fullscreen failed", e);
     }
 }
 
@@ -1640,15 +1665,18 @@ async function startVideoTrackProcessor(track) {
     stopVideoTrackProcessor();
 
     if (typeof MediaStreamTrackProcessor === "undefined") {
-        log(1, "MediaStreamTrackProcessor is not available in this browser/context");
-        log(1, "falling back to direct video element playback");
+        console.warn("MediaStreamTrackProcessor is not available in this browser/context");
+        console.warn("falling back to direct video element playback");
+        log("[WARN] MediaStreamTrackProcessor is not available in this browser/context");
+        log("[WARN] falling back to direct video element playback");
 
         if (videoEl) {
             videoEl.style.display = "block";
             streamSource = new MediaStream([track]);
             videoEl.srcObject = streamSource;
             await videoEl.play().catch((e) => {
-                log(1, "video.play rejected", e);
+                console.warn("video.play rejected", e);
+                log("[WARN] video.play rejected", e);
             });
         }
         return;
@@ -1672,6 +1700,7 @@ async function startVideoTrackProcessor(track) {
     lateDroppedFrames = 0;
 
     console.log("[VIDEO] startVideoTrackProcessor");
+    log("[VIDEO] startVideoTrackProcessor");
 
     startRenderLoop();
 
@@ -1689,7 +1718,8 @@ async function startVideoTrackProcessor(track) {
             }
         } catch (e) {
             if (!processorAbort?.aborted) {
-                log(2, "videoReader.read failed", e);
+                console.error("videoReader.read failed", e);
+                log("[ERR] videoReader.read failed", e);
                 sendForceKeyframe("video_reader_error");
             }
         } finally {
@@ -1743,7 +1773,8 @@ function drawVideoFrame(frame) {
         canvasCtx.drawImage(frame, 0, 0, canvasEl.width, canvasEl.height);
         renderedFrames++;
     } catch (e) {
-        log(2, "drawImage failed", e);
+        console.error("drawImage failed", e);
+        log("[ERR] drawImage failed", e);
         sendForceKeyframe("video_draw_error");
     }
 }
@@ -1776,7 +1807,8 @@ function startRenderLoop() {
 
     loop().catch((e) => {
         renderLoopActive = false;
-        log(2, "[VIDEO] render loop failed", e);
+        console.error("[VIDEO] render loop failed", e);
+        log("[ERR] [VIDEO] render loop failed", e);
         sendForceKeyframe("render_loop_error");
     });
 }
@@ -1865,7 +1897,18 @@ function startVideoWatchdog() {
             (reallyStalled || browserDetectedFreeze) &&
             now- lastForceKeyframeAt > FORCE_KEYFRAME_COOLDOWN_MS
         ) {
-            log(1, "[VIDEO WATCHDOG] stall detected", {
+            console.warn("[WARN] [VIDEO WATCHDOG] stall detected", {
+                age: Math.floor(age),
+                framesDecoded,
+                bytesReceived,
+                packetsReceived,
+                freezeCount,
+                totalFreezesDuration,
+                reallyStalled,
+                browserDetectedFreeze
+            });
+
+            log("[WARN] [VIDEO WATCHDOG] stall detected", {
                 age: Math.floor(age),
                 framesDecoded,
                 bytesReceived,
@@ -1882,7 +1925,18 @@ function startVideoWatchdog() {
             (reallyPlaybackDelay || browserDetectedSoftFreeze) &&
             now- lastForceKeyframeAt > FORCE_KEYFRAME_COOLDOWN_MS
         ) {
-            log(1, "[VIDEO WATCHDOG] playback delay detected", {
+            console.warn("[VIDEO WATCHDOG] playback delay detected", {
+                age: Math.floor(age),
+                framesDecoded,
+                bytesReceived,
+                packetsReceived,
+                freezeCount,
+                totalFreezesDuration,
+                reallyStalled,
+                browserDetectedFreeze
+            });
+
+            log("[WARN] [VIDEO WATCHDOG] playback delay detected", {
                 age: Math.floor(age),
                 framesDecoded,
                 bytesReceived,
@@ -2023,6 +2077,7 @@ function startStatsMonitor() {
             }
         } catch (e) {
             console.error("getStats failed", e);
+            log("[ERR] getStats failed", e);
         }
     }, 2000);
 }
@@ -2195,6 +2250,12 @@ function disconnectForCapViolation(report, bitrateBps) {
         fps: report.framesPerSecond,
         bitrateMbps: bitrateBps ? bitrateBps / 1_000_000 : null
     });
+    log("[WARN] [CAP VIOLATION] disconnecting", {
+        width: report.frameWidth,
+        height: report.frameHeight,
+        fps: report.framesPerSecond,
+        bitrateMbps: bitrateBps ? bitrateBps / 1_000_000 : null
+    });
 
     setStatus("failed", locale.capViolationWarning);
     currentStatus = status.capViolationWarning;
@@ -2224,6 +2285,7 @@ function handleDataChannelDead(reason) {
     reconnecting = true;
 
     console.warn("[dc.dead]", reason);
+    log("[WARN] [dc.dead]", reason);
 
     stopDataChannelKeepalive();
 
