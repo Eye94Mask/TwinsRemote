@@ -18,6 +18,7 @@ let audioEl = null;
 let videoEl = null;
 let canvasEl = null;
 let canvasCtx = null;
+let streamSource = null;
 
 // ---- video processor state ----
 let videoProcessor = null;
@@ -133,7 +134,8 @@ let lastForceKeyframeAt = 0;
 let forceKeyframeCooldownUntil = 0;
 
 const VIDEO_WATCHDOG_INTERVAL_MS = 500;
-const VIDEO_STALL_MS = 1000;
+const CORRECT_PLAYBACK_DELAY_MS = 1000;
+const VIDEO_STALL_MS = 5000;
 const FORCE_KEYFRAME_COOLDOWN_MS = 3000;
 const RENDER_IDLE_WAIT_MS = 8;
 const MAX_FRAME_AGE_MS = 150;
@@ -1543,6 +1545,10 @@ function cleanupPeerConnection() {
         videoEl.srcObject = null;
     }
 
+    if (streamSource) {
+        streamSource = null;
+    }
+
     if (inputDc) {
         try {
             inputDc.close();
@@ -1639,7 +1645,8 @@ async function startVideoTrackProcessor(track) {
 
         if (videoEl) {
             videoEl.style.display = "block";
-            videoEl.srcObject = new MediaStream([track]);
+            streamSource = new MediaStream([track]);
+            videoEl.srcObject = streamSource;
             await videoEl.play().catch((e) => {
                 log(1, "video.play rejected", e);
             });
@@ -1650,6 +1657,7 @@ async function startVideoTrackProcessor(track) {
     if (videoEl) {
         videoEl.style.display = "none";
         videoEl.srcObject = null;
+        streamSource = null;
     }
 
     processorAbort = { aborted: false };
@@ -1837,8 +1845,19 @@ function startVideoWatchdog() {
             bytesNotMoving &&
             packetsNotMoving;
         
+        const reallyPlaybackDelay = 
+            age > CORRECT_PLAYBACK_DELAY_MS &&
+            framesNotMoving &&
+            bytesNotMoving &&
+            packetsNotMoving;
+        
         const browserDetectedFreeze =
             age > VIDEO_STALL_MS &&
+            freezeIncreased &&
+            framesNotMoving;
+        
+        const browserDetectedSoftFreeze =
+            age > CORRECT_PLAYBACK_DELAY_MS &&
             freezeIncreased &&
             framesNotMoving;
         
@@ -1859,6 +1878,22 @@ function startVideoWatchdog() {
 
             lastForceKeyframeAt = now;
             sendForceKeyframe("video_stall");
+        } else if (
+            (reallyPlaybackDelay || browserDetectedSoftFreeze) &&
+            now- lastForceKeyframeAt > FORCE_KEYFRAME_COOLDOWN_MS
+        ) {
+            log(1, "[VIDEO WATCHDOG] playback delay detected", {
+                age: Math.floor(age),
+                framesDecoded,
+                bytesReceived,
+                packetsReceived,
+                freezeCount,
+                totalFreezesDuration,
+                reallyStalled,
+                browserDetectedFreeze
+            });
+
+            correctPlaybackDelay(firstVideoFrameArrived ? Math.floor(nowMs() - lastFrameArrivedAt) : null)
         }
 
         lastVideoStats = {
@@ -1870,6 +1905,20 @@ function startVideoWatchdog() {
             totalFreezesDuration
         };
     }, VIDEO_WATCHDOG_INTERVAL_MS);
+}
+
+function correctPlaybackDelay(latestFrameAgeMs) {
+    if (!videoEl) return;
+
+    if (latestFrameAgeMs > 2000) {
+        videoEl.playbackRate = 1.06;
+    } else if (latestFrameAgeMs > 1500) {
+        videoEl.playbackRate = 1.04;
+    } else if (latestFrameAgeMs > 800) {
+        videoEl.playbackRate = 1.03;
+    } else {
+        videoEl.playbackRate = 1.0;
+    }
 }
 
 function startStatsMonitor() {
