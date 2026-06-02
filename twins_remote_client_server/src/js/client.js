@@ -1911,7 +1911,7 @@ function correctPlaybackDelay(latestFrameAgeMs) {
     if (!videoEl) return;
 
     if (latestFrameAgeMs > 2000) {
-        videoEl.pplaybackRate = 1.06;
+        videoEl.playbackRate = 1.06;
     } else if (latestFrameAgeMs > 1500) {
         videoEl.playbackRate = 1.04;
     } else if (latestFrameAgeMs > 800) {
