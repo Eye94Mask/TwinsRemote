@@ -141,6 +141,13 @@ const RENDER_IDLE_WAIT_MS = 8;
 const MAX_FRAME_AGE_MS = 150;
 const MAX_RENDER_BACKLOG = 1;
 
+const STRONG_PLAYBACKRATE_MS = 2000;
+const MIDDLE_PLAYBACKRATE_MS = 1500;
+const WEAK_PLAYBACKRATE_MS = 800;
+const STRONG_PLAYBACKRATE = 1.06;
+const MIDDLE_PLAYBACKRATE = 1.04;
+const WEAK_PLAYBACKRATE = 1.03;
+
 // =======================================================================================
 // "relay-test" | "normal" | "stun-first"
 // !!!! リリース前には絶対に const ICE_MODE = "normal"; に変更すること !!!!
@@ -1910,12 +1917,12 @@ function startVideoWatchdog() {
 function correctPlaybackDelay(latestFrameAgeMs) {
     if (!videoEl) return;
 
-    if (latestFrameAgeMs > 2000) {
-        videoEl.playbackRate = 1.06;
-    } else if (latestFrameAgeMs > 1500) {
-        videoEl.playbackRate = 1.04;
-    } else if (latestFrameAgeMs > 800) {
-        videoEl.playbackRate = 1.03;
+    if (latestFrameAgeMs > STRONG_PLAYBACKRATE_MS) {
+        videoEl.playbackRate = STRONG_PLAYBACKRATE;
+    } else if (latestFrameAgeMs > MIDDLE_PLAYBACKRATE_MS) {
+        videoEl.playbackRate = MIDDLE_PLAYBACKRATE;
+    } else if (latestFrameAgeMs > WEAK_PLAYBACKRATE_MS) {
+        videoEl.playbackRate = WEAK_PLAYBACKRATE;
     } else {
         videoEl.playbackRate = 1.0;
     }
