@@ -216,7 +216,7 @@ namespace TwinsRemoteHost
             balancedButton.Text = this.locale.BalancedMode;
             qualityButton.Text = this.locale.QualityMode;
 
-            // Low Latency Presets
+            // Stable Presets
             stableButton.Text = this.locale.StableMode;
             mobileButton.Text = this.locale.MobileMode;
 

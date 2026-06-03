@@ -6,7 +6,7 @@
       <Value Profile="(Default)">Japanese</Value>
     </Setting>
     <Setting Name="Mode" Type="System.String" Scope="User">
-      <Value Profile="(Default)">Balanced</Value>
+      <Value Profile="(Default)">バランス</Value>
     </Setting>
     <Setting Name="NotificationDate" Type="System.DateTime" Scope="User">
       <Value Profile="(Default)">1970-01-01</Value>
