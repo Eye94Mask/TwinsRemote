@@ -637,7 +637,7 @@
             deleteButton.UseVisualStyleBackColor = true;
             deleteButton.Click += deleteButton_Click;
             // 
-            // ModeEditor
+            // ModeEditorForm
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
@@ -657,8 +657,11 @@
             Controls.Add(selectModeLabel);
             Controls.Add(fpsLabel);
             Controls.Add(resolutionLabel);
+            FormBorderStyle = FormBorderStyle.SizableToolWindow;
             Icon = (Icon)resources.GetObject("$this.Icon");
-            Name = "ModeEditor";
+            MaximumSize = new Size(1280, 1316);
+            MinimumSize = new Size(1280, 1316);
+            Name = "ModeEditorForm";
             Text = "ModeEditor";
             Load += ModeEditor_Load;
             detailSettingsContainerFlowLayoutPanel.ResumeLayout(false);

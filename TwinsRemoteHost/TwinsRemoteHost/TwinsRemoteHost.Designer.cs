@@ -105,6 +105,7 @@
             modeComboBox.Name = "modeComboBox";
             modeComboBox.Size = new Size(322, 50);
             modeComboBox.TabIndex = 4;
+            modeComboBox.SelectedIndexChanged += modeComboBox_SelectedIndexChanged;
             // 
             // sessionIdTextBox
             // 
@@ -287,7 +288,7 @@
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(2304, 1050);
+            ClientSize = new Size(2300, 1046);
             Controls.Add(versionLabel);
             Controls.Add(audioLabel);
             Controls.Add(saveLogButton);
@@ -308,7 +309,10 @@
             Controls.Add(statusTitleLabel);
             Controls.Add(sessionIdLabel);
             Controls.Add(modeLabel);
+            FormBorderStyle = FormBorderStyle.SizableToolWindow;
             Icon = (Icon)resources.GetObject("$this.Icon");
+            MaximumSize = new Size(2326, 1106);
+            MinimumSize = new Size(2326, 1106);
             Name = "Host";
             Text = "TwinsRemote Host";
             Load += Host_Load;

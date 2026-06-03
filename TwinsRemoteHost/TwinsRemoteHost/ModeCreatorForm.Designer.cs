@@ -82,16 +82,16 @@
             ipv4Button = new Button();
             balancedButton = new Button();
             highFpsButton = new Button();
-            stableButton = new Button();
+            qualityButton = new Button();
             casualPresetLabel = new Label();
-            lowLatencyLabel = new Label();
+            stableLabel = new Label();
             reducingNetworkLoadLabel = new Label();
             qualityLabel = new Label();
-            lowLatencyButton = new Button();
+            stableButton = new Button();
             fourKButton = new Button();
-            ultraLowLatencyButton = new Button();
-            restrictedIpv4Button = new Button();
             mobileButton = new Button();
+            restrictedIpv4Button = new Button();
+            wifiFriendlyButton = new Button();
             technicalTermToolTip = new ToolTip(components);
             detailSettingsFlowLayoutPanel1.SuspendLayout();
             detailSettingsFlowLayoutPanel2.SuspendLayout();
@@ -661,16 +661,16 @@
             highFpsButton.UseVisualStyleBackColor = true;
             highFpsButton.Click += highFpsButton_Click;
             // 
-            // stableButton
+            // qualityButton
             // 
-            stableButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            stableButton.Location = new Point(82, 518);
-            stableButton.Name = "stableButton";
-            stableButton.Size = new Size(243, 47);
-            stableButton.TabIndex = 8;
-            stableButton.Text = "button1";
-            stableButton.UseVisualStyleBackColor = true;
-            stableButton.Click += stableButton_Click;
+            qualityButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            qualityButton.Location = new Point(82, 518);
+            qualityButton.Name = "qualityButton";
+            qualityButton.Size = new Size(243, 47);
+            qualityButton.TabIndex = 8;
+            qualityButton.Text = "button1";
+            qualityButton.UseVisualStyleBackColor = true;
+            qualityButton.Click += qualityButton_Click;
             // 
             // casualPresetLabel
             // 
@@ -684,17 +684,19 @@
             casualPresetLabel.TextAlign = ContentAlignment.MiddleCenter;
             casualPresetLabel.MouseHover += casualPresetLabel_MouseHover;
             // 
-            // lowLatencyLabel
+            // stableLabel
             // 
-            lowLatencyLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            lowLatencyLabel.Location = new Point(372, 351);
-            lowLatencyLabel.Name = "lowLatencyLabel";
-            lowLatencyLabel.RightToLeft = RightToLeft.No;
-            lowLatencyLabel.Size = new Size(243, 86);
-            lowLatencyLabel.TabIndex = 41;
-            lowLatencyLabel.Text = "label1";
-            lowLatencyLabel.TextAlign = ContentAlignment.MiddleCenter;
-            lowLatencyLabel.MouseHover += lowLatencyLabel_MouseHover;
+            stableLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            stableLabel.Location = new Point(372, 351);
+            stableLabel.MaximumSize = new Size(243, 86);
+            stableLabel.MinimumSize = new Size(243, 86);
+            stableLabel.Name = "stableLabel";
+            stableLabel.RightToLeft = RightToLeft.No;
+            stableLabel.Size = new Size(243, 86);
+            stableLabel.TabIndex = 41;
+            stableLabel.Text = "label1";
+            stableLabel.TextAlign = ContentAlignment.MiddleCenter;
+            stableLabel.MouseHover += lowLatencyLabel_MouseHover;
             // 
             // reducingNetworkLoadLabel
             // 
@@ -720,16 +722,16 @@
             qualityLabel.TextAlign = ContentAlignment.MiddleCenter;
             qualityLabel.MouseHover += qualityLabel_MouseHover;
             // 
-            // lowLatencyButton
+            // stableButton
             // 
-            lowLatencyButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            lowLatencyButton.Location = new Point(372, 448);
-            lowLatencyButton.Name = "lowLatencyButton";
-            lowLatencyButton.Size = new Size(243, 47);
-            lowLatencyButton.TabIndex = 44;
-            lowLatencyButton.Text = "button1";
-            lowLatencyButton.UseVisualStyleBackColor = true;
-            lowLatencyButton.Click += lowLatencyButton_Click;
+            stableButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            stableButton.Location = new Point(372, 448);
+            stableButton.Name = "stableButton";
+            stableButton.Size = new Size(243, 47);
+            stableButton.TabIndex = 44;
+            stableButton.Text = "button1";
+            stableButton.UseVisualStyleBackColor = true;
+            stableButton.Click += stableButton_Click;
             // 
             // fourKButton
             // 
@@ -742,16 +744,16 @@
             fourKButton.UseVisualStyleBackColor = true;
             fourKButton.Click += fourKButton_Click;
             // 
-            // ultraLowLatencyButton
+            // mobileButton
             // 
-            ultraLowLatencyButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            ultraLowLatencyButton.Location = new Point(372, 518);
-            ultraLowLatencyButton.Name = "ultraLowLatencyButton";
-            ultraLowLatencyButton.Size = new Size(243, 47);
-            ultraLowLatencyButton.TabIndex = 46;
-            ultraLowLatencyButton.Text = "button1";
-            ultraLowLatencyButton.UseVisualStyleBackColor = true;
-            ultraLowLatencyButton.Click += ultraLowLatencyButton_Click;
+            mobileButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            mobileButton.Location = new Point(372, 518);
+            mobileButton.Name = "mobileButton";
+            mobileButton.Size = new Size(243, 47);
+            mobileButton.TabIndex = 46;
+            mobileButton.Text = "button1";
+            mobileButton.UseVisualStyleBackColor = true;
+            mobileButton.Click += mobileButton_Click;
             // 
             // restrictedIpv4Button
             // 
@@ -764,30 +766,30 @@
             restrictedIpv4Button.UseVisualStyleBackColor = true;
             restrictedIpv4Button.Click += restrictedIpv4Button_Click;
             // 
-            // mobileButton
+            // wifiFriendlyButton
             // 
-            mobileButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            mobileButton.Location = new Point(952, 448);
-            mobileButton.Name = "mobileButton";
-            mobileButton.Size = new Size(243, 47);
-            mobileButton.TabIndex = 48;
-            mobileButton.Text = "button1";
-            mobileButton.UseVisualStyleBackColor = true;
-            mobileButton.Click += mobileButton_Click;
+            wifiFriendlyButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            wifiFriendlyButton.Location = new Point(952, 448);
+            wifiFriendlyButton.Name = "wifiFriendlyButton";
+            wifiFriendlyButton.Size = new Size(243, 47);
+            wifiFriendlyButton.TabIndex = 48;
+            wifiFriendlyButton.Text = "button1";
+            wifiFriendlyButton.UseVisualStyleBackColor = true;
+            wifiFriendlyButton.Click += wifiFriendlyButton_Click;
             // 
-            // ModeCreator
+            // ModeCreatorForm
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1258, 1260);
-            Controls.Add(mobileButton);
+            Controls.Add(wifiFriendlyButton);
             Controls.Add(restrictedIpv4Button);
-            Controls.Add(ultraLowLatencyButton);
+            Controls.Add(mobileButton);
             Controls.Add(fourKButton);
-            Controls.Add(lowLatencyButton);
+            Controls.Add(stableButton);
             Controls.Add(qualityLabel);
             Controls.Add(reducingNetworkLoadLabel);
-            Controls.Add(lowLatencyLabel);
+            Controls.Add(stableLabel);
             Controls.Add(casualPresetLabel);
             Controls.Add(detailSettingsContainerFlowLayoutPanel);
             Controls.Add(resolutionHeightTextBox);
@@ -798,7 +800,7 @@
             Controls.Add(saveButton);
             Controls.Add(detailSettingLabel);
             Controls.Add(ipv4Button);
-            Controls.Add(stableButton);
+            Controls.Add(qualityButton);
             Controls.Add(highFpsButton);
             Controls.Add(modeNameTextBox);
             Controls.Add(modeNameLabel);
@@ -806,8 +808,9 @@
             Controls.Add(presetModeLabel);
             Controls.Add(fpsLabel);
             Controls.Add(resolusionLabel);
+            FormBorderStyle = FormBorderStyle.SizableToolWindow;
             Icon = (Icon)resources.GetObject("$this.Icon");
-            Name = "ModeCreator";
+            Name = "ModeCreatorForm";
             Text = "ModeCreator";
             detailSettingsFlowLayoutPanel1.ResumeLayout(false);
             detailSettingsFlowLayoutPanel1.PerformLayout();
@@ -885,16 +888,16 @@
         private Button ipv4Button;
         private Button balancedButton;
         private Button highFpsButton;
-        private Button stableButton;
+        private Button qualityButton;
         private Label casualPresetLabel;
-        private Label lowLatencyLabel;
+        private Label stableLabel;
         private Label reducingNetworkLoadLabel;
         private Label qualityLabel;
-        private Button lowLatencyButton;
+        private Button stableButton;
         private Button fourKButton;
-        private Button ultraLowLatencyButton;
-        private Button restrictedIpv4Button;
         private Button mobileButton;
+        private Button restrictedIpv4Button;
+        private Button wifiFriendlyButton;
         private ToolTip technicalTermToolTip;
     }
 }

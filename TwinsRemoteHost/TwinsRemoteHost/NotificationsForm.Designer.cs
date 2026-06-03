@@ -29,7 +29,6 @@
         private void InitializeComponent()
         {
             flowLayoutPanel = new FlowLayoutPanel();
-            flowLayoutPanel.SuspendLayout();
             SuspendLayout();
             // 
             // flowLayoutPanel
@@ -47,10 +46,11 @@
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(663, 668);
             Controls.Add(flowLayoutPanel);
+            FormBorderStyle = FormBorderStyle.SizableToolWindow;
+            MaximumSize = new Size(685, 724);
+            MinimumSize = new Size(685, 724);
             Name = "NotificationsForm";
             Text = "Notifications";
-            flowLayoutPanel.ResumeLayout(false);
-            flowLayoutPanel.PerformLayout();
             ResumeLayout(false);
         }
 

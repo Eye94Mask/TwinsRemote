@@ -13,7 +13,7 @@ namespace TwinsRemoteHost
         // ====================
         // Presets
         // ====================
-        // Casual Presets
+        // Balanced Preset
         private readonly PresetMode balanced = new(
             1920, 1080, 30,
             4, 6, 2, 2,
@@ -24,6 +24,20 @@ namespace TwinsRemoteHost
             false, 0,
             true, true
         );
+
+        // Quality Preset
+        private readonly PresetMode quality = new(
+            1920, 1080, 60,
+            6, 8, 3, 3,
+            60, 60,
+            true, false,
+            1,
+            "NV_ENC_PRESET_P4_GUID", "NV_ENC_TUNING_INFO_LOW_LATENCY",
+            false, 0,
+            true, true
+        );
+
+        // Stable Preset
         private readonly PresetMode stable = new(
             1280, 720, 30,
             2, 4, 1, 1,
@@ -35,39 +49,31 @@ namespace TwinsRemoteHost
             true, true
         );
 
-        // Low Latency Presets
-        private readonly PresetMode lowLatency = new(
-            1920, 1080, 30,
-            4, 6, 2, 2,
-            999999, 999999,
+        // Mobile Preset
+        private readonly PresetMode mobile = new(
+            1280, 720, 30,
+            0.5F, 2, 0.25F, 0.25F,
+            30, 30,
             true, false,
             1,
             "NV_ENC_PRESET_P2_GUID", "NV_ENC_TUNING_INFO_LOW_LATENCY",
             false, 0,
             true, true
         );
-        private readonly PresetMode ultraLowLatency = new(
-            1920, 1080, 30,
-            4, 6, 2, 2,
-            999999, 999999,
+
+        // High Fps Preset
+        private readonly PresetMode highFps = new(
+            1920, 1080, 120,
+            3, 4, 1.5F, 1.5F,
+            60, 60,
             true, false,
             1,
-            "NV_ENC_PRESET_P1_GUID", "NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY",
+            "NV_ENC_PRESET_P3_GUID", "NV_ENC_TUNING_INFO_LOW_LATENCY",
             false, 0,
             true, true
         );
 
-        // Quality Presets
-        private readonly PresetMode highFps = new(
-            1920, 1080, 60,
-            6, 8, 3, 3,
-            60, 60,
-            true, false,
-            1,
-            "NV_ENC_PRESET_P4_GUID", "NV_ENC_TUNING_INFO_LOW_LATENCY",
-            false, 0,
-            true, true
-        );
+        // 4K Preset
         private readonly PresetMode fourK = new(
             3840, 2160, 30,
             12, 16, 6, 6,
@@ -79,20 +85,10 @@ namespace TwinsRemoteHost
             true, true
         );
 
-        // Reducing Network Load Presets
-        private readonly PresetMode mobile = new(
+        // Wifi Friendly Preset
+        private readonly PresetMode wifiFriendly = new(
             1280, 720, 30,
             0.5F, 2, 0.25F, 0.25F,
-            30, 30,
-            true, false,
-            1,
-            "NV_ENC_PRESET_P3_GUID", "NV_ENC_TUNING_INFO_LOW_LATENCY",
-            false, 0,
-            true, true
-        );
-        private readonly PresetMode ipv4 = new(
-            960, 540, 30,
-            0.14F, 0.18F, 0.07F, 0.07F,
             30, 30,
             true, false,
             1,
@@ -100,6 +96,20 @@ namespace TwinsRemoteHost
             false, 0,
             true, true
         );
+
+        // Ipv4 Preset
+        private readonly PresetMode ipv4 = new(
+            960, 540, 30,
+            0.14F, 0.18F, 0.07F, 0.07F,
+            30, 30,
+            true, false,
+            1,
+            "NV_ENC_PRESET_P1_GUID", "NV_ENC_TUNING_INFO_LOW_LATENCY",
+            false, 0,
+            true, true
+        );
+
+        // Restricted Ipv4 Preset
         private readonly PresetMode restrictedIpv4 = new(
             854, 480, 30,
             0.09F, 0.12F, 0.045F, 0.045F,
@@ -115,8 +125,8 @@ namespace TwinsRemoteHost
         {
             this.locale = locale;
             InitializeComponent();
-            InitializePreset();
             InitializeUi();
+            InitializePreset();
             ApplyLanguage();
         }
 
@@ -195,7 +205,7 @@ namespace TwinsRemoteHost
             resolusionLabel.Text = this.locale.Resolution;
             presetModeLabel.Text = this.locale.Presets;
             casualPresetLabel.Text = this.locale.EverydayUsePresets;
-            lowLatencyLabel.Text = this.locale.LowLatencyPresets;
+            stableLabel.Text = this.locale.StablePresets;
             qualityLabel.Text = this.locale.QualityPresets;
             reducingNetworkLoadLabel.Text = this.locale.ReducingNetworkLoadPresets;
 
@@ -204,18 +214,18 @@ namespace TwinsRemoteHost
             // ====================
             // CasualPresets
             balancedButton.Text = this.locale.BalancedMode;
-            stableButton.Text = this.locale.StableMode;
+            qualityButton.Text = this.locale.QualityMode;
 
             // Low Latency Presets
-            lowLatencyButton.Text = this.locale.LowLatencyMode;
-            ultraLowLatencyButton.Text = this.locale.UltraLowLatencyMode;
+            stableButton.Text = this.locale.StableMode;
+            mobileButton.Text = this.locale.MobileMode;
 
             // Quality Presets
             highFpsButton.Text = this.locale.HighFpsMode;
             fourKButton.Text = this.locale.FourKMode;
 
             // Reducing Network Load Presets
-            mobileButton.Text = this.locale.MobileMode;
+            wifiFriendlyButton.Text = this.locale.WifiFriendlyMode;
             ipv4Button.Text = this.locale.Ipv4Mode;
             restrictedIpv4Button.Text = this.locale.RestrictedIpv4Mode;
 
@@ -673,6 +683,35 @@ namespace TwinsRemoteHost
             disableBadaptCheckBox.Checked = this.balanced.DisableBadapt;
         }
 
+        private void qualityButton_Click(object sender, EventArgs e)
+        {
+            resolutionWidthTextBox.Text = this.quality.Width.ToString();
+            resolutionHeightTextBox.Text = this.quality.Height.ToString();
+            fpsTextBox.Text = this.quality.Fps.ToString();
+
+            averageBitrateTextBox.Text = this.quality.AverageBitrate.ToString();
+            maxBitrateTextBox.Text = this.quality.MaxBitrate.ToString();
+            vbvBufferSizeTextBox.Text = this.quality.VbvBufferSize.ToString();
+            vbvInitialDelayTextBox.Text = this.quality.VbvInitialDelay.ToString();
+
+            gopLengthTextBox.Text = this.quality.GopLength.ToString();
+            idrPeriodTextBox.Text = this.quality.IdrPeriod.ToString();
+
+            repeatSpsPpsCheckBox.Checked = this.quality.RepeatSpsPps;
+            outputAudCheckBox.Checked = this.quality.OutputAud;
+
+            maxRefFramesTextBox.Text = this.quality.MaxRefFrames.ToString();
+
+            presetGuidComboBox.SelectedIndex = presetGuidComboBox.FindString(this.quality.PresetGuid.ToString());
+            tuningInfoComboBox.SelectedIndex = tuningInfoComboBox.FindString(this.quality.TuningInfo.ToString());
+
+            enableLookaheadCheckBox.Checked = this.quality.EnableLookahead;
+            lookaheadDepthTextBox.Text = this.quality.LookaheadDepth.ToString();
+
+            disableIadaptCheckBox.Checked = this.quality.DisableIadapt;
+            disableBadaptCheckBox.Checked = this.quality.DisableBadapt;
+        }
+
         private void stableButton_Click(object sender, EventArgs e)
         {
             resolutionWidthTextBox.Text = this.stable.Width.ToString();
@@ -702,62 +741,33 @@ namespace TwinsRemoteHost
             disableBadaptCheckBox.Checked = this.stable.DisableBadapt;
         }
 
-        private void lowLatencyButton_Click(object sender, EventArgs e)
+        private void mobileButton_Click(object sender, EventArgs e)
         {
-            resolutionWidthTextBox.Text = this.lowLatency.Width.ToString();
-            resolutionHeightTextBox.Text = this.lowLatency.Height.ToString();
-            fpsTextBox.Text = this.lowLatency.Fps.ToString();
+            resolutionWidthTextBox.Text = this.mobile.Width.ToString();
+            resolutionHeightTextBox.Text = this.mobile.Height.ToString();
+            fpsTextBox.Text = this.mobile.Fps.ToString();
 
-            averageBitrateTextBox.Text = this.lowLatency.AverageBitrate.ToString();
-            maxBitrateTextBox.Text = this.lowLatency.MaxBitrate.ToString();
-            vbvBufferSizeTextBox.Text = this.lowLatency.VbvBufferSize.ToString();
-            vbvInitialDelayTextBox.Text = this.lowLatency.VbvInitialDelay.ToString();
+            averageBitrateTextBox.Text = this.mobile.AverageBitrate.ToString();
+            maxBitrateTextBox.Text = this.mobile.MaxBitrate.ToString();
+            vbvBufferSizeTextBox.Text = this.mobile.VbvBufferSize.ToString();
+            vbvInitialDelayTextBox.Text = this.mobile.VbvInitialDelay.ToString();
 
-            gopLengthTextBox.Text = this.lowLatency.GopLength.ToString();
-            idrPeriodTextBox.Text = this.lowLatency.IdrPeriod.ToString();
+            gopLengthTextBox.Text = this.mobile.GopLength.ToString();
+            idrPeriodTextBox.Text = this.mobile.IdrPeriod.ToString();
 
-            repeatSpsPpsCheckBox.Checked = this.lowLatency.RepeatSpsPps;
-            outputAudCheckBox.Checked = this.lowLatency.OutputAud;
+            repeatSpsPpsCheckBox.Checked = this.mobile.RepeatSpsPps;
+            outputAudCheckBox.Checked = this.mobile.OutputAud;
 
-            maxRefFramesTextBox.Text = this.lowLatency.MaxRefFrames.ToString();
+            maxRefFramesTextBox.Text = this.mobile.MaxRefFrames.ToString();
 
-            presetGuidComboBox.SelectedIndex = presetGuidComboBox.FindString(this.lowLatency.PresetGuid.ToString());
-            tuningInfoComboBox.SelectedIndex = tuningInfoComboBox.FindString(this.lowLatency.TuningInfo.ToString());
+            presetGuidComboBox.SelectedIndex = presetGuidComboBox.FindString(this.mobile.PresetGuid.ToString());
+            tuningInfoComboBox.SelectedIndex = tuningInfoComboBox.FindString(this.mobile.TuningInfo.ToString());
 
-            enableLookaheadCheckBox.Checked = this.lowLatency.EnableLookahead;
-            lookaheadDepthTextBox.Text = this.lowLatency.LookaheadDepth.ToString();
+            enableLookaheadCheckBox.Checked = this.mobile.EnableLookahead;
+            lookaheadDepthTextBox.Text = this.mobile.LookaheadDepth.ToString();
 
-            disableIadaptCheckBox.Checked = this.lowLatency.DisableIadapt;
-            disableBadaptCheckBox.Checked = this.lowLatency.DisableBadapt;
-        }
-
-        private void ultraLowLatencyButton_Click(object sender, EventArgs e)
-        {
-            resolutionWidthTextBox.Text = this.ultraLowLatency.Width.ToString();
-            resolutionHeightTextBox.Text = this.ultraLowLatency.Height.ToString();
-            fpsTextBox.Text = this.ultraLowLatency.Fps.ToString();
-
-            averageBitrateTextBox.Text = this.ultraLowLatency.AverageBitrate.ToString();
-            maxBitrateTextBox.Text = this.ultraLowLatency.MaxBitrate.ToString();
-            vbvBufferSizeTextBox.Text = this.ultraLowLatency.VbvBufferSize.ToString();
-            vbvInitialDelayTextBox.Text = this.ultraLowLatency.VbvInitialDelay.ToString();
-
-            gopLengthTextBox.Text = this.ultraLowLatency.GopLength.ToString();
-            idrPeriodTextBox.Text = this.ultraLowLatency.IdrPeriod.ToString();
-
-            repeatSpsPpsCheckBox.Checked = this.ultraLowLatency.RepeatSpsPps;
-            outputAudCheckBox.Checked = this.ultraLowLatency.OutputAud;
-
-            maxRefFramesTextBox.Text = this.ultraLowLatency.MaxRefFrames.ToString();
-
-            presetGuidComboBox.SelectedIndex = presetGuidComboBox.FindString(this.ultraLowLatency.PresetGuid.ToString());
-            tuningInfoComboBox.SelectedIndex = tuningInfoComboBox.FindString(this.ultraLowLatency.TuningInfo.ToString());
-
-            enableLookaheadCheckBox.Checked = this.ultraLowLatency.EnableLookahead;
-            lookaheadDepthTextBox.Text = this.ultraLowLatency.LookaheadDepth.ToString();
-
-            disableIadaptCheckBox.Checked = this.ultraLowLatency.DisableIadapt;
-            disableBadaptCheckBox.Checked = this.ultraLowLatency.DisableBadapt;
+            disableIadaptCheckBox.Checked = this.mobile.DisableIadapt;
+            disableBadaptCheckBox.Checked = this.mobile.DisableBadapt;
         }
 
         private void highFpsButton_Click(object sender, EventArgs e)
@@ -818,33 +828,33 @@ namespace TwinsRemoteHost
             disableBadaptCheckBox.Checked = this.fourK.DisableBadapt;
         }
 
-        private void mobileButton_Click(object sender, EventArgs e)
+        private void wifiFriendlyButton_Click(object sender, EventArgs e)
         {
-            resolutionWidthTextBox.Text = this.mobile.Width.ToString();
-            resolutionHeightTextBox.Text = this.mobile.Height.ToString();
-            fpsTextBox.Text = this.mobile.Fps.ToString();
+            resolutionWidthTextBox.Text = this.wifiFriendly.Width.ToString();
+            resolutionHeightTextBox.Text = this.wifiFriendly.Height.ToString();
+            fpsTextBox.Text = this.wifiFriendly.Fps.ToString();
 
-            averageBitrateTextBox.Text = this.mobile.AverageBitrate.ToString();
-            maxBitrateTextBox.Text = this.mobile.MaxBitrate.ToString();
-            vbvBufferSizeTextBox.Text = this.mobile.VbvBufferSize.ToString();
-            vbvInitialDelayTextBox.Text = this.mobile.VbvInitialDelay.ToString();
+            averageBitrateTextBox.Text = this.wifiFriendly.AverageBitrate.ToString();
+            maxBitrateTextBox.Text = this.wifiFriendly.MaxBitrate.ToString();
+            vbvBufferSizeTextBox.Text = this.wifiFriendly.VbvBufferSize.ToString();
+            vbvInitialDelayTextBox.Text = this.wifiFriendly.VbvInitialDelay.ToString();
 
-            gopLengthTextBox.Text = this.mobile.GopLength.ToString();
-            idrPeriodTextBox.Text = this.mobile.IdrPeriod.ToString();
+            gopLengthTextBox.Text = this.wifiFriendly.GopLength.ToString();
+            idrPeriodTextBox.Text = this.wifiFriendly.IdrPeriod.ToString();
 
-            repeatSpsPpsCheckBox.Checked = this.mobile.RepeatSpsPps;
-            outputAudCheckBox.Checked = this.mobile.OutputAud;
+            repeatSpsPpsCheckBox.Checked = this.wifiFriendly.RepeatSpsPps;
+            outputAudCheckBox.Checked = this.wifiFriendly.OutputAud;
 
-            maxRefFramesTextBox.Text = this.mobile.MaxRefFrames.ToString();
+            maxRefFramesTextBox.Text = this.wifiFriendly.MaxRefFrames.ToString();
 
-            presetGuidComboBox.SelectedIndex = presetGuidComboBox.FindString(this.mobile.PresetGuid.ToString());
-            tuningInfoComboBox.SelectedIndex = tuningInfoComboBox.FindString(this.mobile.TuningInfo.ToString());
+            presetGuidComboBox.SelectedIndex = presetGuidComboBox.FindString(this.wifiFriendly.PresetGuid.ToString());
+            tuningInfoComboBox.SelectedIndex = tuningInfoComboBox.FindString(this.wifiFriendly.TuningInfo.ToString());
 
-            enableLookaheadCheckBox.Checked = this.mobile.EnableLookahead;
-            lookaheadDepthTextBox.Text = this.mobile.LookaheadDepth.ToString();
+            enableLookaheadCheckBox.Checked = this.wifiFriendly.EnableLookahead;
+            lookaheadDepthTextBox.Text = this.wifiFriendly.LookaheadDepth.ToString();
 
-            disableIadaptCheckBox.Checked = this.mobile.DisableIadapt;
-            disableBadaptCheckBox.Checked = this.mobile.DisableBadapt;
+            disableIadaptCheckBox.Checked = this.wifiFriendly.DisableIadapt;
+            disableBadaptCheckBox.Checked = this.wifiFriendly.DisableBadapt;
         }
 
         private void ipv4Button_Click(object sender, EventArgs e)
@@ -922,7 +932,7 @@ namespace TwinsRemoteHost
 
         private void lowLatencyLabel_MouseHover(object sender, EventArgs e)
         {
-            technicalTermToolTip.SetToolTip(lowLatencyLabel, this.locale.LowLatencyModeDescription);
+            technicalTermToolTip.SetToolTip(stableLabel, this.locale.LowLatencyModeDescription);
         }
 
         private void qualityLabel_MouseHover(object sender, EventArgs e)
