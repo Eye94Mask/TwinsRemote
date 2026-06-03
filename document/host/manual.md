@@ -98,13 +98,14 @@ TwinsRemote の心臓部になる実行ファイルです。
 
 「詳細情報」を押して、「実行」を押してください。
 
-「画像をここに挿入」
+<img width="535" height="505" alt="スクリーンショット 2026-06-03 213026" src="https://github.com/user-attachments/assets/10f7d799-a2a3-4c36-b1ce-4f0847e9ebc7" />
+
 
 ## ホスト画面
 
 TwinsRemoteHost.exe を起動すると最初に見える画面です。
 
-「ここに画像を挿入」
+<img width="768" height="364" alt="TwinsRemoteHost" src="https://github.com/user-attachments/assets/26c2ee5e-778c-49dc-8a6d-48b2c5ca8123" />
 
 1. 映像モード
     * クライアントに配信する映像モードを選択します
@@ -161,7 +162,8 @@ TwinsRemoteHost.exe を起動すると最初に見える画面です。
 
 アプリを指定してクライアントに共有する音声を限定することができます。
 
-「画像をここに挿入」
+<img width="279" height="346" alt="TwinsRemoteHost_AppSound" src="https://github.com/user-attachments/assets/e96cbbdb-ba10-49a4-8b91-15bec54bc6a1" />
+
 
 1. アプリ選択
     * pid [数字] [アプリ名] の形式で表示されます。
@@ -189,6 +191,8 @@ TwinsRemoteHost.exe を起動すると最初に見える画面です。
 
 例： C:/Users/user/Document/Twins Remote/customs/[作成したカスタムモード].json
 
+<img width="313" height="324" alt="TwinsRemoteHost_Custom" src="https://github.com/user-attachments/assets/36be58d2-b6be-4a85-a6b1-8ac7f2715dd9" />
+
 1. モード名
     * カスタムモードの名前を入力します。
 2. 解像度
@@ -214,7 +218,7 @@ TwinsRemoteHost.exe を起動すると最初に見える画面です。
 
 パラメーター名にカーソルを合わせると、各パラメーターの簡単な説明が表示されます。
 
-「画像をここに挿入」
+<img width="626" height="650" alt="スクリーンショット 2026-06-03 225334" src="https://github.com/user-attachments/assets/ba50a602-71a9-45f1-a605-98b3c2590e16" />
 
 ここではもう少し細かく説明します。
 
@@ -242,7 +246,13 @@ TwinsRemoteHost.exe を起動すると最初に見える画面です。
 
 設定できる項目はカスタムモード作成画面と同じです。
 
-「画像をここに挿入」
+ここではカスタム編集画面にのみある要素について説明します。
+
+<img width="626" height="650" alt="TwinsRemoteHost_CustomEdit" src="https://github.com/user-attachments/assets/f10c58b9-0a27-408d-801e-6c76b00c989a" />
+
+1. Deleteボタン
+  * 選択されているカスタムモードを削除します
+  * この操作は取り消しができないので注意してください。
 
 ---
 
@@ -250,10 +260,12 @@ TwinsRemoteHost.exe を起動すると最初に見える画面です。
 
 開発者からお知らせがあったり、ホストアプリの新しいバージョンがリリースされている場合は通知が来ます。
 
+<img width="767" height="364" alt="TwinsRemoteHost_Notices" src="https://github.com/user-attachments/assets/463b96ad-77cc-4ff7-ab53-3c55d69b8e43" />
+
 ### お知らせ
 新規お知らせがある場合は赤いしるしが付きます。
 
-現在(2026/06/05時点)の想定では、メンテナンスを行う場合などに TwinsRemote が利用不可になる時間帯がある場合などにお知らせを配信します。
+現在(2026/06/05時点)の想定では、メンテナンスを行う際に TwinsRemote が利用不可になる時間帯がある場合などにお知らせを配信します。
 
 ### 新バージョンリリース
 新しいバージョンのリリースがある場合は緑のしるしが付きます。
@@ -267,6 +279,7 @@ TwinsRemoteHost.exe を起動すると最初に見える画面です。
     * アップデートをしないとシステムが使えない状態です。
     * この場合はホストアプリを立ち上げたときに通知が出て、強制的にホストアプリのダウンロードページへ飛ばされます。
 * マイナーアップデート
+
     * v.1.0.0 -> v.1.1.0 のような変更です。
     * 新しい機能が追加された時のアップデートです。
     * お知らせに新しい機能のリリースとダウンロードページのURLが表示されます。
