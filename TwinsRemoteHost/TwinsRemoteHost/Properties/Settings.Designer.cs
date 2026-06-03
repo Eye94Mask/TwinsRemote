@@ -37,7 +37,7 @@ namespace TwinsRemoteHost.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("Balanced")]
+        [global::System.Configuration.DefaultSettingValueAttribute("バランス")]
         public string Mode {
             get {
                 return ((string)(this["Mode"]));
