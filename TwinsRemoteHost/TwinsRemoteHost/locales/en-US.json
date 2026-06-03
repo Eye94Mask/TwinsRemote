@@ -30,6 +30,7 @@
   "invalidLanguage": "Invalid language selected",
   "localeNotFound": "Locale file not found",
   "readLocaleFailed": "Failed to read locale file: ",
+  "notice": "Notification",
   "confirm": "Confirm",
   "error": "Error",
   "createCustomMode": "Create Custom Mode",
@@ -107,6 +108,9 @@
   "failedToDeleteCustom": "Failed to delete the custom mode",
   "deleteCustomSuccess": "Delete mode: ",
   "failedToUpdateCustom": "Failed to update the custom mode",
+  "newMajorUpdate": "TwinsRemote needs to be updated\nClick OK to go to the download page",
+  "newMinorUpdate": "New features have been released",
+  "newPatchUpdate": "bug fixes has been released",
   "saveLog": "Save Log",
   "logHasBeenSaved": "The log has been saved"
 }
