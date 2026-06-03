@@ -105,6 +105,7 @@
             modeComboBox.Name = "modeComboBox";
             modeComboBox.Size = new Size(322, 50);
             modeComboBox.TabIndex = 4;
+            modeComboBox.SelectedIndexChanged += modeComboBox_SelectedIndexChanged;
             // 
             // sessionIdTextBox
             // 

@@ -215,10 +215,10 @@ namespace TwinsRemoteHost
             {
                 modeComboBox.Items.Add(new VideoPresetItem { DisplayName = customName, Key = customName });
             }
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Balanced", Key = "balanced" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Quality", Key = "quality" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Stable", Key = "stable" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = "Mobile", Key = "mobile" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.BalancedMode, Key = "balanced" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.QualityMode, Key = "quality" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.StableMode, Key = "stable" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.MobileMode, Key = "mobile" });
 
             if (previousModeValue != null || previousModeValue == String.Empty)
             {
@@ -240,18 +240,20 @@ namespace TwinsRemoteHost
 
         private async Task InitializeUi()
         {
-            versionLabel.Text = "v" + this.version;
-            ResetModeList();
-
             string language = Properties.Settings.Default.Language;
             InitializeLanguageComboBox();
             languageComboBox.SelectedIndex = languageComboBox.FindStringExact(language);
             ApplyLanguage();
 
+            versionLabel.Text = "v" + this.version;
+            ResetModeList();
+
             statusValueLabel.Text = locale.StatusStopped;
             SetRunningState(false);
 
             SetCustomEditorButton();
+
+            modeComboBox.SelectedIndex = modeComboBox.FindString(Properties.Settings.Default.Mode);
 
             await InitializeNotifications();
             this.init = false;
@@ -803,6 +805,14 @@ namespace TwinsRemoteHost
             MessageBox.Show(this.locale.LogHasBeenSaved + "\n" + filePath, locale.Confirm,
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
+
+        private void modeComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (this.init) return;
+
+            Properties.Settings.Default.Mode = modeComboBox.SelectedItem.ToString();
+            Properties.Settings.Default.Save();
+        }
     }
 
     public enum Status
@@ -946,8 +956,8 @@ namespace TwinsRemoteHost
         [JsonProperty("everydayUsePresets")]
         public required string EverydayUsePresets { get; set; }
 
-        [JsonProperty("lowLatencyPresets")]
-        public required string LowLatencyPresets { get; set; }
+        [JsonProperty("stablePresets")]
+        public required string StablePresets { get; set; }
 
         [JsonProperty("qualityPresets")]
         public required string QualityPresets { get; set; }
@@ -958,14 +968,14 @@ namespace TwinsRemoteHost
         [JsonProperty("balancedMode")]
         public required string BalancedMode { get; set; }
 
+        [JsonProperty("qualityMode")]
+        public required string QualityMode { get; set; }
+
         [JsonProperty("stableMode")]
         public required string StableMode { get; set; }
 
-        [JsonProperty("lowLatencyMode")]
-        public required string LowLatencyMode { get; set; }
-
-        [JsonProperty("ultraLowLatencyMode")]
-        public required string UltraLowLatencyMode { get; set; }
+        [JsonProperty("mobileMode")]
+        public required string MobileMode { get; set; }
 
         [JsonProperty("highFpsMode")]
         public required string HighFpsMode { get; set; }
@@ -973,8 +983,8 @@ namespace TwinsRemoteHost
         [JsonProperty("fourKMode")]
         public required string FourKMode { get; set; }
 
-        [JsonProperty("mobileMode")]
-        public required string MobileMode { get; set; }
+        [JsonProperty("wifiFriendlyMode")]
+        public required string WifiFriendlyMode { get; set; }
 
         [JsonProperty("ipv4Mode")]
         public required string Ipv4Mode { get; set; }
