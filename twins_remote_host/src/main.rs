@@ -107,10 +107,10 @@ async fn main() -> Result<()> {
 
     std::thread::spawn(move || {
         while let Ok(rumble) = rumble_rx_std.recv() {
-            println!(
-                "[HOST] rumble received from ViGEm: large={} small={} led={}",
-                rumble.large, rumble.small, rumble.led
-            );
+            // println!(
+            //     "[HOST] rumble received from ViGEm: large={} small={} led={}",
+            //     rumble.large, rumble.small, rumble.led
+            // );
 
             let _ = rumble_tx_bridge.send(rumble);
         }
@@ -498,12 +498,12 @@ async fn main() -> Result<()> {
                                     }
                                 }
 
-                                if seq % 60 == 0 {
-                                    println!(
-                                        "[HOST GAMEPAD RECV] seq={} update={:?} buttons={} lt={} rt={} lx={} ly={} rx={} ry={}",
-                                        seq, result, buttons, lt, rt, lx, ly, rx, ry
-                                    );
-                                }
+                                // if seq % 60 == 0 {
+                                //     println!(
+                                //         "[HOST GAMEPAD RECV] seq={} update={:?} buttons={} lt={} rt={} lx={} ly={} rx={} ry={}",
+                                //         seq, result, buttons, lt, rt, lx, ly, rx, ry
+                                //     );
+                                // }
                             }
                         }
 
