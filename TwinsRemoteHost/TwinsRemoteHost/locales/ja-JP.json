@@ -108,7 +108,7 @@
   "failedToDeleteCustom": "カスタムモードの削除に失敗しました",
   "deleteCustomSuccess": "モードを削除しました: ",
   "failedToUpdateCustom": "カスタムモードの更新に失敗しました",
-  "newMajorUpdate": "TwinsRemoteHost.exe のアップデートが必要です\nダウンロードページに移動します",
+  "newMajorUpdate": "TwinsRemote のアップデートが必要です\nダウンロードページに移動します",
   "newMinorUpdate": "新しい機能がリリースされています",
   "newPatchUpdate": "不具合の修正がリリースされています",
   "saveLog": "ログ保存",
