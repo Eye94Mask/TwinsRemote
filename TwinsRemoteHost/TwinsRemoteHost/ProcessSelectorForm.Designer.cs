@@ -76,7 +76,7 @@
             reloadButton.UseVisualStyleBackColor = true;
             reloadButton.Click += ReloadButton_Click;
             // 
-            // ProcessSelector
+            // ProcessSelectorForm
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
@@ -85,8 +85,11 @@
             Controls.Add(cancelButton);
             Controls.Add(flowLayoutPanel);
             Controls.Add(OkButton);
+            FormBorderStyle = FormBorderStyle.SizableToolWindow;
             Icon = (Icon)resources.GetObject("$this.Icon");
-            Name = "ProcessSelector";
+            MaximumSize = new Size(865, 1060);
+            MinimumSize = new Size(865, 1060);
+            Name = "ProcessSelectorForm";
             Text = "ProcessSelector";
             ResumeLayout(false);
         }

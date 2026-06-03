@@ -688,6 +688,8 @@
             // 
             stableLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             stableLabel.Location = new Point(372, 351);
+            stableLabel.MaximumSize = new Size(243, 86);
+            stableLabel.MinimumSize = new Size(243, 86);
             stableLabel.Name = "stableLabel";
             stableLabel.RightToLeft = RightToLeft.No;
             stableLabel.Size = new Size(243, 86);
@@ -806,6 +808,7 @@
             Controls.Add(presetModeLabel);
             Controls.Add(fpsLabel);
             Controls.Add(resolusionLabel);
+            FormBorderStyle = FormBorderStyle.SizableToolWindow;
             Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "ModeCreatorForm";
             Text = "ModeCreator";
