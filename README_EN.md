@@ -4,8 +4,25 @@
 
 Low-latency peer-to-peer remote play system for Windows.
 
-Twins Remote allows a host PC to stream video/audio to a remote client through the browser with very low latency.
-The client can also send controller input back to the host, allowing remote gameplay similar to Steam Remote Play Together — but without being limited to Steam games.
+This is a version of a system I originally created to play games with my twin brother, customized for public use.
+
+There are two reasons behind the name:
+
+* It started as a system for me to play with my twin brother.
+* I wanted the two devices to operate with low latency, as if they were a single device.
+
+---
+
+# For Those Who Want to Support Us
+TwinsRemote incurs ongoing maintenance costs.
+
+Server fees (production + TURN + staging) + domain fees = 2,300 yen/month (14.38 USD/month)
+
+If you like TwinsRemote and want it to continue for a long time, or if you’d like us to keep working hard to develop new features, please consider supporting us.
+
+*[OFUSE](https://ofuse.me/eye94mask)
+
+OFUSE
 
 # Table of Contents
 - [Features](#features)
