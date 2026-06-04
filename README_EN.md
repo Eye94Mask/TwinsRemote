@@ -56,7 +56,7 @@ OFUSE
     - [Client](#client-2)
 - [Building](#building)
 - [Future Plans](#future-plans)
-- [Report]
+- [Report](#report)
   - [For Developers](#for-developers)
   - [Feature Request](#feature-request)
   - [Bug Report](#bug-report)
