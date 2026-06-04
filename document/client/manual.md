@@ -10,7 +10,7 @@ English Manual is [here](https://github.com/Eye94Mask/TwinsRemote/edit/document/
     - [js](#js)
     - [locales](#locales)
     - [style](#style)
-- [TwinsRemoteClient](#twinsremote-client-1)
+- [TwinsRemote Client](#twinsremote-client-1)
     - [対応ブラウザ](#対応ブラウザ)
     - [対応デバイス](#対応デバイス)
     - [ブラウザ画面](#ブラウザ画面)
