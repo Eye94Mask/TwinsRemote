@@ -24,3 +24,6 @@ obj/
 .editorconfig
 
 vps_signal_server/
+
+# 将来アップロードするかも
+manual-EN.md
