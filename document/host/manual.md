@@ -13,7 +13,7 @@ English Manual is [here](https://github.com/Eye94Mask/TwinsRemote/edit/document/
     - [SystemMixCapture.exe](#systemmixcaptureexe)
     - [twins_remote_host.exe](#twins_remote_hostexe)
   - [localeフォルダ](#localeフォルダ)
-- [TwinsRemote Host](#twinsremote-host-の使い方)
+- [TwinsRemote Host の使い方](#twinsremote-host-の使い方)
   - [ホスト画面](#ホスト画面)
   - [アプリ音声共有](#アプリ音声共有)
   - [カスタムモード作成画面](#カスタムモード作成画面)
