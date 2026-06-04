@@ -1,7 +1,5 @@
 # TwinsRemote Client
 
-English Manual is [here](https://github.com/Eye94Mask/TwinsRemote/edit/document/manual/document/client/manual_EN.md)
-
 この資料はクライアント側の基本的な操作や用語の説明をするものです。
 
 # 目次

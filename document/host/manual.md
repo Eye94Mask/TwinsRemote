@@ -1,7 +1,5 @@
 # TwinsRemote Host
 
-English Manual is [here](https://github.com/Eye94Mask/TwinsRemote/edit/document/manual/document/host/manual_EN.md)
-
 この資料はホスト側の基本的な操作や用語の説明をするものです。
 
 # 目次
