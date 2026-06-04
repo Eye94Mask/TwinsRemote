@@ -4,13 +4,26 @@ English ReadMe is [here](https://github.com/MeuShirokuma/TwinsRemote/blob/master
 
 Windows向けの低遅延P2Pリモートプレイシステムです。
 
-Twins Remote は、ホストPCの映像・音声をブラウザ経由でクライアントへ共有し、さらにクライアントからのコントローラー入力をホストへ送信できるシステムです。
+双子の兄とゲームを遊ぶために作ったシステムを一般公開用にカスタマイズしたものです。
+
+名前の由来は2つあります
+* 開発者の双子の兄と遊ぶためのシステムだった
+* 2つのデバイスがまるで1つのデバイスのように低遅延で動いてほしい
 
 Steam Remote Play Together のような体験を、Steam以外のゲームやアプリでも利用できることを目指しています。
 
-ホスト・クライアントの詳しいマニュアルは以下から
-* [ホストマニュアル](https://github.com/Eye94Mask/TwinsRemote/blob/document/manual/document/host/manual.md)
-* [クライアントマニュアル](https://github.com/Eye94Mask/TwinsRemote/blob/document/manual/document/client/manual.md)
+--- 
+
+# 応援してくれる方向け
+
+TwinsRemote には維持費がかかっています。
+
+サーバー代(公開用 + TURN用 + staging用) + ドメイン代 = 2300円/月
+
+もしも「TwinsRemote が長く続いてほしい」「頑張って新しい機能とか作ってほしい」など気に入った方は応援してください。
+* [OFUSE](https://ofuse.me/eye94mask)
+
+---
 
 # 目次
 - [特徴](#特徴)
@@ -196,6 +209,10 @@ Windows Forms アプリケーションとして動作します。
 ---
 
 # 使用方法
+
+細かいマニュアルはこちらです
+* [ホストマニュアル](https://github.com/Eye94Mask/TwinsRemote/blob/document/manual/document/host/manual.md)
+* [クライアントマニュアル](https://github.com/Eye94Mask/TwinsRemote/blob/document/manual/document/client/manual.md)
 
 ## ホスト側
 
