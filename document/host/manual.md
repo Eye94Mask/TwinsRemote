@@ -11,14 +11,20 @@ English Manual is [here](https://github.com/Eye94Mask/TwinsRemote/edit/document/
     - [NvEnc.exe](#nvencexe)
     - [ProcessAudioCapture.exe](#processaudiocaptureexe)
     - [SystemMixCapture.exe](#systemmixcaptureexe)
+        -[注意](#注意)
     - [twins_remote_host.exe](#twins_remote_hostexe)
   - [localeフォルダ](#localeフォルダ)
 - [TwinsRemote Host の使い方](#twinsremote-host-の使い方)
+  - [初回起動時の注意点](#初回起動時の注意点)
   - [ホスト画面](#ホスト画面)
   - [アプリ音声共有](#アプリ音声共有)
   - [カスタムモード作成画面](#カスタムモード作成画面)
+    - [詳細設定](#詳細設定)
   - [カスタムモード編集画面](#カスタムモード編集画面)
   - [お知らせ画面](#お知らせ画面)
+    - [開発者からのお知らせ](#開発者からのお知らせ)
+    - [新バージョンリリース](#新バージョンリリース)
+- [性能キャップについて](#性能キャップについて)
 
 ---
 
@@ -275,7 +281,7 @@ TwinsRemoteHost.exe を起動すると最初に見える画面です。
 
 <img width="767" height="364" alt="TwinsRemoteHost_Notices" src="https://github.com/user-attachments/assets/463b96ad-77cc-4ff7-ab53-3c55d69b8e43" />
 
-### お知らせ
+### 開発者からのお知らせ
 新規お知らせがある場合は赤いしるしが付きます。
 
 現在(2026/06/05時点)の想定では、メンテナンスを行う際に TwinsRemote が利用不可になる時間帯がある場合などにお知らせを配信します。
@@ -301,7 +307,9 @@ TwinsRemoteHost.exe を起動すると最初に見える画面です。
     * 不具合が修正された時のアップデートです。
     * お知らせに不具合修正のリリースとダウンロードページのURLが表示されます。
 
-### 性能キャップについて
+---
+
+# 性能キャップについて
 
 映像モードで高品質なモードを選んだのに、選択したモードで映像がクライアントに届かない場合があります。
 
