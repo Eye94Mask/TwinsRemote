@@ -516,6 +516,10 @@ namespace TwinsRemoteHost
             createCustomModeButton.Text = this.locale.CreateCustomMode;
             updateCustomMode.Text = this.locale.UpdateCustomMode;
             saveLogButton.Text = this.locale.SaveLog;
+
+            int selectedIndex = modeComboBox.SelectedIndex;
+            ResetModeList();
+            modeComboBox.SelectedIndex = selectedIndex;
         }
 
         public static string GetCustomDirectory()
