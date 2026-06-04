@@ -573,7 +573,7 @@ function setNotices() {
     }
 }
 
-window.addEventListener("DOMContentLoaded", async () => {
+async function load() {
     loadLanguage();
     await startWakeLock();
     await fetchTtlSeconds();
@@ -665,7 +665,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
 
     startSplash();
-});
+};
 
 function getRandomInt(max) {
     return Math.floor(Math.random() * max);
@@ -2475,3 +2475,5 @@ async function releaseWakeLock() {
 // ===========================
 // スリープ機能ロック End
 // ===========================
+
+load();

@@ -74,7 +74,19 @@
     <pre id="log"></pre>
     <button id="save-log" onclick="downloadLogToFile()"></button>
 
-    <script src="/client.js" type="module"></script>
+    <script>
+        // 現在のタイムスタンプ取得
+        const timestamp = Math.floor(Date.now() / 1000);
+
+        // JavaScriptファイルのURL
+        const scriptUrlWithTimestamp = "/client.js" + "?v=" + timestamp;
+
+        const script = document.createElement("script");
+        script.src = scriptUrlWithTimestamp;
+        script.type = "module";
+
+        document.body.appendChild(script);
+    </script>
 </body>
 
 </html>
