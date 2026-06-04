@@ -30,6 +30,7 @@
   "invalidLanguage": "不正な言語が選択されました",
   "localeNotFound": "localeファイルが見つかりませんでした",
   "readLocaleFailed": "localeファイル読み込み失敗: ",
+  "notice": "お知らせ",
   "confirm": "確認",
   "error": "エラー",
   "createCustomMode": "カスタムモード作成",
@@ -107,6 +108,9 @@
   "failedToDeleteCustom": "カスタムモードの削除に失敗しました",
   "deleteCustomSuccess": "モードを削除しました: ",
   "failedToUpdateCustom": "カスタムモードの更新に失敗しました",
+  "newMajorUpdate": "TwinsRemote のアップデートが必要です\nダウンロードページに移動します",
+  "newMinorUpdate": "新しい機能がリリースされています",
+  "newPatchUpdate": "不具合の修正がリリースされています",
   "saveLog": "ログ保存",
   "logHasBeenSaved": "ログを保存しました"
 }

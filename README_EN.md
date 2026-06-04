@@ -43,6 +43,7 @@ The client can also send controller input back to the host, allowing remote game
   - [For Developers](#for-developers)
   - [Feature Request](#feature-request)
   - [Bug Report](#bug-report)
+  - [Other Questions or Reports](#other-questions-or-reports)
 - [FAQ](#faq)
   - [Does this only work with Steam games?](#does-this-only-work-with-steam-games)
   - [Does the client need to install anything?](#does-the-client-need-to-install-anything)
@@ -309,6 +310,9 @@ Please reply to [This Post](https://x.com/Eye94MaskTech/status/20614138739919465
 
 ## Bug Report
 Please reply to [This Post](https://x.com/Eye94MaskTech/status/2061414643021824433) on X
+
+## Other Questions or Reports
+Please reply to [This Post](https://x.com/Eye94MaskTech/status/2062145070296662024) on X
 
 # FAQ
 

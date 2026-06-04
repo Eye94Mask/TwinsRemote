@@ -16,7 +16,7 @@ namespace TwinsRemoteHost
         // Balanced Preset
         private readonly PresetMode balanced = new(
             1920, 1080, 30,
-            4, 6, 2, 2,
+            4, 6, 1, 0,
             60, 60,
             true, false,
             1,
@@ -28,7 +28,7 @@ namespace TwinsRemoteHost
         // Quality Preset
         private readonly PresetMode quality = new(
             1920, 1080, 60,
-            6, 8, 3, 3,
+            6, 8, 1, 1,
             60, 60,
             true, false,
             1,
@@ -40,7 +40,7 @@ namespace TwinsRemoteHost
         // Stable Preset
         private readonly PresetMode stable = new(
             1280, 720, 30,
-            2, 4, 1, 1,
+            2, 4, 0.6F, 0.6F,
             60, 60,
             true, false,
             1,
@@ -52,7 +52,7 @@ namespace TwinsRemoteHost
         // Mobile Preset
         private readonly PresetMode mobile = new(
             1280, 720, 30,
-            0.5F, 2, 0.25F, 0.25F,
+            0.5F, 2, 0.2F, 0.2F,
             30, 30,
             true, false,
             1,
@@ -64,7 +64,7 @@ namespace TwinsRemoteHost
         // High Fps Preset
         private readonly PresetMode highFps = new(
             1920, 1080, 120,
-            3, 4, 1.5F, 1.5F,
+            3, 4, 0.025F, 0.025F,
             60, 60,
             true, false,
             1,
@@ -76,7 +76,7 @@ namespace TwinsRemoteHost
         // 4K Preset
         private readonly PresetMode fourK = new(
             3840, 2160, 30,
-            12, 16, 6, 6,
+            12, 16, 0.4F, 0.4F,
             60, 60,
             true, false,
             3,

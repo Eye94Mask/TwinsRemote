@@ -30,6 +30,7 @@
   "invalidLanguage": "",
   "localeNotFound": "",
   "readLocaleFailed": "",
+  "notice": "",
   "confirm": "",
   "error": "",
   "createCustomMode": "",
@@ -107,6 +108,9 @@
   "failedToDeleteCustom": "",
   "deleteCustomSuccess": "",
   "failedToUpdateCustom": "",
+  "newMajorUpdate": "",
+  "newMinorUpdate": "",
+  "newPatchUpdate": "",
   "saveLog": "",
   "logHasBeenSaved": ""
 }
