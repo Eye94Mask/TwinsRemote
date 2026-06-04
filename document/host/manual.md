@@ -13,6 +13,7 @@
     - [twins_remote_host.exe](#twins_remote_hostexe)
   - [localeフォルダ](#localeフォルダ)
 - [TwinsRemote Host の使い方](#twinsremote-host-の使い方)
+  - [ダウンロードするもの](#ダウンロードするもの)
   - [初回起動時の注意点](#初回起動時の注意点)
   - [ホスト画面](#ホスト画面)
   - [アプリ音声共有](#アプリ音声共有)
@@ -95,6 +96,14 @@ TwinsRemote の心臓部になる実行ファイルです。
 ---
 
 # TwinsRemote Host の使い方
+
+## ダウンロードするもの
+
+クライアントからのコントローラー入力を処理するために以下のシステムをダウンロードしてください。
+
+ダウンロード後にインストールすれば準備完了です。
+
+* [ViGEm](https://vigembusdriver.com/download/#:~:text=Nefarius%20Software%20Solutions.-,Download%20VigemBus,-Version)
 
 ## 初回起動時の注意点
 
