@@ -1,4 +1,4 @@
-# Twins Remote Client
+# TwinsRemote Client
 
 English Manual is [here](https://github.com/Eye94Mask/TwinsRemote/edit/document/manual/document/client/manual_EN.md)
 
@@ -10,7 +10,7 @@ English Manual is [here](https://github.com/Eye94Mask/TwinsRemote/edit/document/
     - [js](#js)
     - [locales](#locales)
     - [style](#style)
-- [TwinsRemoteClient](#twins-remote-client)
+- [TwinsRemoteClient](#twinsremote-client-1)
     - [対応ブラウザ](#対応ブラウザ)
     - [対応デバイス](#対応デバイス)
     - [ブラウザ画面](#ブラウザ画面)
@@ -58,7 +58,7 @@ English Manual is [here](https://github.com/Eye94Mask/TwinsRemote/edit/document/
 
 ---
 
-# TwinsRemoteClient
+# TwinsRemote Client
 
 ## 対応ブラウザ
 
@@ -118,7 +118,7 @@ Google系(Chromium系)のブラウザを利用することを推奨します。
 
 ## クライアントの操作
 
-TwinsRemoteClient ではコントローラーの操作をホストに送信することができます。
+TwinsRemote Client ではコントローラーの操作をホストに送信することができます。
 
 ### コントローラー接続
 コントローラーはPCに接続していれば自動認識されます。

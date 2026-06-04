@@ -1,4 +1,4 @@
-# Twins Remote Host
+# TwinsRemote Host
 
 English Manual is [here](https://github.com/Eye94Mask/TwinsRemote/edit/document/manual/document/host/manual_EN.md)
 
@@ -13,7 +13,7 @@ English Manual is [here](https://github.com/Eye94Mask/TwinsRemote/edit/document/
     - [SystemMixCapture.exe](#systemmixcaptureexe)
     - [twins_remote_host.exe](#twins_remote_hostexe)
   - [localeフォルダ](#localeフォルダ)
-- [TwinsRemoteHost](#twins-remote-host)
+- [TwinsRemote Host](#twinsremote-host-1)
   - [ホスト画面](#ホスト画面)
   - [アプリ音声共有](#アプリ音声共有)
   - [カスタムモード作成画面](#カスタムモード作成画面)
@@ -90,7 +90,7 @@ TwinsRemote の心臓部になる実行ファイルです。
 
 ---
 
-# TwinsRemoteHost
+# TwinsRemote Host
 
 ## 初回起動時の注意点
 
@@ -102,7 +102,7 @@ TwinsRemote の心臓部になる実行ファイルです。
 
 ## 初回「接続ボタン」押下時
 
-TwinsRemoteHostをダウンロードして初めて「接続ボタン」を押した場合、画像のようなウィンドウが出ます。
+TwinsRemote Hostをダウンロードして初めて「接続ボタン」を押した場合、画像のようなウィンドウが出ます。
 
 twins_remote_host.exe が通信をするためには許可が必要になりますので、「許可」を押してください。
 
@@ -128,7 +128,7 @@ TwinsRemoteHost.exe を起動すると最初に見える画面です。
 3. 接続ボタン
     * 映像モードを選択し、セッションIDを入力した後に接続ボタンを押すと、クライアントとの通信が始まります。
     * このボタンを押した後は音声共有以外の操作は必要ありません。TwinsRemoteをお楽しみください。
-    * TwinsRemoteHostをダウンロードして初めて接続ボタンを押したときに、アプリが通信を行うことを許可する・しないを決めるウィンドウが表示されます。
+    * TwinsRemote Hostをダウンロードして初めて接続ボタンを押したときに、アプリが通信を行うことを許可する・しないを決めるウィンドウが表示されます。
 4. アプリ音声共有(詳しくは[アプリ音声共有](#アプリ音声共有)を参照)
     * 接続ボタンを押した後に操作ができるようになります。
     * ボタンを押すと音声共有ができるアプリの一覧が表示されます。その中から1つを選んでOKを押すと選択したアプリの音声がクライアントに共有されます。
