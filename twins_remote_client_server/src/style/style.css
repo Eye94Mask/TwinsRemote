@@ -522,6 +522,10 @@ button {
       top: 0;
       left: 0;
       opacity: 1;
+
+      & .notices-overflow {
+        animation: marquee 10s linear infinite;
+      }
     }
 
     & .inactive {
@@ -547,6 +551,16 @@ button {
       text-overflow: ellipsis;
       overflow: hidden;
     }
+  }
+}
+
+@keyframes marquee {
+  0%, 40% {
+    transform: translateX(0);
+  }
+
+  80%, 100% {
+    transform: translateX(calc(var(--overflow) * -1));
   }
 }
 

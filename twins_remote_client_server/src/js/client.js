@@ -535,6 +535,20 @@ function getNoticesByLanguage() {
     }
 }
 
+function setHorizontalScrollAnimation(container, element) {
+    const overflow = element.scrollWidth - container.clientWidth;
+
+    if (overflow > 0) {
+        element.style.setProperty("--overflow", `${overflow + 50}px`);
+        element.classList.add("notices-overflow");
+
+        setTimeout(() => {
+            element.style.setProperty("text-overflow", "clip");
+            element.style.setProperty("overflow", "visible");
+        }, 4000);
+    }
+}
+
 function setNotices() {
     const notices = getNoticesByLanguage();
 
@@ -544,13 +558,20 @@ function setNotices() {
 
         noticesList.innerHTML = "";
 
+        let first = true;
         notices.forEach(notice => {
             const noticeContent = notice.split("@")[0];
             const div = document.createElement("div");
             const span = document.createElement("span");
+
+            if (first) { div.classList.add("active"); first = false; }
+            else div.classList.add("inactive");
+            
             span.textContent = noticeContent;
             div.appendChild(span)
             noticesList.appendChild(div);
+
+            setHorizontalScrollAnimation(div, span);
         });
 
         if (notices.length > 1) {
@@ -558,14 +579,19 @@ function setNotices() {
             let currentIndex = 0;
             
             setInterval(() => {
+                const currentSpan = Items[currentIndex].children[0];
                 Items[currentIndex].classList.remove("active");
+                currentSpan.classList.remove("notices-overflow");
+                currentSpan.style = null;
                 Items[currentIndex].classList.add("inactive");
                 currentIndex = (currentIndex + 1) % Items.length;
 
                 const nextItem = Items[currentIndex];
+                const nextSpan = nextItem.children[0];
                 nextItem.classList.remove("inactive");
                 nextItem.classList.add("active");
-            }, 5000);
+                setHorizontalScrollAnimation(nextItem, nextSpan);
+            }, 10000);
         } else if (notices < 1) {
             const ticker = document.getElementById("ticker");
             ticker.remove();
