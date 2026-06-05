@@ -9,7 +9,7 @@
     - [NvEnc.exe](#nvencexe)
     - [ProcessAudioCapture.exe](#processaudiocaptureexe)
     - [SystemMixCapture.exe](#systemmixcaptureexe)
-        -[注意](#注意)
+        - [注意](#注意)
     - [twins_remote_host.exe](#twins_remote_hostexe)
   - [localeフォルダ](#localeフォルダ)
 - [TwinsRemote Host の使い方](#twinsremote-host-の使い方)
