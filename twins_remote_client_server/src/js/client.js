@@ -2490,6 +2490,7 @@ if (navigator.userAgent.match(/(iPhone|iPad|iPod|Android)/i)) {
 }
 
 async function startWakeLock() {
+    log("Start ScreenWakeLock");
     wakeLock = await navigator.wakeLock.request("screen");
 }
 
