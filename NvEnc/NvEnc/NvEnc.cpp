@@ -1416,6 +1416,10 @@ int main(int argc, char** argv) {
         uint64_t frameIndex = 0;
         bool firstFrame = true;
 
+        constexpr uint64_t KEEPALIVE_INTERVAL_MS = 1000;
+        EncodeSlot* lastEncodedSlot = nullptr;
+        uint64_t lastSendTimeMs = 0;
+
         while (true) {
             try {
                 CreateSession(device, context, dup, scaler, enc, cfg);
@@ -1447,9 +1451,19 @@ int main(int argc, char** argv) {
 
                     try {
                         DXGI_OUTDUPL_FRAME_INFO frameInfo{};
-                        HRESULT hr = dup.duplication->AcquireNextFrame(5, &frameInfo, &desktopResource);
+                        HRESULT hr = dup.duplication->AcquireNextFrame(0, &frameInfo, &desktopResource);
 
                         if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+                            if (lastEncodedSlot) {
+                                EncodeRegisteredTexture(
+                                    enc,
+                                    lastEncodedSlot->registered,
+                                    frameIndex++,
+                                    false,
+                                    true
+                                );
+                            }
+
                             continue;
                         }
 
@@ -1496,6 +1510,9 @@ int main(int argc, char** argv) {
                             ++frameIndex;
                             continue;
                         }
+
+                        lastEncodedSlot = &slot;
+                        lastSendTimeMs = TickMs();
 
                         firstFrame = false;
                         ++frameIndex;

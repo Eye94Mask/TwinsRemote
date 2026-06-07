@@ -1890,7 +1890,7 @@ function startVideoWatchdog() {
 
         const framesNotMoving = framesDecoded <= lastVideoStats.framesDecoded;
 
-        const bytesNotMoving = bytesReceived <= lastVideoStats.framesDecoded;
+        const bytesNotMoving = bytesReceived <= lastVideoStats.framesReceived;
 
         const packetsNotMoving = packetsReceived <= lastVideoStats.packetsReceived;
 
@@ -2470,23 +2470,23 @@ window.downloadLogToFile = downloadLogToFile;
 let wakeLock = null;
 
 if (navigator.userAgent.match(/(iPhone|iPad|iPod|Android)/i)) {
-  // mobile
-  document.addEventListener("visibilitychange", async () => {
-    if (document.visibilityState === "visible") {
-      await startWakeLock();
-    }
+    // mobile
+    document.addEventListener("visibilitychange", async () => {
+        if (document.visibilityState === "visible") {
+            setTimeout(startWakeLock, 100);
+        }
 
-    if (document.visibilityState === "hidden") {
-      await releaseWakeLock();
-    }
-  });
+        if (document.visibilityState === "hidden") {
+            setTimeout(releaseWakeLock, 100);
+        }
+    });
 } else {
-  window.addEventListener("focus", async () => {
-    await startWakeLock();
-  });
-  window.addEventListener("blur", async () => {
-    await releaseWakeLock();
-  });
+    window.addEventListener("focus", () => {
+        setTimeout(startWakeLock, 100);
+    });
+    window.addEventListener("blur", async () => {
+        setTimeout(releaseWakeLock, 100);
+    });
 }
 
 async function startWakeLock() {
