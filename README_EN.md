@@ -207,6 +207,8 @@ https://play.twins-remote.com
 
 After the host finishes processing, the stream will begin automatically.
 
+<mark>The audio is muted by default, so please unmute it as needed.</mark>
+
 ---
 
 ## Troubleshooting
