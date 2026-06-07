@@ -18,7 +18,7 @@ namespace TwinsRemoteHost
 {
     public partial class Host : Form
     {
-        private readonly string version = "1.0.0";
+        private readonly string version = "1.0.1";
 
         private bool init = true;
         private List<string> notifications = [];
