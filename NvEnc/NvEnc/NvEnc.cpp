@@ -1526,6 +1526,7 @@ int main(int argc, char** argv) {
                         }
                         CheckHr(hr, "ReleaseFrame");
                         acquiredFrame = false;
+                        Sleep(1000.0 / cfg.fps);
                     }
                     catch (...) {
                         SafeRelease(desktopTex);
