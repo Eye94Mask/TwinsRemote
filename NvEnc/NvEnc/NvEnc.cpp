@@ -1,4 +1,4 @@
-﻿#include <windows.h>
+#include <windows.h>
 #include <ShlObj.h>
 #include <d3d11.h>
 #include <dxgi1_2.h>
@@ -1413,13 +1413,7 @@ int main(int argc, char** argv) {
     std::vector<std::string> customFileNames = GetCustomFilesInFolder(customDirectoryPath);
     std::vector<std::pair<StreamConfig, std::string>> customModes;
 
-    std::cerr << "[INFO] " << customDirectoryPath << std::endl;
-
     for (std::string customFileName : customFileNames) {
-        std::cerr << "[INFO] Checking: "
-            << customDirectoryPath + "/" + customFileName
-            << std::endl;
-
         StreamConfig config =
             GetCustomModeFromFile(customDirectoryPath + "/", customFileName);
 
@@ -1720,7 +1714,7 @@ int main(int argc, char** argv) {
             cfg = GetStreamConfig(preset);
         }
 
-        std::cerr << "[INFO] Selected Mode: " << modeName
+		std::cerr << "[INFO] Selected Mode Config: " << modeName
             << " (" << cfg.width << "x" << cfg.height
             << " @" << cfg.fps << "fps, "
             << cfg.averageBitrate / 1000000.0 << "Mbps)\n";
