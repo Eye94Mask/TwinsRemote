@@ -1714,7 +1714,7 @@ int main(int argc, char** argv) {
             cfg = GetStreamConfig(preset);
         }
 
-		std::cerr << "[INFO] Selected Mode Config: " << modeName
+		std::cerr << "[INFO] Selected Mode: " << modeName
             << " (" << cfg.width << "x" << cfg.height
             << " @" << cfg.fps << "fps, "
             << cfg.averageBitrate / 1000000.0 << "Mbps)\n";
