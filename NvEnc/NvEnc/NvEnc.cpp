@@ -463,51 +463,13 @@ static std::string NarrowFromWide(const std::wstring& w) {
     return s;
 }
 
-static bool AdapterHasOutput(IDXGIAdapter* adapter) {
+static std::pair<IDXGIAdapter1*, std::string> FindCaptureAdapterForAttachedOutput() {
     IDXGIFactory1* factory = nullptr;
     CheckHr(CreateDXGIFactory1(__uuidof(IDXGIFactory1),
         reinterpret_cast<void**>(&factory)), "CreateDXGIFactory1");
 
     IDXGIAdapter1* selected = nullptr;
-
-    for (UINT i = 0;; ++i) {
-        IDXGIAdapter1* adapter = nullptr;
-        HRESULT hr = factory->EnumAdapters1(i, &adapter);
-        if (hr == DXGI_ERROR_NOT_FOUND) break;
-        if (FAILED(hr) || !adapter) continue;
-
-        DXGI_ADAPTER_DESC1 desc{};
-        adapter->GetDesc1(&desc);
-
-        std::string name = NarrowFromWide(desc.Description);
-
-        std::cerr << "[GPU] adapter[" << i << "] "
-            << name
-            << " VendorId=0x" << std::hex << desc.VendorId << std::dec
-            << " flags=0x" << std::hex << desc.Flags << std::dec
-            << "\n";
-
-        if (desc.VendorId == 0x10DE &&
-            !(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)) {
-            selected = adapter;
-            std::cerr << "[GPU] Selected NVIDIA encode adapter: "
-                << name << "\n";
-            break;
-        }
-
-        adapter->Release();
-    }
-
-    factory->Release();
-    return selected;
-}
-
-static IDXGIAdapter1* FindCaptureAdapterForAttachedOutput() {
-    IDXGIFactory1* factory = nullptr;
-    CheckHr(CreateDXGIFactory1(__uuidof(IDXGIFactory1),
-        reinterpret_cast<void**>(&factory)), "CreateDXGIFactory1");
-
-    IDXGIAdapter1* selected = nullptr;
+	std::string adapterName;
     LONG bestArea = 0;
 
     for (UINT ai = 0;; ++ai) {
@@ -519,7 +481,7 @@ static IDXGIAdapter1* FindCaptureAdapterForAttachedOutput() {
         DXGI_ADAPTER_DESC1 ad{};
         adapter->GetDesc1(&ad);
 
-        std::string adapterName = NarrowFromWide(ad.Description);
+		std::string currentAdapterName = NarrowFromWide(ad.Description);
 
         for (UINT oi = 0;; ++oi) {
             IDXGIOutput* output = nullptr;
@@ -545,9 +507,10 @@ static IDXGIAdapter1* FindCaptureAdapterForAttachedOutput() {
                 if (selected) selected->Release();
                 selected = adapter;
                 selected->AddRef();
-                bestArea = area;
+				bestArea = area;
+				adapterName = currentAdapterName;
 
-                std::cerr << "[CAPTURE] selected candidate: "
+                std::cerr << "[CAPTURE] Selected Adapter: "
                     << adapterName << "\n";
             }
 
@@ -558,15 +521,16 @@ static IDXGIAdapter1* FindCaptureAdapterForAttachedOutput() {
     }
 
     factory->Release();
-    return selected;
+	return std::pair(selected, adapterName);
 }
 
-static IDXGIAdapter1* FindNvencAdapter() {
+static std::pair<IDXGIAdapter1*, std::string> FindNvencAdapter() {
     IDXGIFactory1* factory = nullptr;
     CheckHr(CreateDXGIFactory1(__uuidof(IDXGIFactory1),
         reinterpret_cast<void**>(&factory)), "CreateDXGIFactory1");
 
     IDXGIAdapter1* selected = nullptr;
+	std::string encoderName;
 
     for (UINT i = 0;; ++i) {
         IDXGIAdapter1* adapter = nullptr;
@@ -577,10 +541,10 @@ static IDXGIAdapter1* FindNvencAdapter() {
         DXGI_ADAPTER_DESC1 desc{};
         adapter->GetDesc1(&desc);
 
-        std::string name = NarrowFromWide(desc.Description);
+        encoderName = NarrowFromWide(desc.Description);
 
         std::cerr << "[GPU] adapter[" << i << "] "
-            << name
+            << encoderName
             << " VendorId=0x" << std::hex << desc.VendorId << std::dec
             << " flags=0x" << std::hex << desc.Flags << std::dec
             << "\n";
@@ -588,8 +552,9 @@ static IDXGIAdapter1* FindNvencAdapter() {
         if (desc.VendorId == 0x10DE &&
             !(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)) {
             selected = adapter;
+			
             std::cerr << "[GPU] Selected NVIDIA encode adapter: "
-                << name << "\n";
+                << encoderName << "\n";
             break;
         }
 
@@ -597,58 +562,7 @@ static IDXGIAdapter1* FindNvencAdapter() {
     }
 
     factory->Release();
-    return selected;
-}
-
-static IDXGIAdapter1* FindBestNvencAdapter() {
-    IDXGIFactory1* factory = nullptr;
-
-    HRESULT hr = CreateDXGIFactory1(
-        __uuidof(IDXGIFactory1),
-        reinterpret_cast<void**>(&factory)
-    );
-
-    if (FAILED(hr) || !factory) {
-        std::cerr << "[GPU] CreateDXGIFactory1 failed: 0x"
-            << std::hex << hr << std::dec << "\n";
-        return nullptr;
-    }
-
-    IDXGIAdapter1* selected = nullptr;
-
-    for (UINT i = 0;; ++i) {
-        IDXGIAdapter1* adapter = nullptr;
-        hr = factory->EnumAdapters1(i, &adapter);
-
-        if (hr == DXGI_ERROR_NOT_FOUND) break;
-
-        if (FAILED(hr) || !adapter) continue;
-
-        DXGI_ADAPTER_DESC1 desc{};
-        adapter->GetDesc1(&desc);
-
-        std::string name = NarrowFromWide(desc.Description);
-
-        std::cerr << "[INFO] Found adapter[" << i << "]: "
-            << name
-            << " VendorId=0x" << std::hex << desc.VendorId << std::dec
-            << " DedicatedVideoMemory="
-            << static_cast<unsigned long long>(desc.DedicatedVideoMemory / 1024 / 1024)
-            << "MB\n";
-
-        if (desc.VendorId == 0x10DE && AdapterHasOutput(adapter)) {
-            selected = adapter;
-            std::cerr << "[INFO] Selected NVIDIA adapter with output: "
-                << name << "\n";
-            break;
-        }
-
-        adapter->Release();
-    }
-
-    factory->Release();
-
-    return selected;
+	return std::pair(selected, encoderName);
 }
 
 static DuplicationContext CreateDuplication(ID3D11Device* device) {
@@ -1288,17 +1202,20 @@ static void CreateSession(
     GpuBridgeContext& bridge,
     ScaleContext& scaler,
     EncoderContext& enc,
-    const StreamConfig& cfg
+    const StreamConfig& cfg,
+	bool sameAdapter
 ) {
     dup = CreateDuplication(captureDevice);
 
     enc = CreateEncoder(encodeDevice, cfg);
 
-    bridge = CreateGpuBridge(
-        encodeDevice,
-        dup.width,
-        dup.height
-    );
+	if (!sameAdapter) {
+		bridge = CreateGpuBridge(
+			encodeDevice,
+			dup.width,
+			dup.height
+		);
+	}
 
     scaler = CreateScaler(
         encodeDevice,
@@ -1427,6 +1344,8 @@ int main(int argc, char** argv) {
 
     ID3D11Device* encodeDevice = nullptr;
     ID3D11DeviceContext* encodeContext = nullptr;
+
+	bool sameAdapter = true;
 
     DuplicationContext dup{};
     EncoderContext enc{};
@@ -1603,92 +1522,85 @@ int main(int argc, char** argv) {
 
         UINT flags = 0;
 
-        IDXGIAdapter1* captureAdapter = FindCaptureAdapterForAttachedOutput();
+		auto pAdapter = FindCaptureAdapterForAttachedOutput();
+		IDXGIAdapter1* captureAdapter = pAdapter.first;
+		std::string adapterName = pAdapter.second;
+
         if (!captureAdapter) {
             throw std::runtime_error("No capture adapter with attached output found");
         }
 
-        IDXGIAdapter1* nvAdapter = FindNvencAdapter();
-        if (!nvAdapter) {
-            throw std::runtime_error("No NVIDIA NVENC adapter found");
-        }
+        auto pEncoder = FindNvencAdapter();
+		IDXGIAdapter1* nvAdapter = pEncoder.first;
+		std::string encoderName = pEncoder.second;
 
-        CheckHr(
-            D3D11CreateDevice(
-                captureAdapter,
-                D3D_DRIVER_TYPE_UNKNOWN,
-                nullptr,
-                flags,
-                fls,
-                static_cast<UINT>(std::size(fls)),
-                D3D11_SDK_VERSION,
-                &captureDevice,
-                &flOut,
-                &captureContext
-            ),
-            "D3D11CreateDevice(capture adapter)"
-        );
+		sameAdapter = (adapterName == encoderName);
 
-        CheckHr(
-            D3D11CreateDevice(
-                nvAdapter,
-                D3D_DRIVER_TYPE_UNKNOWN,
-                nullptr,
-                flags,
-                fls,
-                static_cast<UINT>(std::size(fls)),
-                D3D11_SDK_VERSION,
-                &encodeDevice,
-                &flOut,
-                &encodeContext
-            ),
-            "D3D11CreateDevice(encode adapter)"
-        );
+		std::cerr << "[INFO] Capture Adapter: " << adapterName << "\n";
+		std::cerr << "[INFO] Encode Adapter : " << encoderName << "\n";
+		std::cerr << "[INFO] sameAdapter    : " << sameAdapter << "\n";
 
-        captureAdapter->Release();
-        nvAdapter->Release();
+		if (sameAdapter) {
+			CheckHr(
+				D3D11CreateDevice(
+					captureAdapter,
+					D3D_DRIVER_TYPE_UNKNOWN,
+					nullptr,
+					flags,
+					fls,
+					static_cast<UINT>(std::size(fls)),
+					D3D11_SDK_VERSION,
+					&captureDevice,
+					&flOut,
+					&captureContext
+				),
+				"D3D11CreateDevice(shared capture/encode)"
+			);
 
-        std::cerr << "[INFO] Capture D3D11 Device Created\n";
-        std::cerr << "[INFO] Encode D3D11 Device Created\n";
+			encodeDevice = captureDevice;
+			encodeDevice->AddRef();
 
-        if (!nvAdapter) {
-            throw std::runtime_error("No NVIDIA NVENC adapter found");
-        }
+			encodeContext = captureContext;
+			encodeContext->AddRef();
+		}
+		else {
+			CheckHr(
+				D3D11CreateDevice(
+					captureAdapter,
+					D3D_DRIVER_TYPE_UNKNOWN,
+					nullptr,
+					flags,
+					fls,
+					static_cast<UINT>(std::size(fls)),
+					D3D11_SDK_VERSION,
+					&captureDevice,
+					&flOut,
+					&captureContext
+				),
+				"D3D11CreateDevice(capture)"
+			);
 
-        CheckHr(
-            D3D11CreateDevice(
-                nullptr,
-                D3D_DRIVER_TYPE_HARDWARE,
-                nullptr,
-                flags,
-                fls,
-                static_cast<UINT>(std::size(fls)),
-                D3D11_SDK_VERSION,
-                &captureDevice,
-                &flOut,
-                &captureContext
-            ),
-            "D3D11CreateDevice(capture)"
-        );
+			CheckHr(
+				D3D11CreateDevice(
+					nvAdapter,
+					D3D_DRIVER_TYPE_UNKNOWN,
+					nullptr,
+					flags,
+					fls,
+					static_cast<UINT>(std::size(fls)),
+					D3D11_SDK_VERSION,
+					&encodeDevice,
+					&flOut,
+					&encodeContext
+				),
+				"D3D11CreateDevice(encode)"
+			);
+		}
 
-        CheckHr(
-            D3D11CreateDevice(
-                nvAdapter,
-                D3D_DRIVER_TYPE_UNKNOWN,
-                nullptr,
-                flags,
-                fls,
-                static_cast<UINT>(std::size(fls)),
-                D3D11_SDK_VERSION,
-                &encodeDevice,
-                &flOut,
-                &encodeContext
-            ),
-            "D3D11CreateDevice(encode)"
-        );
-
-        nvAdapter->Release();
-        nvAdapter = nullptr;
+		captureAdapter->Release();
+		nvAdapter->Release();
+		captureAdapter = nullptr;
+		nvAdapter = nullptr;
 
         std::cerr << "[INFO] Capture D3D11 Device Created\n";
         std::cerr << "[INFO] Encode D3D11 Device Created\n";
@@ -1722,6 +1634,7 @@ int main(int argc, char** argv) {
         uint64_t frameIndex = 0;
         bool firstFrame = true;
 
+		EncodeSlot* slotPtr = nullptr;
         EncodeSlot* lastEncodedSlot = nullptr;
 
         while (true) {
@@ -1734,7 +1647,8 @@ int main(int argc, char** argv) {
                     bridge,
                     scaler,
                     enc,
-                    cfg
+                    cfg,
+					sameAdapter
                 );
 
                 while (true) {
@@ -1804,16 +1718,22 @@ int main(int argc, char** argv) {
                             throw RecreateSessionException("Captured frame size changed");
                         }
 
-                        ID3D11Texture2D* encodeInputTex =
-                            CopyCaptureTextureToEncodeGpuCpuFallback(
-                                bridge,
-                                captureDevice,
-                                captureContext,
-                                encodeContext,
-                                desktopTex
-                            );
+						if (sameAdapter) {
+							slotPtr = &ScaleTexture(scaler, desktopTex);
+						}
+						else {
+							ID3D11Texture2D* encodeInputTex =
+								CopyCaptureTextureToEncodeGpuCpuFallback(
+									bridge,
+									captureDevice,
+									captureContext,
+									encodeContext,
+									desktopTex
+								);
+							slotPtr = &ScaleTexture(scaler, encodeInputTex);
+						}
 
-                        EncodeSlot& slot = ScaleTexture(scaler, encodeInputTex);
+						EncodeSlot& slot = *slotPtr;
 
                         bool periodicIdr =
                             firstFrame ||
