@@ -623,7 +623,9 @@ namespace TwinsRemoteHost
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8
             };
 
             string hostToken = await IssueHostTokenAsync(sessionId);

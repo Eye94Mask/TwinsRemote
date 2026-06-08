@@ -112,7 +112,7 @@ impl Controller {
                     println!("[HOST] rumble notification thread started");
 
                     while let Ok(result) = notification_rx.recv() {
-                        println!("[HOST] raw ViGEm notification received: {:?}", result);
+                        // println!("[HOST] raw ViGEm notification received: {:?}", result);
 
                         let Ok(n) = result else {
                             continue;
@@ -160,7 +160,7 @@ impl Controller {
                     let mut last_led = 0u8;
 
                     while let Ok(result) = notification_rx.recv() {
-                        println!("[HOST] raw ViGEm notification received: {:?}", result);
+                        // println!("[HOST] raw ViGEm notification received: {:?}", result);
 
                         let Ok(notification) = result else {
                             eprintln!("[HOST] ViGEm notification error: {:?}", result);
