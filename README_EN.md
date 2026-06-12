@@ -344,7 +344,6 @@ Twins Remote is not tied to Steam and can be used with:
 * Non-Steam games
 * Emulators
 * Desktop applications
-* Video/movie sharing
 
 ---
 
