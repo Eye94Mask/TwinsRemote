@@ -227,22 +227,45 @@ function axisToI16(v, invert = false) {
     return Math.round(v * 32767);
 }
 
+function isXboxController(gamepad) {
+    if (
+        gamepad.id.includes("DualSense")
+        || gamepad.id.includes("Vendor: 054c")
+        || gamepad.id.includes("Product: 09cc")
+        || gamepad.id.includes("Product: 0ce6")
+    ) {
+        return 0;
+    }
+
+    return 1;
+}
+
 function buildGamepadPacket(gamepad, seq) {
     const buttons = encodeButtons(gamepad);
 
-    const buf = new ArrayBuffer(16);
+    const isXbox = isXboxController(gamepad);
+
+    const buf = new ArrayBuffer(17);
     const view = new DataView(buf);
 
     view.setUint16(0, buttons, true);
     view.setUint8(2, Math.round((gamepad.buttons[6]?.value || 0)* 255));
     view.setUint8(3, Math.round((gamepad.buttons[7]?.value || 0)* 255));
-    view.setInt16(4, axisToI16(gamepad.axes[0]), true);
-    view.setInt16(6, axisToI16(gamepad.axes[1], true), true);
-    view.setInt16(8, axisToI16(gamepad.axes[2]), true);
-    view.setInt16(10, axisToI16(gamepad.axes[3], true), true);
+    if (isXbox) {
+        view.setInt16(4, axisToI16(gamepad.axes[0]), true);
+        view.setInt16(6, axisToI16(gamepad.axes[1], true), true);
+        view.setInt16(8, axisToI16(gamepad.axes[2]), true);
+        view.setInt16(10, axisToI16(gamepad.axes[3], true), true);
+    } else {
+        view.setInt16(4, axisToI16(gamepad.axes[0]), true);
+        view.setInt16(6, axisToI16(gamepad.axes[1]), true);
+        view.setInt16(8, axisToI16(gamepad.axes[2]), true);
+        view.setInt16(10, axisToI16(gamepad.axes[3]), true);
+    }
 
     view.setUint32(12, seq, true);
 
+    view.setUint8(16, isXbox);
     return buf;
 }
 
@@ -412,24 +435,29 @@ function clamp01(v) {
 function encodeButtons(gamepad) {
     let b = 0;
 
-    if (gamepad.buttons[0].pressed) b |= 1 << 12;
-    if (gamepad.buttons[1].pressed) b |= 1 << 13;
-    if (gamepad.buttons[2].pressed) b |= 1 << 14;
-    if (gamepad.buttons[3].pressed) b |= 1 << 15;
+    if (gamepad.buttons[0]?.pressed) b |= 1 << 12;
+    if (gamepad.buttons[1]?.pressed) b |= 1 << 13;
+    if (gamepad.buttons[2]?.pressed) b |= 1 << 14;
+    if (gamepad.buttons[3]?.pressed) b |= 1 << 15;
 
-    if (gamepad.buttons[4].pressed) b |= 1 << 8;
-    if (gamepad.buttons[5].pressed) b |= 1 << 9;
+    if (gamepad.buttons[4]?.pressed) b |= 1 << 8;
+    if (gamepad.buttons[5]?.pressed) b |= 1 << 9;
 
-    if (gamepad.buttons[8].pressed) b |= 1 << 5;
-    if (gamepad.buttons[9].pressed) b |= 1 << 4;
+    if (gamepad.buttons[8]?.pressed) b |= 1 << 5;
+    if (gamepad.buttons[9]?.pressed) b |= 1 << 4;
 
-    if (gamepad.buttons[10].pressed) b |= 1 << 6;
-    if (gamepad.buttons[11].pressed) b |= 1 << 7;
+    if (gamepad.buttons[10]?.pressed) b |= 1 << 6;
+    if (gamepad.buttons[11]?.pressed) b |= 1 << 7;
 
-    if (gamepad.buttons[12].pressed) b |= 1 << 0;
-    if (gamepad.buttons[13].pressed) b |= 1 << 1;
-    if (gamepad.buttons[14].pressed) b |= 1 << 2;
-    if (gamepad.buttons[15].pressed) b |= 1 << 3;
+    if (gamepad.buttons[12]?.pressed) b |= 1 << 0;
+    if (gamepad.buttons[13]?.pressed) b |= 1 << 1;
+    if (gamepad.buttons[14]?.pressed) b |= 1 << 2;
+    if (gamepad.buttons[15]?.pressed) b |= 1 << 3;
+
+    // PS / Xbox ボタンはクライアント・ホストどちらでも作動し、誤操作の原因になるのでホストには送らない無効
+    // if (gamepad.buttons[16]?.pressed) b |= 1 << 10;
+
+    if (gamepad.buttons[17]?.pressed) b |= 1 << 11;
 
     return b;
 }
