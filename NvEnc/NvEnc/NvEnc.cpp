@@ -1636,6 +1636,8 @@ int main(int argc, char** argv) {
 
 		EncodeSlot* slotPtr = nullptr;
         EncodeSlot* lastEncodedSlot = nullptr;
+		uint64_t lastEncodedMs = 0;
+		const uint64_t FREEZE_TIMEOUT_MS = 500;
 
         while (true) {
             try {
@@ -1677,21 +1679,25 @@ int main(int argc, char** argv) {
                     try {
                         DXGI_OUTDUPL_FRAME_INFO frameInfo{};
                         HRESULT hr = dup.duplication->AcquireNextFrame(
-                            0,
+                            5,
                             &frameInfo,
                             &desktopResource
                         );
 
                         if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-                            if (lastEncodedSlot) {
-                                EncodeRegisteredTexture(
-                                    enc,
-                                    lastEncodedSlot->registered,
-                                    frameIndex++,
-                                    false,
-                                    true
-                                );
-                            }
+							if (TickMs() - lastEncodedMs < FREEZE_TIMEOUT_MS) {
+								if (lastEncodedSlot) {
+									EncodeRegisteredTexture(
+										enc,
+										lastEncodedSlot->registered,
+										frameIndex++,
+										false,
+										true
+									);
+								}
+							}
+
+							lastEncodedMs = TickMs();
 
                             continue;
                         }
@@ -1761,6 +1767,8 @@ int main(int argc, char** argv) {
 
                             acquiredFrame = false;
                             ++frameIndex;
+
+							lastEncodedMs = TickMs();
                             continue;
                         }
 
@@ -1779,6 +1787,7 @@ int main(int argc, char** argv) {
 
                         CheckHr(hr, "ReleaseFrame");
                         acquiredFrame = false;
+						lastEncodedMs = TickMs();
 
                         Sleep(static_cast<DWORD>(1000.0 / cfg.fps));
                     }
