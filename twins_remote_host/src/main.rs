@@ -31,7 +31,7 @@ use webrtc::media::Sample;
 
 use crate::audio_encoder::AudioEncoder;
 use crate::consts::{VIDEO_FRAME_DURATION, CAP_THRESHOLD};
-use crate::controller::{Controller, GamepadState, RumbleState, VirtualPadType};
+use crate::controller::{Controller, GamepadState, PsRumbleState, XboxRumbleState, VirtualPadType};
 use crate::env::IceConfig;
 use crate::webrtc_sender::{WebRtcSender, StreamPolicy};
 
@@ -94,25 +94,36 @@ async fn main() -> Result<()> {
     // -------------------------------
     // Controller / Rumble
     // -------------------------------
-    let (rumble_rx_tx, rumble_rx_std) = std::sync::mpsc::channel::<RumbleState>();
-    let controller_raw = Controller::new(
+    let (xbox_rumble_rx_tx, xbox_rumble_rx_std) = std::sync::mpsc::channel::<XboxRumbleState>();
+    let (ps_rumble_rx_tx, ps_rumble_rx_std) = std::sync::mpsc::channel::<PsRumbleState>();
+
+    let xbox_controller_raw = Controller::new(
         VirtualPadType::Xbox360,
-        rumble_rx_tx
+        Some(xbox_rumble_rx_tx),
+        None
     )?;
-    let controller = Arc::new(Mutex::new(controller_raw));
+    let ps_controller_raw = Controller::new(
+        VirtualPadType::DualShock4,
+        None,
+        Some(ps_rumble_rx_tx)
+    )?;
+
+    let xbox_controller = Arc::new(Mutex::new(xbox_controller_raw));
+    let ps_controller = Arc::new(Mutex::new(ps_controller_raw));
 
     // broadcast で DataChannel 再接続時にも subscribe しなおす
-    let (rumble_tx, _) = broadcast::channel::<RumbleState>(32);
-    let rumble_tx_bridge = rumble_tx.clone();
+    let (xbox_rumble_tx, _) = broadcast::channel::<XboxRumbleState>(32);
+    let (ps_rumble_tx, _) = broadcast::channel::<PsRumbleState>(32);
+    let xbox_rumble_tx_bridge = xbox_rumble_tx.clone();
+    let ps_rumble_tx_bridge = ps_rumble_tx.clone();
 
     std::thread::spawn(move || {
-        while let Ok(rumble) = rumble_rx_std.recv() {
-            // println!(
-            //     "[HOST] rumble received from ViGEm: large={} small={} led={}",
-            //     rumble.large, rumble.small, rumble.led
-            // );
+        while let Ok(rumble) = xbox_rumble_rx_std.recv() {
+            let _ = xbox_rumble_tx_bridge.send(rumble);
+        }
 
-            let _ = rumble_tx_bridge.send(rumble);
+        while let Ok(rumble) = ps_rumble_rx_std.recv() {
+            let _ = ps_rumble_tx_bridge.send(rumble);
         }
     });
 
@@ -280,9 +291,11 @@ async fn main() -> Result<()> {
     // -------------------------------
     // DataChannel
     // -------------------------------
-    let controller_clone = controller.clone();
+    let xbox_controller_clone = xbox_controller.clone();
+    let ps_controller_clone = ps_controller.clone();
     let nvenc_cmd_tx_clone = nvenc_cmd_tx.clone();
-    let rumble_tx_for_dc = rumble_tx.clone();
+    let xbox_rumble_tx_for_dc = xbox_rumble_tx.clone();
+    let ps_rumble_tx_for_dc = ps_rumble_tx.clone();
 
     let last_force_keyframe_at = Arc::new(AtomicU64::new(0));
     let last_force_keyframe_at_clone = last_force_keyframe_at.clone();
@@ -290,13 +303,17 @@ async fn main() -> Result<()> {
     let pc = webrtc.peer.clone();
     let last_gamepad_seq = Arc::new(AtomicU32::new(0));
 
+    let mut currentController = VirtualPadType::Xbox360;
+
     webrtc.peer.on_data_channel(Box::new(move |dc| {
         println!("DataChannel accepted from client: {}", dc.label());
 
-        let controller_clone = controller_clone.clone();
+        let xbox_controller_clone = xbox_controller_clone.clone();
+        let ps_controller_clone = ps_controller_clone.clone();
         let nvenc_cmd_tx_clone = nvenc_cmd_tx_clone.clone();
         let last_force_keyframe_at_clone = last_force_keyframe_at_clone.clone();
-        let rumble_tx_for_dc = rumble_tx_for_dc.clone();
+        let xbox_rumble_tx_for_dc = xbox_rumble_tx_for_dc.clone();
+        let ps_rumble_tx_for_dc = ps_rumble_tx_for_dc.clone();
         let last_gamepad_seq_clone = last_gamepad_seq.clone();
 
         let pc_clone = pc.clone();
@@ -308,9 +325,11 @@ async fn main() -> Result<()> {
             dc.on_open(Box::new(move || {
                 let pc_clone_1 = pc_clone_clone.clone();
                 let dc_clone_1 = dc_clone_clone.clone();
-                let rumble_tx_for_open = rumble_tx_for_dc.clone();
+                let xbox_rumble_tx_for_open = xbox_rumble_tx_for_dc.clone();
+                let ps_rumble_tx_for_open = ps_rumble_tx_for_dc.clone();
 
                 println!("[HOST] DataChannel OPEN");
+
                 pc_clone.on_peer_connection_state_change(Box::new(move |_| {
                     let pc_clone_clone_clone = pc_clone_1.clone();
                     let dc_clone_clone_clone = dc_clone_1.clone();
@@ -396,47 +415,89 @@ async fn main() -> Result<()> {
                 // Rumble sender task
                 // -------------------------------
                 let dc_rumble = dc_clone_clone.clone();
-                let mut rumble_rx = rumble_tx_for_open.subscribe();
+                let mut xbox_rumble_rx = xbox_rumble_tx_for_open.subscribe();
+                let mut ps_rumble_rx = ps_rumble_tx_for_open.subscribe();
 
                 tokio::spawn(async move {
                     loop {
                         if dc_rumble.label() != "controller" { break; }
-                        let rumble = match rumble_rx.recv().await {
-                            Ok(v) => v,
-                            Err(broadcast::error::RecvError::Lagged(n)) => {
-                                eprintln!("[HOST] rumble broadcast lagged: {}", n);
-                                continue;
+
+                        if currentController == VirtualPadType::Xbox360 {
+                            let rumble = match xbox_rumble_rx.recv().await {
+                                Ok(v) => v,
+                                Err(broadcast::error::RecvError::Lagged(n)) => {
+                                    eprintln!("[HOST] rumble broadcast lagged: {}", n);
+                                    continue;
+                                }
+                                Err(broadcast::error::RecvError::Closed) => break,
+                            };
+
+                            if dc_rumble.ready_state() != RTCDataChannelState::Open {
+                                eprintln!("[HOST] dc_rumble is not ready");
+                                break;
                             }
-                            Err(broadcast::error::RecvError::Closed) => break,
-                        };
 
-                        if dc_rumble.ready_state() != RTCDataChannelState::Open {
-                            eprintln!("[HOST] dc_rumble is not ready");
-                            break;
-                        }
+                            let large = if rumble.large > 0 {
+                                rumble.large
+                            } else {
+                                0
+                            };
 
-                        let large = if rumble.large > 0 {
-                            rumble.large
-                        } else {
-                            0
-                        };
+                            let small = if rumble.small > 0 {
+                                rumble.small.max(120)
+                            } else {
+                                0
+                            };
 
-                        let small = if rumble.small > 0 {
-                            rumble.small.max(120)
-                        } else {
-                            0
-                        };
+                            let msg = json!({
+                                "type": "rumble",
+                                "large": large,
+                                "small": small,
+                                "duration_ms": 120
+                            }).to_string();
 
-                        let msg = json!({
-                            "type": "rumble",
-                            "large": large,
-                            "small": small,
-                            "duration_ms": 120
-                        }).to_string();
+                            if let Err(e) = dc_rumble.send_text(msg).await {
+                                eprintln!("[HOST] failed to send rumble: {:?}", e);
+                                break;
+                            }
+                        } else if currentController == VirtualPadType::DualShock4 || currentController == VirtualPadType::DualSenseCompat {
+                            let rumble = match ps_rumble_rx.recv().await {
+                                Ok(v) => v,
+                                Err(broadcast::error::RecvError::Lagged(n)) => {
+                                    eprintln!("[HOST] rumble broadcast lagged: {}", n);
+                                    continue;
+                                }
+                                Err(broadcast::error::RecvError::Closed) => break,
+                            };
 
-                        if let Err(e) = dc_rumble.send_text(msg).await {
-                            eprintln!("[HOST] failed to send rumble: {:?}", e);
-                            break;
+                            if dc_rumble.ready_state() != RTCDataChannelState::Open {
+                                eprintln!("[HOST] dc_rumble is not ready");
+                                break;
+                            }
+
+                            let large = if rumble.large > 0 {
+                                rumble.large
+                            } else {
+                                0
+                            };
+
+                            let small = if rumble.small > 0 {
+                                rumble.small.max(120)
+                            } else {
+                                0
+                            };
+
+                            let msg = json!({
+                                "type": "rumble",
+                                "large": large,
+                                "small": small,
+                                "duration_ms": 120
+                            }).to_string();
+
+                            if let Err(e) = dc_rumble.send_text(msg).await {
+                                eprintln!("[HOST] failed to send rumble: {:?}", e);
+                                break;
+                            }
                         }
                     }
                 });
@@ -446,7 +507,8 @@ async fn main() -> Result<()> {
 
             let dc_for_message = dc.clone();
             dc.on_message(Box::new(move |msg: DataChannelMessage| {
-                let controller = controller_clone.clone();
+                let xbox_controller = xbox_controller_clone.clone();
+                let ps_controller = ps_controller_clone.clone();
                 let nvenc_cmd_tx = nvenc_cmd_tx_clone.clone();
                 let last_force_keyframe_at = last_force_keyframe_at_clone.clone();
                 let dc = dc_for_message.clone();
@@ -455,7 +517,7 @@ async fn main() -> Result<()> {
                 Box::pin(async move {
                     let data = &msg.data;
 
-                    if data.len() == 12 || data.len() == 16 {
+                    if data.len() == 13 || data.len() == 17 {
                         let buttons = u16::from_le_bytes([data[0], data[1]]);
                         let lt = data[2];
                         let rt = data[3];
@@ -470,40 +532,42 @@ async fn main() -> Result<()> {
                             None
                         };
 
-                        if let Ok(mut ctrl) = controller.lock() {
-                            let report = GamepadState {
-                                buttons,
-                                lt,
-                                rt,
-                                lx,
-                                ly,
-                                rx,
-                                ry,
-                            };
+                        if data.len() >= 17 && data[16] == 1 { currentController = VirtualPadType::Xbox360; }
+                        else { currentController = VirtualPadType::DualShock4; }
 
-                            let result = ctrl.update(report);
-                            
-                            if let Some(seq) = seq {
-                                let prev = last_gamepad_seq_clone.swap(seq, Ordering::Relaxed);
+                        let report = GamepadState {
+                            buttons,
+                            lt,
+                            rt,
+                            lx,
+                            ly,
+                            rx,
+                            ry
+                        };
 
-                                if prev != 0 {
-                                    let expected = prev.wrapping_add(1);
-                                    if seq != expected {
-                                        println!(
-                                            "[HOST GAMEPAD GAP] prev={} current={} lost_or_reordered={}",
-                                            prev,
-                                            seq,
-                                            seq.wrapping_sub(expected)
-                                        );
-                                    }
+                        if currentController == VirtualPadType::Xbox360 {
+                            if let Ok(mut ctrl) = xbox_controller.lock() {
+                                let result = ctrl.update(report);
+                            }
+                        } else if currentController == VirtualPadType::DualShock4 || currentController == VirtualPadType::DualSenseCompat {
+                            if let Ok(mut ctrl) = ps_controller.lock() {
+                                let result = ctrl.update(report);
+                            }
+                        }
+
+                        if let Some(seq) = seq {
+                            let prev = last_gamepad_seq_clone.swap(seq, Ordering::Relaxed);
+
+                            if prev != 0 {
+                                let expected = prev.wrapping_add(1);
+                                if seq != expected {
+                                    println!(
+                                        "[HOST GAMEPAD GAP] prev={} current={} lost_or_reordered={}",
+                                        prev,
+                                        seq,
+                                        seq.wrapping_sub(expected)
+                                    );
                                 }
-
-                                // if seq % 60 == 0 {
-                                //     println!(
-                                //         "[HOST GAMEPAD RECV] seq={} update={:?} buttons={} lt={} rt={} lx={} ly={} rx={} ry={}",
-                                //         seq, result, buttons, lt, rt, lx, ly, rx, ry
-                                //     );
-                                // }
                             }
                         }
 

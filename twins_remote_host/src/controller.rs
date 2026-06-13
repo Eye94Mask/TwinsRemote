@@ -1,10 +1,11 @@
 use anyhow::{anyhow, Result};
 
 use vigem_rust::{
-    target::{Xbox360},
+    target::{DualShock4, Xbox360},
     Client, TargetHandle,
     X360Button, X360Notification, X360Report,
-    Ds4Button, Ds4Notification, Ds4Report
+    Ds4Button, Ds4Dpad, Ds4Notification, Ds4Report, Ds4LightbarColor,
+    controller::ds4::Ds4SpecialButton
 };
 
 use std::sync::mpsc;
@@ -15,14 +16,14 @@ use crate::consts::{
     SONY_VENDOR_ID, DS4_PRODUCT_ID, DSENSE_PRODUCT_ID,
     BUTTON_A, BUTTON_B, BUTTON_X, BUTTON_Y,
     BUTTON_UP, BUTTON_DOWN, BUTTON_LEFT, BUTTON_RIGHT,
-    BUTTON_START, BUTTON_BACK, BUTTON_LS, BUTTON_RS, BUTTON_LB, BUTTON_RB, BUTTON_GUIDE
+    BUTTON_START, BUTTON_BACK, BUTTON_LS, BUTTON_RS, BUTTON_LB, BUTTON_RB, BUTTON_GUIDE, BUTTON_TOUCHPAD
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VirtualPadType {
     Xbox360,
     DualShock4,
-    DualSenceCompat
+    DualSenseCompat
 }
 
 #[derive(Debug, Deserialize)]
@@ -37,10 +38,17 @@ pub struct GamepadState {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct RumbleState {
+pub struct XboxRumbleState {
     pub large: u8,
     pub small: u8,
     pub led: u8
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PsRumbleState {
+    pub large: u8,
+    pub small: u8,
+    pub lightbar: Ds4LightbarColor
 }
 
 #[derive(Debug, Clone, Default)]
@@ -63,9 +71,10 @@ pub struct PadState {
     pub l3: bool,
     pub r3: bool,
 
-    pub select: bool, // Back / Share
-    pub start:  bool, // Start / Options
-    pub guide:  bool, // Xbox / PS
+    pub select: bool,   // Back / Share
+    pub start:  bool,   // Start / Options
+    pub guide:  bool,   // Xbox / PS
+    pub touchpad: bool, // DualShock・DualSense Touchpad
 
     pub lx: i16,
     pub ly: i16,
@@ -74,7 +83,8 @@ pub struct PadState {
 }
 
 pub enum ControllerKind {
-    Xbox(TargetHandle<Xbox360>)
+    Xbox(TargetHandle<Xbox360>),
+    Ds4(TargetHandle<DualShock4>)
 }
 
 pub struct Controller {
@@ -86,7 +96,8 @@ pub struct Controller {
 impl Controller {
     pub fn new(
         pad_type: VirtualPadType,
-        rumble_tx: std::sync::mpsc::Sender<RumbleState>
+        xbox_rumble_tx: Option<std::sync::mpsc::Sender<XboxRumbleState>>,
+        ps_rumble_tx: Option<std::sync::mpsc::Sender<PsRumbleState>>
     ) -> Result<Self> {
         let client = Client::connect()
             .map_err(|e| anyhow!("failed to connect ViGEm client: {:?}", e))?;
@@ -109,23 +120,21 @@ impl Controller {
                 println!("[HOST] X360 notification registered");
 
                 std::thread::spawn(move || {
-                    println!("[HOST] rumble notification thread started");
+                    println!("[HOST] X360 rumble notification thread started");
 
                     while let Ok(result) = notification_rx.recv() {
-                        // println!("[HOST] raw ViGEm notification received: {:?}", result);
-
                         let Ok(n) = result else {
                             continue;
                         };
 
-                        let _ = rumble_tx.send(RumbleState {
+                        let _ = xbox_rumble_tx.clone().unwrap().send(XboxRumbleState {
                             large: n.large_motor,
                             small: n.small_motor,
                             led: n.led_number,
                         });
                     }
 
-                    eprintln!("[HOST] rumble notification thread ended");
+                    eprintln!("[HOST] X360 rumble notification thread ended");
                 });
 
                 Ok(Self {
@@ -135,75 +144,54 @@ impl Controller {
                 })
             }
 
-            VirtualPadType::DualShock4 | VirtualPadType::DualSenceCompat => {
-                Err(anyhow!("DS4/DualSense compat is not implemented yet with vigem-rust"))
-            }
-        }
-    }
+            VirtualPadType::DualShock4 | VirtualPadType::DualSenseCompat => {
+                let gamepad = client
+                    .new_ds4_target()
+                    .plugin()
+                    .map_err(|e| anyhow!("failed to plugin DualShock4/DualSense target: {:?}", e))?;
 
-    pub fn register_rumble_channel(&mut self) -> Result<mpsc::Receiver<RumbleState>> {
-        match &self.kind {
-            ControllerKind::Xbox(gamepad) => {
+                gamepad
+                    .wait_for_ready()
+                    .map_err(|e| anyhow!("DualShock4/DualSense target not ready: {:?}", e))?;
+
                 let notification_rx = gamepad
                     .register_notification()
-                    .map_err(|e| anyhow!("failed to register X360 notification: {:?}", e))?;
+                    .map_err(|e| anyhow!("failed to register DualShock4/DualSense notification: {:?}", e))?;
 
-                println!("[HOST] X360 notification registered");
+                println!("[HOST] DualShock4/DualSense notification registered");
 
-                let (tx, rx) = mpsc::channel::<RumbleState>();
-
-                thread::spawn(move || {
-                    println!("[HOST] rumble notification thread started");
-
-                    let mut last_large = 0u8;
-                    let mut last_small = 0u8;
-                    let mut last_led = 0u8;
+                std::thread::spawn(move || {
+                    println!("[HOST] DualShock4/DualSense rumble notification thread started");
 
                     while let Ok(result) = notification_rx.recv() {
-                        // println!("[HOST] raw ViGEm notification received: {:?}", result);
-
-                        let Ok(notification) = result else {
-                            eprintln!("[HOST] ViGEm notification error: {:?}", result);
+                        let Ok(n) = result else {
                             continue;
                         };
 
-                        let X360Notification {
-                            large_motor,
-                            small_motor,
-                            led_number,
-                        } = notification;
-
-                        if large_motor == last_large
-                            && small_motor == last_small
-                            && led_number == last_led
-                        {
-                            continue;
-                        }
-
-                        last_large = large_motor;
-                        last_small = small_motor;
-                        last_led = led_number;
-
-                        let _ = tx.send(RumbleState {
-                            large: large_motor,
-                            small: small_motor,
-                            led: led_number,
+                        let _ = ps_rumble_tx.clone().unwrap().send(PsRumbleState {
+                            large: n.large_motor,
+                            small: n.small_motor,
+                            lightbar: n.lightbar,
                         });
                     }
 
-                    eprintln!("[HOST] rumble notification thread ended");
+                    eprintln!("[HOST] DualShock4/DualSense rumble notification thread ended");
                 });
 
-                Ok(rx)
+                Ok(Self {
+                    client,
+                    pad_type,
+                    kind: ControllerKind::Ds4(gamepad),
+                })
             }
         }
     }
 
     pub fn update(&mut self, state: GamepadState) -> Result<()> {
-        let pad = sanitize_pad_state(state.into_pad_state());
-
         match &mut self.kind {
             ControllerKind::Xbox(gamepad) => {
+                let pad = sanitize_pad_state(state.into_pad_state(true));
+
                 let mut report = X360Report::default();
                 report = X360Report {
                     buttons: xbox_buttons_from_pad(&pad),
@@ -219,6 +207,33 @@ impl Controller {
                     .update(&report)
                     .map_err(|e| anyhow!("failed to update X360 report: {:?}", e))?;
             }
+
+            ControllerKind::Ds4(gamepad) => {
+                let pad = sanitize_pad_state(state.into_pad_state(false));
+
+                let mut report = Ds4Report::default();
+                let lx = i16_to_u8(pad.lx);
+                let ly = i16_to_u8(pad.ly);
+                let rx = i16_to_u8(pad.rx);
+                let ry = i16_to_u8(pad.ry);
+
+                report = Ds4Report {
+                    thumb_lx: lx,
+                    thumb_ly: ly,
+                    thumb_rx: rx,
+                    thumb_ry: ry,
+                    buttons: ps_buttons_from_pad(&pad),
+                    special: ps_special_buttons_from_pad(&pad),
+                    trigger_l: pad.l2,
+                    trigger_r: pad.r2,
+                };
+
+                report.set_dpad(ps_dpad_from_pad(&pad));
+
+                gamepad
+                    .update(&report)
+                    .map_err(|e| anyhow!("failed to update DualShock4/DualSense report: {:?}", e))?;
+            }
         }
 
         Ok(())
@@ -226,7 +241,9 @@ impl Controller {
 }
 
 impl GamepadState {
-    pub fn into_pad_state(self) -> PadState {
+    pub fn into_pad_state(self, is_xbox: bool) -> PadState {
+        let touchpad = if is_xbox { true } else { has_button(self.buttons, BUTTON_TOUCHPAD) };
+
         PadState {
             dpad_up:    has_button(self.buttons, BUTTON_UP),
             dpad_down:  has_button(self.buttons, BUTTON_DOWN),
@@ -243,6 +260,7 @@ impl GamepadState {
             r1:         has_button(self.buttons, BUTTON_RB),
 
             guide:      has_button(self.buttons, BUTTON_GUIDE),
+            touchpad:   touchpad,
 
             south:      has_button(self.buttons, BUTTON_A),
             east:       has_button(self.buttons, BUTTON_B),
@@ -271,6 +289,10 @@ fn apply_deadzone(v: i16, dz: i16) -> i16 {
 fn normalize_trigger(v: u8, min_on: u8) -> u8 {
     if v < min_on { 0 }
     else { v }
+}
+
+fn i16_to_u8(x: i16) -> u8 {
+    (((x as f32 + 32768.0) * 255.0 / 65535.0).round()) as u8
 }
 
 fn sanitize_pad_state(mut s: PadState) -> PadState {
@@ -310,4 +332,49 @@ fn xbox_buttons_from_pad(pad: &PadState) -> X360Button {
     buttons.set(X360Button::Y, pad.north);
 
     buttons
+}
+
+fn ps_buttons_from_pad(pad: &PadState) -> u16 {
+    let mut buttons = Ds4Button::empty();
+
+    buttons.set(Ds4Button::THUMB_RIGHT, pad.r3);
+    buttons.set(Ds4Button::THUMB_LEFT, pad.l3);
+
+    buttons.set(Ds4Button::OPTIONS, pad.start);
+    buttons.set(Ds4Button::SHARE, pad.select);
+
+    buttons.set(Ds4Button::TRIGGER_RIGHT, pad.r2 > 0);
+    buttons.set(Ds4Button::TRIGGER_LEFT, pad.l2 > 0);
+
+    buttons.set(Ds4Button::SHOULDER_RIGHT, pad.r1);
+    buttons.set(Ds4Button::SHOULDER_LEFT, pad.l1);
+
+    buttons.set(Ds4Button::TRIANGLE, pad.north);
+    buttons.set(Ds4Button::CIRCLE, pad.east);
+    buttons.set(Ds4Button::CROSS, pad.south);
+    buttons.set(Ds4Button::SQUARE, pad.west);
+
+    buttons.bits()
+}
+
+fn ps_special_buttons_from_pad(pad: &PadState) -> u8 {
+    let mut buttons = Ds4SpecialButton::empty();
+
+    buttons.set(Ds4SpecialButton::PS, pad.guide);
+    buttons.set(Ds4SpecialButton::TOUCHPAD, pad.touchpad);
+
+    buttons.bits()
+}
+
+fn ps_dpad_from_pad(pad: &PadState) -> Ds4Dpad {
+    if pad.dpad_up  && !pad.dpad_right && !pad.dpad_down && !pad.dpad_left { return Ds4Dpad::North; }
+    if pad.dpad_up  && pad.dpad_right  && !pad.dpad_down && !pad.dpad_left { return Ds4Dpad::NorthEast; }
+    if !pad.dpad_up && pad.dpad_right  && !pad.dpad_down && !pad.dpad_left { return Ds4Dpad::East; }
+    if !pad.dpad_up && pad.dpad_right  && pad.dpad_down  && !pad.dpad_left { return Ds4Dpad::SouthEast; }
+    if !pad.dpad_up && !pad.dpad_right && pad.dpad_down  && !pad.dpad_left { return Ds4Dpad::South; }
+    if !pad.dpad_up && !pad.dpad_right && pad.dpad_down  && pad.dpad_left  { return Ds4Dpad::SouthWest; }
+    if !pad.dpad_up && !pad.dpad_right && !pad.dpad_down && pad.dpad_left  { return Ds4Dpad::West; }
+    if pad.dpad_up  && !pad.dpad_right && !pad.dpad_down && pad.dpad_left  { return Ds4Dpad::NorthWest; }
+
+    Ds4Dpad::Neutral
 }
