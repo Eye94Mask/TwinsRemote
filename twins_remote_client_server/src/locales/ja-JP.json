@@ -8,6 +8,7 @@
     "disconnected": "接続終了",
     "connectionFailure": "接続エラー",
     "fullScreen": "フルスクリーン",
+    "exitFullScreen": "フルスクリーン解除",
     "invalidToken": "トークンの有効期限が切れました\nページを再読み込みします",
     "copiedSessionId": "Session ID をコピーしました",
     "failedToCopySessionId": "Session ID のコピーに失敗しました",

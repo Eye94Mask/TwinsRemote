@@ -8,6 +8,7 @@
     "disconnected": "",
     "connectionFailure": "",
     "fullScreen": "",
+    "exitFullScreen": "",
     "invalidToken": "",
     "copiedSessionId": "",
     "failedToCopySessionId": "",

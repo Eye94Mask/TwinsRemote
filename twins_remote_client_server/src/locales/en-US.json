@@ -8,6 +8,7 @@
     "disconnected": "Connection Ended",
     "connectionFailure": "Connection Error",
     "fullScreen": "Full Screen",
+    "exitFullScreen": "Exit Full Screen",
     "invalidToken": "Your token has expired\n Click OK to reload the page",
     "copiedSessionId": "Copied Session ID",
     "failedToCopySessionId": "Failed to copy Session ID",

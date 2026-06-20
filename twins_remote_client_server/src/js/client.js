@@ -708,7 +708,7 @@ async function load() {
     document.addEventListener("fullscreenchange", () => {
         const btn = document.getElementById("fullscreenBtn");
         if (!btn) return;
-        btn.textContent = document.fullscreenElement ? "Exit Fullscreen" : "Fullscreen";
+        btn.textContent = document.fullscreenElement ? locale.exitFullScreen : locale.fullScreen;
     });
 
     try {
