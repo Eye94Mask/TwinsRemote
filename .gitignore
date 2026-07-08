@@ -8,6 +8,7 @@ Cargo.lock
 *.vcxproj*
 *.pdb
 *.txt
+*.xml
 x64/
 packages/
 packages.config
