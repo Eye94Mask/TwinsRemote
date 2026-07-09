@@ -100,7 +100,6 @@ const splashSubtitles = [
     "Play it together.",
     "Watch together. Play together.",
     "Every moment, shared live.",
-    "Games. Movies. Moments.",
     "Distance disappears here.",
     "Where distance disappears.",
     "One experience, two screens.",
