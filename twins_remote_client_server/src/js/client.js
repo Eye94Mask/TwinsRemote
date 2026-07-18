@@ -7,6 +7,7 @@ let controllerDc = null;
 let gamepadIndex = null;
 
 let remoteAudioStream = new MediaStream();
+let sessionEnded = false;
 
 let statsIntervalId = null;
 let rtcSummaryIntervalId = null;
@@ -936,6 +937,13 @@ function sendForceKeyframe(reason) {
     }
 }
 
+window.onunload = async function () {
+  if (!sessionEnded) {
+    await fetchSessionEnd();
+    sessionEnded = true;
+  }
+};
+
 async function fetchWebRtcConfig() {
     const token = window.__WEBRTC_CONFIG_TOKEN__;
     if (!token) {
@@ -956,6 +964,27 @@ async function fetchWebRtcConfig() {
     }
 
     return await res.json();
+}
+
+async function fetchSessionStart() {
+    const res = await fetch(buildSessionUrl("/start-twins-remote"), {
+        method: "POST"
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error("failed to fetch start twins remote: " + text);
+    }
+}
+async function fetchSessionEnd() {
+    const res = await fetch(buildSessionUrl("/end-twins-remote"), {
+        method: "POST"
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error("failed to fetch end twins remote: " + text);
+    }
 }
 
 async function fetchTtlSeconds() {
@@ -1186,6 +1215,8 @@ async function connect() {
     setStatus("connecting", locale.preparingConnection);
     currentStatus = status.preparingConnection;
 
+    await fetchSessionStart();
+
     const config = await fetchWebRtcConfig();
     log("ICE CONFIG:", config);
 
@@ -1326,11 +1357,21 @@ async function connect() {
         if (pc.iceConnectionState === "disconnected") {
             setStatus("disconnected", locale.disconnected);
             currentStatus = status.disconnected;
+
+            if (!sessionEnded) {
+                await fetchSessionEnd();
+                sessionEnded = true;
+            }
         }
 
         if (pc.iceConnectionState === "failed") {
             setStatus("failed", locale.connectionFailure);
             currentStatus = status.connectionFailure;
+
+            if (!sessionEnded) {
+                await fetchSessionEnd();
+                sessionEnded = true;
+            }
         }
     };
 
