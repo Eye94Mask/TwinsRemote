@@ -7,6 +7,7 @@ let controllerDc = null;
 let gamepadIndex = null;
 
 let remoteAudioStream = new MediaStream();
+let sessionEnded = false;
 
 let statsIntervalId = null;
 let rtcSummaryIntervalId = null;
@@ -154,9 +155,9 @@ const RTT_BAD_SEC = 0.20;   // 200ms
 const BAD_RTT_LIMIT = 3;
 const ICE_RESTART_COOLDOWN_MS = 15000;
 
-// ==========================
+// =================================================
 // Cap 外し予防
-// ==========================
+// =================================================
 const RELAY_CAP_WIDTH = 1200;
 const RELAY_CAP_HEIGHT = 720;
 const RELAY_CAP_FPS = 30;
@@ -172,10 +173,86 @@ let lastVideoBytesAt = null;
 
 let relayMonitorIntervalId = null;
 let lastPostedNetworkMode = null;
-// ==========================
-// Cap 外し予防
-// ==========================
 
+function estimateVideoBitrateBps(report) {
+    const now = performance.now();
+
+    if (lastVideoBytes == null || lastVideoBytesAt == null) {
+        lastVideoBytes = report.bytesReceived;
+        lastVideoBytesAt = now;
+        return null;
+    }
+
+    const deltaBytes = report.bytesReceived - lastVideoBytes;
+    const deltaMs = now - lastVideoBytesAt;
+
+    lastVideoBytes = report.bytesReceived;
+    lastVideoBytesAt = now;
+
+    if (deltaMs <= 0 || deltaBytes < 0) return null;
+
+    return (deltaBytes * 8 * 1000) / deltaMs;
+}
+
+function updateCapViolationScore(report, bitrateBps, isRelay) {
+    if (!isRelay) {
+        capViolationScore = 0;
+        return false;
+    }
+
+    const width  = report.frameWidth || 0;
+    const height = report.frameHeight || 0;
+    const fps    = report.framesPerSecond || 0;
+
+    let scoreAdd = 0;
+
+    if (width > RELAY_CAP_WIDTH || height > RELAY_CAP_HEIGHT) {
+        scoreAdd += 4;
+    }
+
+    if (fps > RELAY_CAP_FPS + FPS_MARGIN) {
+        scoreAdd += 3;
+    }
+
+    if (scoreAdd > 0) {
+        capViolationScore += scoreAdd;
+    } else {
+        capViolationScore = Math.max(0, capViolationScore - 1);
+    }
+
+    return capViolationScore >= 12
+}
+
+function disconnectForCapViolation(report, bitrateBps) {
+    console.warn("[CAP VIOLATION] disconnecting", {
+        width: report.frameWidth,
+        height: report.frameHeight,
+        fps: report.framesPerSecond,
+        bitrateMbps: bitrateBps ? bitrateBps / 1_000_000 : null
+    });
+    log("[WARN] [CAP VIOLATION] disconnecting", {
+        width: report.frameWidth,
+        height: report.frameHeight,
+        fps: report.framesPerSecond,
+        bitrateMbps: bitrateBps ? bitrateBps / 1_000_000 : null
+    });
+
+    setStatus("failed", locale.capViolationWarning);
+    currentStatus = status.capViolationWarning;
+
+    log("!!! [WARN] Cap Violation is detected !!!");
+    log("!!! Disconnected from the host !!!");
+
+    try {
+        pc?.close();
+    } catch(_) {}
+
+    pc = null;
+}
+
+// =================================================
+// DataChannel 
+// =================================================
 let dcKeepaliveTimer = null;
 let dcLastPongAt = 0;
 let dcLastPingAt = 0;
@@ -191,9 +268,41 @@ let currentRumble = {
 let noticesJa = null;
 let noticesEn = null;
 
-// ==================================
-// コントローラー制御 Start
-// ==================================
+function stopDataChannelKeepalive() {
+    if (dcKeepaliveTimer) {
+        clearInterval(dcKeepaliveTimer);
+        dcKeepaliveTimer = null;
+    }
+}
+
+function handleDataChannelDead(reason) {
+    if (reconnecting) return;
+    reconnecting = true;
+
+    console.warn("[dc.dead]", reason);
+    log("[WARN] [dc.dead]", reason);
+
+    stopDataChannelKeepalive();
+
+    try {
+        if (inputDc && inputDc.readyState !== "closed") {
+            inputDc.close();
+        }
+        if (controllerDc && controllerDc.readyState !== "closed") {
+            controllerDc.close();
+        }
+    } catch {}
+
+    try {
+        if (pc && pc.signalingState !== "closed") {
+            pc.close();
+        }
+    } catch {}
+}
+
+// =================================================
+// コントローラー制御
+// =================================================
 let lastGamepadPacket = null;
 let lastGamepadSendAt = 0;
 let gamepadSeq = 0;
@@ -461,9 +570,37 @@ function encodeButtons(gamepad) {
     return b;
 }
 
-// ==================================
-// コントローラー制御 End
-// ==================================
+// =================================================
+// WebRTC stats モニタリング
+// =================================================
+async function monitorVideoStats(videoReceiver, abortSignal) {
+    while (!abortSignal.aborted) {
+        try {
+            await videoReceiver.getStats();
+        } catch (e) {
+            if (!abortSignal.aborted) {
+                console.error("[monitorVideoStats error]", e);
+                log("[ERR] [monitorVideoStats error]", e);
+            }
+        }
+
+        await sleep(1000);
+    }
+}
+
+function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+}
+
+function setStatus(state, text) {
+    const el = document.getElementById("status");
+    if (!el) return;
+
+    el.className = "";
+    el.id = "status";
+    el.classList.add(state);
+    el.textContent = text;
+}
 
 function setupDataChannel(channel, controller) {
     inputDc = channel;
@@ -553,6 +690,9 @@ function setupDataChannel(channel, controller) {
     }
 }
 
+// =================================================
+// お知らせ
+// =================================================
 function getNoticesByLanguage() {
     const selectedLanguage = document.getElementById("language-select").value;
     switch (selectedLanguage) {
@@ -626,12 +766,16 @@ function setNotices() {
     }
 }
 
+// =================================================
+// クライアント処理
+// =================================================
 async function load() {
     loadLanguage();
     await startWakeLock();
     await fetchTtlSeconds();
     await fetchNotifications();
     tokenTimeoutMessage = setTimeout(await tokenTimeout, ttlSeconds);
+    setUserId();
     
     setNotices();
 
@@ -791,6 +935,9 @@ function nowMs() {
     return performance.now();
 }
 
+// =================================================
+// ログ
+// =================================================
 function log(...args) {
     const el = document.getElementById("log");
     if (!el) return;
@@ -825,41 +972,122 @@ function showToast(message, type = "info") {
     }, 1800);
 }
 
+async function logSelectedCandidatePair(pc) {
+    const stats = await pc.getStats();
+
+    let selectedPair = null;
+    let localCandidate = null;
+    let remoteCandidate = null;
+
+    stats.forEach(report => {
+        if (report.type === "candidate-pair" && report.state === "succeeded" && report.nominated) {
+            selectedPair = report;
+        }
+    });
+
+    if (!selectedPair) {
+        stats.forEach(report => {
+            if (report.type === "transport" && report.selectedCandidatePairId) {
+                selectedPair = stats.get(report.selectedCandidatePairId);
+            }
+        });
+    }
+
+    if (selectedPair) {
+        if (selectedPair.localCandidateId) {
+            localCandidate = stats.get(selectedPair.localCandidateId);
+        }
+        if (selectedPair.remoteCandidateId) {
+            remoteCandidate = stats.get(selectedPair.remoteCandidateId);
+        }
+
+        console.log("=== SELECTED CANDIDATE PAIR ===");
+        console.log("pair:", selectedPair);
+        console.log("local:", localCandidate);
+        console.log("remote:", remoteCandidate);
+
+        console.log("summary:", {
+            state: selectedPair.state,
+            nominated: selectedPair.nominated,
+            currentRoundTripTime: selectedPair.currentRoundTripTime,
+            availableOutgoingBitrate: selectedPair.availableOutgoingBitrate,
+            availableIncomingBitrate: selectedPair.availableIncomingBitrate,
+            localCandidateType: localCandidate?.candidateType,
+            localProtocol: localCandidate?.protocol,
+            remoteCandidateType: remoteCandidate?.candidateType,
+            remoteProtocol: remoteCandidate?.protocol,
+            localAddress: localCandidate?.address,
+            remoteAddress: remoteCandidate?.address
+        });
+    } else {
+        console.log("selected candidate pair not found");
+    }
+}
+
+async function logRtcSummary(pc) {
+    const stats = await pc.getStats();
+
+    let selectedPair = null;
+    let inboundVideo = null;
+
+    stats.forEach(report => {
+        if (report.type === "candidate-pair" && report.state === "succeeded" && report.nominated) {
+            selectedPair = report;
+        }
+        if (report.type === "transport" && report.selectedCandidatePairId && !selectedPair) {
+            selectedPair = stats.get(report.selectedCandidatePairId);
+        }
+        if (report.type === "inbound-rtp" && report.kind === "video") {
+            inboundVideo = report;
+        }
+    });
+
+    console.log("[RTC SUMMARY]", {
+        iceConnectionState: pc.iceConnectionState,
+        currentRoundTripTime: selectedPair?.currentRoundTripTime,
+        availableOutgoingBitrate: selectedPair?.availableOutgoingBitrate,
+        availableIncomingBitrate: selectedPair?.availableIncomingBitrate,
+        packetsReceived: inboundVideo?.packetsReceived,
+        bytesReceived: inboundVideo?.bytesReceived,
+        packetsLost: inboundVideo?.packetsLost,
+        jitter: inboundVideo?.jitter,
+        framesReceived: inboundVideo?.framesReceived,
+        framesDecoded: inboundVideo?.framesDecoded,
+        framesPerSecond: inboundVideo?.framesPerSecond,
+        freezeCount: inboundVideo?.freezeCount,
+        totalFreezeDuration: inboundVideo?.totalFreezeDuration,
+        jitterBufferDelay: inboundVideo?.jitterBufferDelay,
+        jitterBufferEmittedCount: inboundVideo?.jitterBufferEmittedCount,
+        processorReceivedFrames: receivedFrames,
+        processorDroppedFrames: droppedFrames,
+        processorRenderedFrames: renderedFrames,
+        processorLateDroppedFrames: lateDroppedFrames,
+        latestFrameAgeMs: firstVideoFrameArrived ? Math.floor(nowMs() - lastFrameArrivedAt) : null,
+    });
+}
+
+function logPcState(prefix, pc, inputDc, controllerDc) {
+    console.log(`[${prefix}]`, {
+        time: new Date().toISOString(),
+        pcConnectionState: pc?.connectionState,
+        iceConnectionState: pc?.iceConnectionState,
+        iceGatheringState: pc?.iceGatheringState,
+        signalingState: pc?.signalingState,
+        inputDcReadyState: inputDc?.readyState,
+        inputDcBufferedAmount: inputDc?.bufferedAmount,
+        controllerDcReadyState: controllerDc?.readyState,
+        controllerDcBufferedAmount: controllerDc?.bufferedAmount,
+    });
+}
+
+// =================================================
+// セッションID
+// =================================================
 function generateSessionId() {
     if (window.crypto?.randomUUID) {
         return window.crypto.randomUUID();
     }
     return Math.random().toString(36).slice(2, 10);
-}
-
-function getOrCreateSessionId() {
-    const el = document.getElementById("sessionId");
-    if (el) {
-        const v = (el.value || "").trim();
-        if (v) return v;
-
-        const newId = generateSessionId();
-        el.value = newId;
-        return newId;
-    }
-
-    if (!sessionId) {
-        sessionId = generateSessionId();
-    }
-    return sessionId;
-}
-
-function buildSessionUrl(path) {
-    if (!sessionId) {
-        throw new Error("sessionId is not set");
-    }
-    return `${path}?sessionId=${encodeURIComponent(sessionId)}`;
-}
-
-function setAudioUiState(state) {
-    const area = document.getElementById("makeImg");
-    if (!area) return;
-    area.dataset.audioState = state;
 }
 
 async function copySessionId() {
@@ -912,6 +1140,69 @@ async function copySessionId() {
 
 window.copySessionId = copySessionId;
 
+function getOrCreateSessionId() {
+    const el = document.getElementById("sessionId");
+    if (el) {
+        const v = (el.value || "").trim();
+        if (v) return v;
+
+        const newId = generateSessionId();
+        el.value = newId;
+        return newId;
+    }
+
+    if (!sessionId) {
+        sessionId = generateSessionId();
+    }
+    return sessionId;
+}
+
+function buildSessionUrl(path) {
+    if (!sessionId) {
+        throw new Error("sessionId is not set");
+    }
+    return `${path}?sessionId=${encodeURIComponent(sessionId)}`;
+}
+
+// =================================================
+// 音声
+// =================================================
+function setAudioUiState(state) {
+    const area = document.getElementById("makeImg");
+    if (!area) return;
+    area.dataset.audioState = state;
+}
+
+async function onEnableAudio() {
+    try {
+        setAudioUiState("pending");
+
+        if (audioEl) {
+            audioEl.muted = false;
+            audioEl.volume = 1.0;
+            await audioEl.play();
+        }
+
+        const on = document.getElementById("audioOn");
+        if (on) on.checked = true;
+
+        setAudioUiState("on");
+        showToast(locale.validateAudio);
+    } catch (e) {
+        console.error("failed to enable audio", e);
+        log("[ERR] failed to enable audio", e);
+
+        const off = document.getElementById("audioOff");
+        if (off) off.checked = true;
+
+        setAudioUiState("off");
+        showToast(locale.failedToValidateAudio, "error");
+    }
+}
+
+// =================================================
+// リクエスト
+// =================================================
 function sendForceKeyframe(reason) {
     const now = performance.now();
 
@@ -936,6 +1227,37 @@ function sendForceKeyframe(reason) {
     }
 }
 
+// =================================================
+// 情報提供・収集
+// =================================================
+addEventListener("beforeunload", async () => {
+    if (!sessionEnded) {
+        await fetchSessionEnd();
+        sessionEnded = true;
+    }
+});
+
+function setUserId() {
+    try {
+        if (localStorage.getItem("userId") === null) {
+            localStorage.setItem("userId", generateUserInfo());
+        }
+    } catch (e) {
+        console.warn("failed to set userId: " + e);
+    }
+}
+
+function generateUserInfo() {
+    const browser = navigator.appName;
+    if (window.crypto?.randomUUID) {
+        const userId = browser + "/" + window.crypto?.randomUUID();
+        return userId;
+    }
+
+    const userId = browser + "/" + Math.random().toString(36).slice(2, 10);
+    return userId;
+}
+
 async function fetchWebRtcConfig() {
     const token = window.__WEBRTC_CONFIG_TOKEN__;
     if (!token) {
@@ -956,6 +1278,37 @@ async function fetchWebRtcConfig() {
     }
 
     return await res.json();
+}
+
+async function fetchSessionStart() {
+    const userId = localStorage.getItem("userId");
+    const res = await fetch(buildSessionUrl("/start-twins-remote"), {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({userId})
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error("failed to fetch start twins remote: " + text);
+    }
+}
+async function fetchSessionEnd() {
+    const userId = localStorage.getItem("userId");
+    const res = await fetch(buildSessionUrl("/end-twins-remote"), {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({userId})
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error("failed to fetch end twins remote: " + text);
+    }
 }
 
 async function fetchTtlSeconds() {
@@ -1145,38 +1498,6 @@ async function postClientNetworkState(mode) {
     });
 }
 
-//--------------------------------------------------
-// WebRTC stats monitoring
-//--------------------------------------------------
-async function monitorVideoStats(videoReceiver, abortSignal) {
-    while (!abortSignal.aborted) {
-        try {
-            await videoReceiver.getStats();
-        } catch (e) {
-            if (!abortSignal.aborted) {
-                console.error("[monitorVideoStats error]", e);
-                log("[ERR] [monitorVideoStats error]", e);
-            }
-        }
-
-        await sleep(1000);
-    }
-}
-
-function sleep(ms) {
-    return new Promise(r => setTimeout(r, ms));
-}
-
-function setStatus(state, text) {
-    const el = document.getElementById("status");
-    if (!el) return;
-
-    el.className = "";
-    el.id = "status";
-    el.classList.add(state);
-    el.textContent = text;
-}
-
 async function connect() {
     cleanupPeerConnection();
 
@@ -1185,6 +1506,8 @@ async function connect() {
 
     setStatus("connecting", locale.preparingConnection);
     currentStatus = status.preparingConnection;
+
+    await fetchSessionStart();
 
     const config = await fetchWebRtcConfig();
     log("ICE CONFIG:", config);
@@ -1326,11 +1649,21 @@ async function connect() {
         if (pc.iceConnectionState === "disconnected") {
             setStatus("disconnected", locale.disconnected);
             currentStatus = status.disconnected;
+
+            if (!sessionEnded) {
+                await fetchSessionEnd();
+                sessionEnded = true;
+            }
         }
 
         if (pc.iceConnectionState === "failed") {
             setStatus("failed", locale.connectionFailure);
             currentStatus = status.connectionFailure;
+
+            if (!sessionEnded) {
+                await fetchSessionEnd();
+                sessionEnded = true;
+            }
         }
     };
 
@@ -1461,6 +1794,9 @@ async function maybeRestartIceByRtt(selectedPair) {
     }, 800);
 }
 
+// =================================================
+// Relay/Direct処理
+// =================================================
 function urlsOf(server) {
     return Array.isArray(server.urls) ? server.urls : [server.urls];
 }
@@ -1566,6 +1902,9 @@ function startRelayMonitoring() {
     }, 1000);
 }
 
+// =================================================
+// P2Pクリーン
+// =================================================
 function cleanupPeerConnection() {
     if (statsIntervalId) {
         clearInterval(statsIntervalId);
@@ -1658,33 +1997,9 @@ function cleanupPeerConnection() {
     clearCanvas();
 }
 
-async function onEnableAudio() {
-    try {
-        setAudioUiState("pending");
-
-        if (audioEl) {
-            audioEl.muted = false;
-            audioEl.volume = 1.0;
-            await audioEl.play();
-        }
-
-        const on = document.getElementById("audioOn");
-        if (on) on.checked = true;
-
-        setAudioUiState("on");
-        showToast(locale.validateAudio);
-    } catch (e) {
-        console.error("failed to enable audio", e);
-        log("[ERR] failed to enable audio", e);
-
-        const off = document.getElementById("audioOff");
-        if (off) off.checked = true;
-
-        setAudioUiState("off");
-        showToast(locale.failedToValidateAudio, "error");
-    }
-}
-
+// =================================================
+// フルスクリーン
+// =================================================
 async function toggleFullscreen() {
     const player = document.getElementById("player") || canvasEl;
 
@@ -1700,6 +2015,9 @@ async function toggleFullscreen() {
     }
 }
 
+// =================================================
+// フレーム処理
+// =================================================
 function closeFrameSafe(frame) {
     if (!frame) return;
     try {
@@ -1715,6 +2033,9 @@ function replaceLatestFrame(frame) {
     latestFrame = frame;
 }
 
+// =================================================
+// 映像トラック処理
+// =================================================
 async function startVideoTrackProcessor(track) {
     stopVideoTrackProcessor();
 
@@ -2136,232 +2457,9 @@ function startStatsMonitor() {
     }, 2000);
 }
 
-async function logSelectedCandidatePair(pc) {
-    const stats = await pc.getStats();
-
-    let selectedPair = null;
-    let localCandidate = null;
-    let remoteCandidate = null;
-
-    stats.forEach(report => {
-        if (report.type === "candidate-pair" && report.state === "succeeded" && report.nominated) {
-            selectedPair = report;
-        }
-    });
-
-    if (!selectedPair) {
-        stats.forEach(report => {
-            if (report.type === "transport" && report.selectedCandidatePairId) {
-                selectedPair = stats.get(report.selectedCandidatePairId);
-            }
-        });
-    }
-
-    if (selectedPair) {
-        if (selectedPair.localCandidateId) {
-            localCandidate = stats.get(selectedPair.localCandidateId);
-        }
-        if (selectedPair.remoteCandidateId) {
-            remoteCandidate = stats.get(selectedPair.remoteCandidateId);
-        }
-
-        console.log("=== SELECTED CANDIDATE PAIR ===");
-        console.log("pair:", selectedPair);
-        console.log("local:", localCandidate);
-        console.log("remote:", remoteCandidate);
-
-        console.log("summary:", {
-            state: selectedPair.state,
-            nominated: selectedPair.nominated,
-            currentRoundTripTime: selectedPair.currentRoundTripTime,
-            availableOutgoingBitrate: selectedPair.availableOutgoingBitrate,
-            availableIncomingBitrate: selectedPair.availableIncomingBitrate,
-            localCandidateType: localCandidate?.candidateType,
-            localProtocol: localCandidate?.protocol,
-            remoteCandidateType: remoteCandidate?.candidateType,
-            remoteProtocol: remoteCandidate?.protocol,
-            localAddress: localCandidate?.address,
-            remoteAddress: remoteCandidate?.address
-        });
-    } else {
-        console.log("selected candidate pair not found");
-    }
-}
-
-async function logRtcSummary(pc) {
-    const stats = await pc.getStats();
-
-    let selectedPair = null;
-    let inboundVideo = null;
-
-    stats.forEach(report => {
-        if (report.type === "candidate-pair" && report.state === "succeeded" && report.nominated) {
-            selectedPair = report;
-        }
-        if (report.type === "transport" && report.selectedCandidatePairId && !selectedPair) {
-            selectedPair = stats.get(report.selectedCandidatePairId);
-        }
-        if (report.type === "inbound-rtp" && report.kind === "video") {
-            inboundVideo = report;
-        }
-    });
-
-    console.log("[RTC SUMMARY]", {
-        iceConnectionState: pc.iceConnectionState,
-        currentRoundTripTime: selectedPair?.currentRoundTripTime,
-        availableOutgoingBitrate: selectedPair?.availableOutgoingBitrate,
-        availableIncomingBitrate: selectedPair?.availableIncomingBitrate,
-        packetsReceived: inboundVideo?.packetsReceived,
-        bytesReceived: inboundVideo?.bytesReceived,
-        packetsLost: inboundVideo?.packetsLost,
-        jitter: inboundVideo?.jitter,
-        framesReceived: inboundVideo?.framesReceived,
-        framesDecoded: inboundVideo?.framesDecoded,
-        framesPerSecond: inboundVideo?.framesPerSecond,
-        freezeCount: inboundVideo?.freezeCount,
-        totalFreezeDuration: inboundVideo?.totalFreezeDuration,
-        jitterBufferDelay: inboundVideo?.jitterBufferDelay,
-        jitterBufferEmittedCount: inboundVideo?.jitterBufferEmittedCount,
-        processorReceivedFrames: receivedFrames,
-        processorDroppedFrames: droppedFrames,
-        processorRenderedFrames: renderedFrames,
-        processorLateDroppedFrames: lateDroppedFrames,
-        latestFrameAgeMs: firstVideoFrameArrived ? Math.floor(nowMs() - lastFrameArrivedAt) : null,
-    });
-}
-
-
-function logPcState(prefix, pc, inputDc, controllerDc) {
-    console.log(`[${prefix}]`, {
-        time: new Date().toISOString(),
-        pcConnectionState: pc?.connectionState,
-        iceConnectionState: pc?.iceConnectionState,
-        iceGatheringState: pc?.iceGatheringState,
-        signalingState: pc?.signalingState,
-        inputDcReadyState: inputDc?.readyState,
-        inputDcBufferedAmount: inputDc?.bufferedAmount,
-        controllerDcReadyState: controllerDc?.readyState,
-        controllerDcBufferedAmount: controllerDc?.bufferedAmount,
-    });
-}
-
-// ==========================
-// Cap 外し予防 Start
-// ==========================
-function estimateVideoBitrateBps(report) {
-    const now = performance.now();
-
-    if (lastVideoBytes == null || lastVideoBytesAt == null) {
-        lastVideoBytes = report.bytesReceived;
-        lastVideoBytesAt = now;
-        return null;
-    }
-
-    const deltaBytes = report.bytesReceived - lastVideoBytes;
-    const deltaMs = now - lastVideoBytesAt;
-
-    lastVideoBytes = report.bytesReceived;
-    lastVideoBytesAt = now;
-
-    if (deltaMs <= 0 || deltaBytes < 0) return null;
-
-    return (deltaBytes * 8 * 1000) / deltaMs;
-}
-
-function updateCapViolationScore(report, bitrateBps, isRelay) {
-    if (!isRelay) {
-        capViolationScore = 0;
-        return false;
-    }
-
-    const width  = report.frameWidth || 0;
-    const height = report.frameHeight || 0;
-    const fps    = report.framesPerSecond || 0;
-
-    let scoreAdd = 0;
-
-    if (width > RELAY_CAP_WIDTH || height > RELAY_CAP_HEIGHT) {
-        scoreAdd += 4;
-    }
-
-    if (fps > RELAY_CAP_FPS + FPS_MARGIN) {
-        scoreAdd += 3;
-    }
-
-    if (scoreAdd > 0) {
-        capViolationScore += scoreAdd;
-    } else {
-        capViolationScore = Math.max(0, capViolationScore - 1);
-    }
-
-    return capViolationScore >= 12
-}
-
-function disconnectForCapViolation(report, bitrateBps) {
-    console.warn("[CAP VIOLATION] disconnecting", {
-        width: report.frameWidth,
-        height: report.frameHeight,
-        fps: report.framesPerSecond,
-        bitrateMbps: bitrateBps ? bitrateBps / 1_000_000 : null
-    });
-    log("[WARN] [CAP VIOLATION] disconnecting", {
-        width: report.frameWidth,
-        height: report.frameHeight,
-        fps: report.framesPerSecond,
-        bitrateMbps: bitrateBps ? bitrateBps / 1_000_000 : null
-    });
-
-    setStatus("failed", locale.capViolationWarning);
-    currentStatus = status.capViolationWarning;
-
-    log("!!! [WARN] Cap Violation is detected !!!");
-    log("!!! Disconnected from the host !!!");
-
-    try {
-        pc?.close();
-    } catch(_) {}
-
-    pc = null;
-}
-// ==========================
-// Cap 外し予防 End
-// ==========================
-
-function stopDataChannelKeepalive() {
-    if (dcKeepaliveTimer) {
-        clearInterval(dcKeepaliveTimer);
-        dcKeepaliveTimer = null;
-    }
-}
-
-function handleDataChannelDead(reason) {
-    if (reconnecting) return;
-    reconnecting = true;
-
-    console.warn("[dc.dead]", reason);
-    log("[WARN] [dc.dead]", reason);
-
-    stopDataChannelKeepalive();
-
-    try {
-        if (inputDc && inputDc.readyState !== "closed") {
-            inputDc.close();
-        }
-        if (controllerDc && controllerDc.readyState !== "closed") {
-            controllerDc.close();
-        }
-    } catch {}
-
-    try {
-        if (pc && pc.signalingState !== "closed") {
-            pc.close();
-        }
-    } catch {}
-}
-
-// ===========================
-// 多言語対応 Start
-// ===========================
+// =================================================
+// 多言語対応
+// =================================================
 const locales = [
     { name: "日本語", value: "ja-JP"},
     { name: "English", value: "en-US"}
@@ -2459,13 +2557,10 @@ function loadLanguage() {
 
     isLanguageInitialized = true;
 }
-// ===========================
-// 多言語対応 End
-// ===========================
 
-// ===========================
-// ログ保存 Start
-// ===========================
+// =================================================
+// ログ保存
+// =================================================
 function downloadLogToFile() {
     const log = document.getElementById("log").textContent;
     if (log == null) { return; }
@@ -2487,13 +2582,10 @@ function downloadLogToFile() {
 }
 
 window.downloadLogToFile = downloadLogToFile;
-// ===========================
-// ログ保存 End
-// ===========================
 
-// ===========================
-// スリープ機能ロック Start
-// ===========================
+// =================================================
+// スリープ機能ロック
+// =================================================
 let wakeLock = null;
 
 if (navigator.userAgent.match(/(iPhone|iPad|iPod|Android)/i)) {
@@ -2526,8 +2618,5 @@ async function releaseWakeLock() {
     log("End ScreenWakeLock");
     await wakeLock.release();
 }
-// ===========================
-// スリープ機能ロック End
-// ===========================
 
 load();
