@@ -775,6 +775,7 @@ async function load() {
     await fetchTtlSeconds();
     await fetchNotifications();
     tokenTimeoutMessage = setTimeout(await tokenTimeout, ttlSeconds);
+    setUserId();
     
     setNotices();
 
@@ -1236,6 +1237,27 @@ window.onunload = async function () {
   }
 };
 
+function setUserId() {
+    try {
+        if (localStorage.getItem("userId") === null) {
+            localStorage.setItem("userId", generateUserInfo());
+        }
+    } catch (e) {
+        console.warn("failed to set userId: " + e);
+    }
+}
+
+function generateUserInfo() {
+    const browser = navigator.appName;
+    if (window.crypto?.randomUUID) {
+        const userId = browser + "/" + window.crypto?.randomUUID();
+        return userId;
+    }
+
+    const userId = browser + "/" + Math.random().toString(36).slice(2, 10);
+    return userId;
+}
+
 async function fetchWebRtcConfig() {
     const token = window.__WEBRTC_CONFIG_TOKEN__;
     if (!token) {
@@ -1259,8 +1281,13 @@ async function fetchWebRtcConfig() {
 }
 
 async function fetchSessionStart() {
+    const userId = localStorage.getItem("userId");
     const res = await fetch(buildSessionUrl("/start-twins-remote"), {
-        method: "POST"
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({userId})
     });
 
     if (!res.ok) {
@@ -1269,8 +1296,13 @@ async function fetchSessionStart() {
     }
 }
 async function fetchSessionEnd() {
+    const userId = localStorage.getItem("userId");
     const res = await fetch(buildSessionUrl("/end-twins-remote"), {
-        method: "POST"
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({userId})
     });
 
     if (!res.ok) {
