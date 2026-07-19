@@ -1230,12 +1230,12 @@ function sendForceKeyframe(reason) {
 // =================================================
 // 情報提供・収集
 // =================================================
-window.onunload = async function () {
-  if (!sessionEnded) {
-    await fetchSessionEnd();
-    sessionEnded = true;
-  }
-};
+addEventListener("beforeunload", async () => {
+    if (!sessionEnded) {
+        await fetchSessionEnd();
+        sessionEnded = true;
+    }
+});
 
 function setUserId() {
     try {
