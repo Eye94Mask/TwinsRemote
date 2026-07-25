@@ -1245,7 +1245,7 @@ addEventListener("beforeunload", async () => {
 
 function setUserId() {
     try {
-        if (localStorage.getItem("userId") === null) {
+        if (localStorage.getItem("userId") === null || localStorage.getItem("userId").includes("Netscape")) {
             localStorage.setItem("userId", generateUserInfo());
         }
     } catch (e) {
@@ -1254,7 +1254,10 @@ function setUserId() {
 }
 
 function generateUserInfo() {
-    const browser = navigator.appName;
+    let browser = "NotSupported";
+    if (navigator.userAgentData !== undefined) {
+        browser = navigator.userAgentData.brands[navigator.userAgentData.brands.length - 1].brand;
+    }
     if (window.crypto?.randomUUID) {
         const userId = browser + "/" + window.crypto?.randomUUID();
         return userId;
