@@ -20,9 +20,8 @@ Server fees (production + TURN + staging) + domain fees = 2,300 yen/month (14.38
 
 If you like TwinsRemote and want it to continue for a long time, or if you’d like us to keep working hard to develop new features, please consider supporting us.
 
-*[OFUSE](https://ofuse.me/eye94mask)
+* [OFUSE](https://ofuse.me/eye94mask)
 
-OFUSE
 
 # Table of Contents
 - [Features](#features)
