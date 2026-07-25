@@ -37,7 +37,7 @@ let renderedFrames = 0;
 let lateDroppedFrames = 0;
 
 let ttlSeconds = 600 * 1000;
-let tokenTimeoutMessage = null;
+let sessionTimeoutMessage = null;
 
 let status = Object.freeze({
     notConnected: "notConnected",
@@ -774,7 +774,7 @@ async function load() {
     await startWakeLock();
     await fetchTtlSeconds();
     await fetchNotifications();
-    tokenTimeoutMessage = setTimeout(await tokenTimeout, ttlSeconds);
+    sessionTimeoutMessage = setTimeout(await sessionTimeout, ttlSeconds);
     setUserId();
     
     setNotices();
@@ -883,12 +883,18 @@ function startSplash() {
     }, 2400);
 }
 
-async function tokenTimeout() {
+async function sessionTimeout() {
     await releaseWakeLock();
+
+    if (!sessionEnded) {
+        await fetchSessionEnd();
+        sessionEnded = true;
+    }
+
     if (!alert(locale.invalidToken)) {
         location.reload();
     }
-    window.clearTimeout(tokenTimeoutMessage);
+    window.clearTimeout(sessionTimeoutMessage);
 }
 
 function setupCanvas() {
@@ -1635,7 +1641,7 @@ async function connect() {
         if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
             setStatus("connected", locale.connected);
             currentStatus = status.connected;
-            clearTimeout(tokenTimeoutMessage);
+            clearTimeout(sessionTimeoutMessage);
 
             if (!rtcSummaryIntervalId) {
                 rtcSummaryIntervalId = setInterval(() => {
