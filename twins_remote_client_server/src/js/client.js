@@ -1236,6 +1236,28 @@ function sendForceKeyframe(reason) {
 // =================================================
 // 情報提供・収集
 // =================================================
+function reloadIfRestored() {
+    const navEntries = performance.getEntriesByType("navigation");
+
+    if (navEntries.length > 0) {
+        const type = navEntries[0].type;
+
+        if (type === "back_forward") {
+            location.reload();
+            return;
+        }
+    }
+}
+
+window.addEventListener("pageshow", (event) => {
+    if (event.persisted) {
+        location.reload();
+        return;
+    }
+
+    reloadIfRestored();
+});
+
 addEventListener("beforeunload", async () => {
     if (!sessionEnded) {
         await fetchSessionEnd();
