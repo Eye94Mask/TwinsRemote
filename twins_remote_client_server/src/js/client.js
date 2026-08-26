@@ -1170,6 +1170,15 @@ function buildSessionUrl(path) {
     return `${path}?sessionId=${encodeURIComponent(sessionId)}`;
 }
 
+function buildSessionAndUserUrl(path) {
+    let url = buildSessionUrl(path);
+    
+    if (localStorage.getItem("userId") === null) {
+        throw new Error("userId is not set");
+    }
+    return `${url}&userId=${localStorage.getItem("userId")}`;
+}
+
 // =================================================
 // 音声
 // =================================================
@@ -1407,7 +1416,7 @@ function candidateKey(c) {
 }
 
 async function postOffer(offer) {
-    await postJson(buildSessionUrl("/offer"), offer);
+    await postJson(buildSessionAndUserUrl("/offer"), offer);
 }
 
 async function pollAnswerOnce() {
@@ -1421,7 +1430,6 @@ async function pollAnswerOnce() {
     ) {
         return true;
     }
-
 
     await pc.setRemoteDescription(json);
     console.log("remote answer set / updated");
