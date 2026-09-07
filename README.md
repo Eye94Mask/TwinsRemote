@@ -12,6 +12,9 @@ Windows向けの低遅延P2Pリモートプレイシステムです。
 
 Steam Remote Play Together のような体験を、Steam以外のゲームやアプリでも利用できることを目指しています。
 
+ホストの利用方法は[こちら](#ホスト側-1)
+クライアントの利用方法は[こちら](#クライアント側-1)
+
 --- 
 
 # 応援してくれる方向け
@@ -218,10 +221,12 @@ Windows Forms アプリケーションとして動作します。
 
 ## ホスト側
 
-1. `TwinsRemoteHost.exe` を起動
-2. 配信モードを選択
-3. クライアントから共有されたセッションIDを入力
-4. 接続ボタンを押す
+1. [こちら](https://github.com/Eye94Mask/TwinsRemote/releases)からTwinsRemoteHost.zipをダウンロード
+2. TwinsRemoteHost.zip を解凍
+3. `TwinsRemoteHost.exe` を起動
+4. 配信モードを選択
+5. クライアントから共有されたセッションIDを入力
+6. 接続ボタンを押す
 
 接続後、自動的に配信が開始されます。
 
