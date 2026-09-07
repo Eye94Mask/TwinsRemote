@@ -11,6 +11,8 @@ There are two reasons behind the name:
 * It started as a system for me to play with my twin brother.
 * I wanted the two devices to operate with low latency, as if they were a single device.
 
+* Click [here](#host) to learn how to use the host
+* Click [here](#client) to learn how to use the client
 ---
 
 # For Those Who Want to Support Us
@@ -183,10 +185,12 @@ The host application supports:
 
 ## Host
 
-1. Launch `TwinsRemoteHost.exe`
-2. Select a streaming mode
-3. Enter the session ID shared by the client
-4. Press the connect button
+1. Click [here](https://github.com/Eye94Mask/TwinsRemote/releases) to download `TwinsRemoteHost.zip`
+2. Unzip `TwinsRemoteHost.zip`
+3. Launch `TwinsRemoteHost.exe`
+4. Select a streaming mode
+5. Enter the session ID shared by the client
+6. Press the connect button
 
 Streaming will start automatically after the connection is established.
 
