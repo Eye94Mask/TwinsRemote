@@ -221,8 +221,8 @@ Windows Forms アプリケーションとして動作します。
 
 ## ホスト側
 
-1. [こちら](https://github.com/Eye94Mask/TwinsRemote/releases)からTwinsRemoteHost.zipをダウンロード
-2. TwinsRemoteHost.zip を解凍
+1. [こちら](https://github.com/Eye94Mask/TwinsRemote/releases)から`TwinsRemoteHost.zip`をダウンロード
+2. `TwinsRemoteHost.zip` を解凍
 3. `TwinsRemoteHost.exe` を起動
 4. 配信モードを選択
 5. クライアントから共有されたセッションIDを入力
