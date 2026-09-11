@@ -27,6 +27,7 @@
 
 NV_ENCODE_API_FUNCTION_LIST g_nvenc = {};
 std::vector<nlohmann::json> customs;
+std::string currentScreenName = "";
 
 static const char* NvEncStatusToString(NVENCSTATUS st) {
     switch (st) {
@@ -570,6 +571,7 @@ static DuplicationContext CreateDuplication(ID3D11Device* device) {
 
     IDXGIDevice* dxgiDevice = nullptr;
     IDXGIAdapter* adapter = nullptr;
+	bool sawAccessDenied = false;
 
     try {
         CheckHr(
@@ -585,6 +587,7 @@ static DuplicationContext CreateDuplication(ID3D11Device* device) {
             HRESULT hr = adapter->EnumOutputs(i, &output);
 
             if (hr == DXGI_ERROR_NOT_FOUND) {
+				std::cerr << "[TEST] DXGI_ERROR_NOT_FOUND" << "\n";
                 break;
             }
 
@@ -596,6 +599,10 @@ static DuplicationContext CreateDuplication(ID3D11Device* device) {
             output->GetDesc(&outputDesc);
 
             std::string outputName = NarrowFromWide(outputDesc.DeviceName);
+
+			if (currentScreenName != "" && currentScreenName != outputName) {
+				continue;
+			}
 
             std::cerr << "[INFO] Output[" << i << "]: "
                 << outputName
@@ -626,7 +633,7 @@ static DuplicationContext CreateDuplication(ID3D11Device* device) {
 
             hr = output1->DuplicateOutput(device, &out.duplication);
 
-            if (SUCCEEDED(hr)) {
+			if (SUCCEEDED(hr)) {
                 DXGI_OUTDUPL_DESC duplDesc{};
                 out.duplication->GetDesc(&duplDesc);
 
@@ -640,8 +647,16 @@ static DuplicationContext CreateDuplication(ID3D11Device* device) {
                 output->Release();
                 SafeRelease(adapter);
                 SafeRelease(dxgiDevice);
+
+				if (currentScreenName == "") {
+					currentScreenName = outputName;
+				}
                 return out;
             }
+
+			if (hr == E_ACCESSDENIED) {
+				sawAccessDenied = true;
+			}
 
             std::cerr << "[WARN] DuplicateOutput failed on Output[" << i << "]: HRESULT=0x"
                 << std::hex << hr << std::dec << "\n";
@@ -649,6 +664,9 @@ static DuplicationContext CreateDuplication(ID3D11Device* device) {
             output1->Release();
             output->Release();
         }
+		if (sawAccessDenied) {
+			throw std::runtime_error("Desktop duplication temporarily unavailable (E_ACCESSDENIED)");
+		}
 
         throw std::runtime_error("No output could be duplicated");
     }
@@ -1194,6 +1212,97 @@ static void DestroySession(
     DestroyDuplication(dup);
 }
 
+static void RecreateCaptureResourcesUntilSuccess(
+	ID3D11Device* captureDevice,
+	ID3D11Device* encodeDevice,
+	ID3D11DeviceContext* encodeContext,
+	DuplicationContext& dup,
+	GpuBridgeContext & bridge,
+	ScaleContext& scaler,
+	EncoderContext& enc,
+	const StreamConfig& cfg,
+	bool sameAdapter,
+	std::string screenName
+) {
+	// Exclusive fullscreen / display-mode changes can invalidate DXGI Desktop Duplication.
+	// The new duplication may also have a different input resolution, so the resources
+	// which depend on the capture size (bridge + scaler) must be rebuilt together.
+	constexpr DWORD RETRY_MS = 200;
+	uint32_t retryCount = 0;
+
+	while (true) {
+		try {
+			if (retryCount == 0 || retryCount % 10 == 0) {
+				std::cerr << "[DXGI] Trying to recreate desktop duplication...\n";
+			}
+			
+			// The NVENC encoder itself is intentionally kept alive.
+			// Scale resources contain NVENC registered resources, so destroy them first.
+			DestroyScaler(scaler, enc.encoder);
+
+			// The bridge is sized from the capture resolution.
+			if (!sameAdapter) {
+				DestroyGpuBridge(bridge);
+			}
+
+			// Release the old Desktop Duplication object
+			DestroyDuplication(dup);
+
+			// Recreate duplication and obtain the current desktop dimensions.
+			dup = CreateDuplication(captureDevice);
+
+			std::cerr << "[DXGI] Desktop duplication recreated: "
+				<< dup.width << "x" << dup.height
+				<< "\n";
+
+			// Recreate the cross-GPU bridge with the new capture dimensions.
+			if (!sameAdapter) {
+				bridge = CreateGpuBridge(
+					encodeDevice,
+					dup.width,
+					dup.height
+				);
+			}
+
+			// Recreate the scaler because its input dimensions are fixed when it is created.
+			// The encoder outpout resolution remains cfg.width x cfg.height.
+			scaler = CreateScaler(
+				encodeDevice,
+				encodeContext,
+				enc.encoder,
+				dup.width,
+				dup.height,
+				cfg.width,
+				cfg.height
+			);
+
+			std::cerr << "[DXGI] Desktop capture resources recreated successfully.\n";
+
+			return;
+		}
+		catch (const std::exception& e) {
+			++retryCount;
+
+			// If any step after CreateDuplication failed, make the next attempt start
+			// from a clean capture-resource state. The encoder remains untouched.
+			DestroyScaler(scaler, enc.encoder);
+			if (!sameAdapter) {
+				DestroyGpuBridge(bridge);
+			}
+			DestroyDuplication(dup);
+
+			if (retryCount == 1 || retryCount % 10 == 0) {
+				std::cerr
+					<< "[DXGI] Capture resource recreation failed: "
+					<< e.what()
+					<< "\n";
+			}
+
+			Sleep(RETRY_MS);
+		}
+	}
+}
+
 static void CreateSession(
     ID3D11Device* captureDevice,
     ID3D11Device* encodeDevice,
@@ -1638,21 +1747,24 @@ int main(int argc, char** argv) {
         EncodeSlot* lastEncodedSlot = nullptr;
 		uint64_t lastEncodedMs = 0;
 		const uint64_t FREEZE_TIMEOUT_MS = 500;
+		
+		// Create the complete capture/encode session once.
+		// During a DXGI ACCESS_LOST recovery, only the resources that depend on
+		// the desktop capture resolution are recreated; NVENC itself is preserved.
+		CreateSession(
+			captureDevice,
+			encodeDevice,
+			encodeContext,
+			dup,
+			bridge,
+			scaler,
+			enc,
+			cfg,
+			sameAdapter
+		);
 
         while (true) {
             try {
-                CreateSession(
-                    captureDevice,
-                    encodeDevice,
-                    encodeContext,
-                    dup,
-                    bridge,
-                    scaler,
-                    enc,
-                    cfg,
-					sameAdapter
-                );
-
                 while (true) {
                     IDXGIResource* desktopResource = nullptr;
                     ID3D11Texture2D* desktopTex = nullptr;
@@ -1703,6 +1815,9 @@ int main(int argc, char** argv) {
                         }
 
                         if (hr == DXGI_ERROR_ACCESS_LOST) {
+							std::cerr << "[DXGI] AcquireNextFrame: ACCESS_LOST"
+								<< " - desktop temporarily unavailable\n";
+
                             throw RecreateSessionException("AcquireNextFrame: ACCESS_LOST");
                         }
 
@@ -1809,15 +1924,39 @@ int main(int argc, char** argv) {
                 }
             }
             catch (const RecreateSessionException& e) {
-                std::cerr << "[WARN] Recreating session: " << e.what() << "\n";
+				std::cerr
+					<< "[WARN] Desktop capture lost: "
+					<< e.what()
+					<< "\n";
 
-                DestroySession(dup, bridge, scaler, enc);
+				// ------------------------------------------------
+				// Recreate the complete set of capture-size-dependent resources.
+				// NVENC encoder is intentionally kept alive.
+				// ------------------------------------------------
+				RecreateCaptureResourcesUntilSuccess(
+					captureDevice,
+					encodeDevice,
+					encodeContext,
+					dup,
+					bridge,
+					scaler,
+					enc,
+					cfg,
+					sameAdapter,
+					currentScreenName
+				);
 
-                firstFrame = true;
-                lastEncodedSlot = nullptr;
+				// The first frame after recovery must be a keyframe.
+				firstFrame = true;
+				forceIdrRequested.store(true);
 
-                Sleep(300);
-                continue;
+				// A slot belongs to the old scaler resources and must never be reused.
+				lastEncodedSlot = nullptr;
+
+				std::cerr << "[DXGI] Desktop capture recovered."
+					<< "\n";
+
+				continue;
             }
         }
     }
