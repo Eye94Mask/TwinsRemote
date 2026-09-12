@@ -32,6 +32,7 @@ namespace TwinsRemoteHost
         private ProcessSelectorForm? pSelector = null;
         private ModeCreatorForm? mCreator = null;
         private ModeEditorForm? mEditor = null;
+        private ConnectionSettings? mSettings = null;
         private NotificationsForm? notificationsForm = null;
         private string pId = string.Empty;
         private Status status = Status.Stop;
@@ -578,6 +579,34 @@ namespace TwinsRemoteHost
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
+
+            string allowed;
+            if (this.mSettings == null || this.mSettings.IsDisposed)
+            {
+                this.mSettings = new ConnectionSettings(this.locale);
+                this.mSettings.Left = this.Left + 200;
+                this.mSettings.Top = this.Top + 200;
+                this.mSettings.StartPosition = FormStartPosition.Manual;
+                this.mSettings.ShowDialog();
+            }
+            else
+            {
+                this.mSettings.WindowState = FormWindowState.Normal;
+                this.mSettings.Activate();
+            }
+
+            if (!this.mSettings.IsConnectionReady())
+            {
+                this.mSettings.Dispose();
+                this.mSettings = null;
+                return;
+            }
+
+            string screen = this.mSettings.GetChosenScreenName();
+
+            allowed = this.mSettings.GetAllowedString();
+            this.mSettings.Dispose();
+            this.mSettings = null;
 
             string hostExePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "exes", "twins_remote_host.exe");
             string exeDir = Path.GetDirectoryName(hostExePath)!;
@@ -1183,6 +1212,33 @@ namespace TwinsRemoteHost
 
         [JsonProperty("logHasBeenSaved")]
         public required string LogHasBeenSaved { get; set; }
+
+        [JsonProperty("allowedListLabel")]
+        public required string AllowedListLabel { get; set; }
+
+        [JsonProperty("controllerAllowed")]
+        public required string ControllerAllowed { get; set; }
+
+        [JsonProperty("microphoneAllowed")]
+        public required string MicrophoneAllowed { get; set; }
+
+        [JsonProperty("keyboardMouseAllowed")]
+        public required string KeyboardMouseAllowed { get; set; }
+
+        [JsonProperty("controllerCaution")]
+        public required string ControllerCaution { get; set; }
+
+        [JsonProperty("microphoneCaution")]
+        public required string MicrophoneCaution { get; set; }
+
+        [JsonProperty("keyboardMouseCaution")]
+        public required string KeyboardMouseCaution { get; set; }
+
+        [JsonProperty("screen")]
+        public required string Screen { get; set; }
+
+        [JsonProperty("selectScreen")]
+        public required string SelectScreen { get; set; }
     }
 
     public class IssueHostTokenRequest
