@@ -814,6 +814,7 @@
             Controls.Add(resolusionLabel);
             FormBorderStyle = FormBorderStyle.SizableToolWindow;
             Icon = (Icon)resources.GetObject("$this.Icon");
+            MaximumSize = new Size(1280, 1316);
             MinimumSize = new Size(1280, 1316);
             Name = "ModeCreatorForm";
             Text = "ModeCreator";
