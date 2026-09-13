@@ -89,6 +89,7 @@
             // 
             // detailSettingsContainerFlowLayoutPanel
             // 
+            detailSettingsContainerFlowLayoutPanel.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             detailSettingsContainerFlowLayoutPanel.BorderStyle = BorderStyle.FixedSingle;
             detailSettingsContainerFlowLayoutPanel.Controls.Add(detailSettingsFlowLayoutPanel1);
             detailSettingsContainerFlowLayoutPanel.Controls.Add(detailSettingsFlowLayoutPanel2);
@@ -533,8 +534,10 @@
             // 
             // closeButton
             // 
+            closeButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             closeButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             closeButton.Location = new Point(941, 1190);
+            closeButton.MinimumSize = new Size(131, 52);
             closeButton.Name = "closeButton";
             closeButton.Size = new Size(131, 52);
             closeButton.TabIndex = 63;
@@ -545,8 +548,10 @@
             // 
             // saveButton
             // 
+            saveButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             saveButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             saveButton.Location = new Point(1104, 1190);
+            saveButton.MinimumSize = new Size(131, 52);
             saveButton.Name = "saveButton";
             saveButton.Size = new Size(131, 52);
             saveButton.TabIndex = 59;
@@ -557,6 +562,7 @@
             // 
             // detailSettingLabel
             // 
+            detailSettingLabel.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             detailSettingLabel.BackColor = SystemColors.Control;
             detailSettingLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             detailSettingLabel.Location = new Point(17, 650);

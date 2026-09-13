@@ -150,6 +150,7 @@
             // 
             // detailSettingLabel
             // 
+            detailSettingLabel.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             detailSettingLabel.BackColor = SystemColors.Control;
             detailSettingLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             detailSettingLabel.Location = new Point(12, 665);
@@ -561,6 +562,7 @@
             // 
             // saveButton
             // 
+            saveButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             saveButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             saveButton.Location = new Point(1099, 1205);
             saveButton.Name = "saveButton";
@@ -573,6 +575,7 @@
             // 
             // closeButton
             // 
+            closeButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             closeButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             closeButton.Location = new Point(936, 1205);
             closeButton.Name = "closeButton";
@@ -609,6 +612,7 @@
             // 
             // detailSettingsContainerFlowLayoutPanel
             // 
+            detailSettingsContainerFlowLayoutPanel.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             detailSettingsContainerFlowLayoutPanel.BorderStyle = BorderStyle.FixedSingle;
             detailSettingsContainerFlowLayoutPanel.Controls.Add(detailSettingsFlowLayoutPanel1);
             detailSettingsContainerFlowLayoutPanel.Controls.Add(detailSettingsFlowLayoutPanel2);
@@ -810,6 +814,8 @@
             Controls.Add(resolusionLabel);
             FormBorderStyle = FormBorderStyle.SizableToolWindow;
             Icon = (Icon)resources.GetObject("$this.Icon");
+            MaximumSize = new Size(1280, 1316);
+            MinimumSize = new Size(1280, 1316);
             Name = "ModeCreatorForm";
             Text = "ModeCreator";
             detailSettingsFlowLayoutPanel1.ResumeLayout(false);

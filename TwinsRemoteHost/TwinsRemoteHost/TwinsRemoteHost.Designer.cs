@@ -165,8 +165,9 @@
             // 
             // logTextBox
             // 
+            logTextBox.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             logTextBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            logTextBox.Location = new Point(98, 497);
+            logTextBox.Location = new Point(100, 509);
             logTextBox.Multiline = true;
             logTextBox.Name = "logTextBox";
             logTextBox.ScrollBars = ScrollBars.Vertical;
@@ -175,6 +176,7 @@
             // 
             // languageComboBox
             // 
+            languageComboBox.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             languageComboBox.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             languageComboBox.FormattingEnabled = true;
             languageComboBox.Location = new Point(2110, 12);
@@ -186,6 +188,7 @@
             // 
             // createCustomModeButton
             // 
+            createCustomModeButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             createCustomModeButton.BackColor = Color.White;
             createCustomModeButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             createCustomModeButton.Location = new Point(1887, 88);
@@ -199,6 +202,7 @@
             // 
             // updateCustomMode
             // 
+            updateCustomMode.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             updateCustomMode.BackColor = Color.White;
             updateCustomMode.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             updateCustomMode.Location = new Point(1887, 178);
@@ -212,6 +216,7 @@
             // 
             // infoBellPictureBox
             // 
+            infoBellPictureBox.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             infoBellPictureBox.BackColor = SystemColors.Control;
             infoBellPictureBox.Enabled = false;
             infoBellPictureBox.ErrorImage = null;
@@ -226,6 +231,7 @@
             // 
             // notificationCountLabel
             // 
+            notificationCountLabel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             notificationCountLabel.AutoSize = true;
             notificationCountLabel.BackColor = Color.Red;
             notificationCountLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
@@ -239,6 +245,7 @@
             // 
             // updateLabel
             // 
+            updateLabel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             updateLabel.AutoSize = true;
             updateLabel.BackColor = Color.LimeGreen;
             updateLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
@@ -251,6 +258,7 @@
             // 
             // saveLogButton
             // 
+            saveLogButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             saveLogButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             saveLogButton.Location = new Point(100, 979);
             saveLogButton.Name = "saveLogButton";
@@ -274,6 +282,7 @@
             // 
             // versionLabel
             // 
+            versionLabel.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             versionLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             versionLabel.ImageAlign = ContentAlignment.MiddleRight;
             versionLabel.Location = new Point(2044, 999);
@@ -288,7 +297,7 @@
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(2300, 1046);
+            ClientSize = new Size(2304, 1050);
             Controls.Add(versionLabel);
             Controls.Add(audioLabel);
             Controls.Add(saveLogButton);
@@ -311,7 +320,6 @@
             Controls.Add(modeLabel);
             FormBorderStyle = FormBorderStyle.SizableToolWindow;
             Icon = (Icon)resources.GetObject("$this.Icon");
-            MaximumSize = new Size(2326, 1106);
             MinimumSize = new Size(2326, 1106);
             Name = "Host";
             Text = "TwinsRemote Host";

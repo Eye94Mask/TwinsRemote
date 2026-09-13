@@ -39,7 +39,7 @@
             // 
             okButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             okButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            okButton.Location = new Point(772, 1294);
+            okButton.Location = new Point(772, 1334);
             okButton.Name = "okButton";
             okButton.Size = new Size(131, 52);
             okButton.TabIndex = 8;
@@ -52,7 +52,7 @@
             // 
             cancelButton1.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             cancelButton1.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
-            cancelButton1.Location = new Point(621, 1294);
+            cancelButton1.Location = new Point(621, 1334);
             cancelButton1.Name = "cancelButton1";
             cancelButton1.Size = new Size(131, 52);
             cancelButton1.TabIndex = 9;
@@ -86,11 +86,12 @@
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(915, 1358);
+            ClientSize = new Size(915, 1398);
             Controls.Add(selectScreenLabel);
             Controls.Add(cancelButton1);
             Controls.Add(okButton);
             Controls.Add(screenOptionFlowLayoutPanel);
+            MinimumSize = new Size(937, 1454);
             Name = "ConnectionSettings";
             Text = "ConnectionSettings";
             ResumeLayout(false);
