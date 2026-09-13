@@ -112,5 +112,7 @@
   "newMinorUpdate": "New features have been released",
   "newPatchUpdate": "bug fixes has been released",
   "saveLog": "Save Log",
-  "logHasBeenSaved": "The log has been saved"
+  "logHasBeenSaved": "The log has been saved",
+  "screen": "Screen",
+  "selectScreen": "Select the screen to share"
 }

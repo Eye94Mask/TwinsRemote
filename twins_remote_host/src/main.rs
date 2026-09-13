@@ -42,7 +42,10 @@ struct Args {
     mode: String,
 
     #[arg(long)]
-    session: String
+    session: String,
+
+    #[arg(long)]
+    screen: String
 }
 
 #[derive(Debug, Clone)]
@@ -73,6 +76,7 @@ async fn main() -> Result<()> {
     
     let preset = args.mode;
     let session_id = args.session;
+    let screen = args.screen;
 
     let preset_for_nvenc_thread = preset.clone();
 
@@ -80,6 +84,7 @@ async fn main() -> Result<()> {
     println!("[INFO] Starting Remote Play Host");
     println!("[INFO] mode={}", preset);
     println!("[INFO] session={}", session_id);
+    println!("[INFO] screen={}", screen);
 
     let (audio_cmd_tx, audio_cmd_rx) = std::sync::mpsc::channel::<AudioCommand>();
     let (quit_tx, quit_rx) = std::sync::mpsc::channel::<()>();
@@ -130,6 +135,7 @@ async fn main() -> Result<()> {
     println!("[INFO] launching NvEnc.exe preset={}", preset_for_nvenc_thread);
     let mut child = Command::new("NvEnc.exe")
         .arg(&preset_for_nvenc_thread)
+        .arg(&screen)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
