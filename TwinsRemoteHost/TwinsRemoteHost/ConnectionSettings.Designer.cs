@@ -64,7 +64,7 @@
             // screenOptionFlowLayoutPanel
             // 
             screenOptionFlowLayoutPanel.AutoScroll = true;
-            screenOptionFlowLayoutPanel.Location = new Point(12, 50);
+            screenOptionFlowLayoutPanel.Location = new Point(12, 65);
             screenOptionFlowLayoutPanel.Name = "screenOptionFlowLayoutPanel";
             screenOptionFlowLayoutPanel.Size = new Size(891, 724);
             screenOptionFlowLayoutPanel.TabIndex = 18;
@@ -74,7 +74,7 @@
             selectScreenLabel.AutoSize = true;
             selectScreenLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             selectScreenLabel.ImageAlign = ContentAlignment.MiddleRight;
-            selectScreenLabel.Location = new Point(12, 5);
+            selectScreenLabel.Location = new Point(12, 20);
             selectScreenLabel.Name = "selectScreenLabel";
             selectScreenLabel.RightToLeft = RightToLeft.Yes;
             selectScreenLabel.Size = new Size(98, 42);

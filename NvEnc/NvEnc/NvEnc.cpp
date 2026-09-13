@@ -27,7 +27,6 @@
 
 NV_ENCODE_API_FUNCTION_LIST g_nvenc = {};
 std::vector<nlohmann::json> customs;
-std::string currentScreenName = "";
 
 static const char* NvEncStatusToString(NVENCSTATUS st) {
     switch (st) {
@@ -566,7 +565,7 @@ static std::pair<IDXGIAdapter1*, std::string> FindNvencAdapter() {
 	return std::pair(selected, encoderName);
 }
 
-static DuplicationContext CreateDuplication(ID3D11Device* device) {
+static DuplicationContext CreateDuplication(ID3D11Device* device, std::string screenName) {
     DuplicationContext out{};
 
     IDXGIDevice* dxgiDevice = nullptr;
@@ -600,7 +599,7 @@ static DuplicationContext CreateDuplication(ID3D11Device* device) {
 
             std::string outputName = NarrowFromWide(outputDesc.DeviceName);
 
-			if (currentScreenName != "" && currentScreenName != outputName) {
+			if (screenName != "" && screenName != outputName) {
 				continue;
 			}
 
@@ -647,10 +646,6 @@ static DuplicationContext CreateDuplication(ID3D11Device* device) {
                 output->Release();
                 SafeRelease(adapter);
                 SafeRelease(dxgiDevice);
-
-				if (currentScreenName == "") {
-					currentScreenName = outputName;
-				}
                 return out;
             }
 
@@ -1249,7 +1244,7 @@ static void RecreateCaptureResourcesUntilSuccess(
 			DestroyDuplication(dup);
 
 			// Recreate duplication and obtain the current desktop dimensions.
-			dup = CreateDuplication(captureDevice);
+			dup = CreateDuplication(captureDevice, screenName);
 
 			std::cerr << "[DXGI] Desktop duplication recreated: "
 				<< dup.width << "x" << dup.height
@@ -1312,9 +1307,10 @@ static void CreateSession(
     ScaleContext& scaler,
     EncoderContext& enc,
     const StreamConfig& cfg,
-	bool sameAdapter
+	bool sameAdapter,
+	std::string screenName
 ) {
-    dup = CreateDuplication(captureDevice);
+    dup = CreateDuplication(captureDevice, screenName);
 
     enc = CreateEncoder(encodeDevice, cfg);
 
@@ -1620,7 +1616,7 @@ int main(int argc, char** argv) {
 
             std::cerr << "[NVENC] unknown command: " << line << "\n";
         }
-        });
+    });
 
     try {
         D3D_FEATURE_LEVEL flOut = D3D_FEATURE_LEVEL_11_0;
@@ -1724,6 +1720,11 @@ int main(int argc, char** argv) {
             customIndex = GetCustomModeIndex(customModes, argv[1]);
         }
 
+		std::string screenName = "";
+		if (argc >= 3) {
+			screenName = argv[2];
+		}
+
         if (customIndex >= 0) {
             auto& [mode, name] = customModes[customIndex];
             modeName = name;
@@ -1760,7 +1761,8 @@ int main(int argc, char** argv) {
 			scaler,
 			enc,
 			cfg,
-			sameAdapter
+			sameAdapter,
+			screenName
 		);
 
         while (true) {
@@ -1943,7 +1945,7 @@ int main(int argc, char** argv) {
 					enc,
 					cfg,
 					sameAdapter,
-					currentScreenName
+					screenName
 				);
 
 				// The first frame after recovery must be a keyframe.

@@ -84,7 +84,7 @@ namespace TwinsRemoteHost
 
         private void ApplyLanguage()
         {
-
+            selectScreenLabel.Text = this.locale.SelectScreen;
         }
 
         private Bitmap CaptureScreen(Rectangle screenBounds, DEVMODE dm, int scale)
