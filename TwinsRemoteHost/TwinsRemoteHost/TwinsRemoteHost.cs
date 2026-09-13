@@ -647,7 +647,7 @@ namespace TwinsRemoteHost
             {
                 FileName = hostExePath,
                 WorkingDirectory = exeDir,
-                Arguments = $"--mode \"{mode}\" --session \"{sessionId}\"",
+                Arguments = $"--mode \"{mode}\" --session \"{sessionId}\" --screen \"{screen}\"",
                 UseShellExecute = false,
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
