@@ -1,6 +1,8 @@
+using NAudio.Wave.Compression;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Data;
 using System.Diagnostics;
 using System.IO;
@@ -12,7 +14,6 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Forms;
-using System.ComponentModel;
 
 namespace TwinsRemoteHost
 {
@@ -33,6 +34,7 @@ namespace TwinsRemoteHost
         private ModeCreatorForm? mCreator = null;
         private ModeEditorForm? mEditor = null;
         private ConnectionSettings? mSettings = null;
+        private ChangeStream? cStream = null;
         private NotificationsForm? notificationsForm = null;
         private string pId = string.Empty;
         private Status status = Status.Stop;
@@ -317,6 +319,10 @@ namespace TwinsRemoteHost
             audioOnButton.Enabled = running;
             audioOffButton.Enabled = running;
             audioSystemButton.Enabled = running;
+
+            changeStreamButton.Enabled = running;
+            changeStreamButton.Visible = running;
+            connectButton.Visible = !running;
         }
 
         private void AppendLog(string message)
@@ -517,6 +523,7 @@ namespace TwinsRemoteHost
             createCustomModeButton.Text = this.locale.CreateCustomMode;
             updateCustomMode.Text = this.locale.UpdateCustomMode;
             saveLogButton.Text = this.locale.SaveLog;
+            changeStreamButton.Text = this.locale.ChangeStream;
 
             int selectedIndex = modeComboBox.SelectedIndex;
             ResetModeList();
@@ -653,6 +660,7 @@ namespace TwinsRemoteHost
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 CreateNoWindow = true,
+                StandardInputEncoding = Encoding.UTF8,
                 StandardOutputEncoding = Encoding.UTF8,
                 StandardErrorEncoding = Encoding.UTF8
             };
@@ -847,6 +855,39 @@ namespace TwinsRemoteHost
 
             Properties.Settings.Default.Mode = modeComboBox.SelectedItem.ToString();
             Properties.Settings.Default.Save();
+        }
+
+        private void changeStreamButton_Click(object sender, EventArgs e)
+        {
+            if (this.cStream == null || this.cStream.IsDisposed)
+            {
+                string mode = (modeComboBox.SelectedItem?.ToString() ?? "Balanced");
+                this.cStream = new ChangeStream(this.locale, mode);
+                this.cStream.Left = this.Left + 200;
+                this.cStream.Top = this.Top + 200;
+                this.cStream.StartPosition = FormStartPosition.Manual;
+                this.cStream.ShowDialog();
+            }
+            else
+            {
+                this.cStream.WindowState = FormWindowState.Normal;
+                this.cStream.Activate();
+            }
+
+            bool isReady = this.cStream.IsChangingStreamReady();
+
+            string newStream = this.cStream.GetChangeStreamCommnad();
+            string newMode = this.cStream.GetNewMode();
+
+            cStream.Dispose();
+            cStream = null;
+            if (!isReady)
+            {
+                return;
+            }
+
+            ResetModeList(newMode);
+            SendCommand(newStream);
         }
     }
 
@@ -1239,6 +1280,9 @@ namespace TwinsRemoteHost
 
         [JsonProperty("selectScreen")]
         public required string SelectScreen { get; set; }
+
+        [JsonProperty("changeStream")]
+        public required string ChangeStream { get; set; }
     }
 
     public class IssueHostTokenRequest

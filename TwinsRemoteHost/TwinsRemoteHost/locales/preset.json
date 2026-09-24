@@ -114,5 +114,6 @@
   "saveLog": "",
   "logHasBeenSaved": "",
   "screen": "",
-  "selectScreen": ""
+  "selectScreen": "",
+  "changeStream": ""
 }
