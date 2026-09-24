@@ -112,5 +112,7 @@
   "newMinorUpdate": "新しい機能がリリースされています",
   "newPatchUpdate": "不具合の修正がリリースされています",
   "saveLog": "ログ保存",
-  "logHasBeenSaved": "ログを保存しました"
+  "logHasBeenSaved": "ログを保存しました",
+  "screen": "画面",
+  "selectScreen": "共有する画面を選択"
 }

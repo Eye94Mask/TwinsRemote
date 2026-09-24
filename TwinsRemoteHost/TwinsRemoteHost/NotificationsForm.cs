@@ -33,6 +33,7 @@ namespace TwinsRemoteHost
                     Name = "notificaitonLabel",
                     Text = notification + "\n------------------------------------------------",
                     Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left,
                     AutoSize = true,
                     TextAlign = ContentAlignment.MiddleLeft
                 };
@@ -46,6 +47,7 @@ namespace TwinsRemoteHost
                     Name = "updateNotificationLabel",
                     Text = this.updateNotification,
                     Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left,
                     AutoSize = true,
                     TextAlign = ContentAlignment.MiddleLeft
                 };
@@ -54,6 +56,7 @@ namespace TwinsRemoteHost
                     Name = "releaseUrlLinkLabel",
                     Text = this.releaseUrl,
                     Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Left,
                     AutoSize = true,
                     TextAlign = ContentAlignment.MiddleLeft,
                     LinkVisited = false,

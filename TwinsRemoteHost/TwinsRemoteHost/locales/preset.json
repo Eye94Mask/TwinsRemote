@@ -112,5 +112,7 @@
   "newMinorUpdate": "",
   "newPatchUpdate": "",
   "saveLog": "",
-  "logHasBeenSaved": ""
+  "logHasBeenSaved": "",
+  "screen": "",
+  "selectScreen": ""
 }
