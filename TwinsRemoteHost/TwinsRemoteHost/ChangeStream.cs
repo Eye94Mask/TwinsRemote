@@ -85,6 +85,19 @@ namespace TwinsRemoteHost
             ResetModeList(this.currentModeValue);
         }
 
+        private string GetSelectedModeKeyFromDisplayName(string displayName)
+        {
+            foreach (VideoPresetItem item in modeComboBox.Items)
+            {
+                if (item.DisplayName == displayName)
+                {
+                    return item.Key;
+                }
+            }
+
+            return string.Empty;
+        }
+
         private void ResetModeList(string currentModeValue)
         {
             List<string> customNames = Host.GetCustomModeList();
@@ -95,10 +108,10 @@ namespace TwinsRemoteHost
             {
                 modeComboBox.Items.Add(new VideoPresetItem { DisplayName = customName, Key = customName });
             }
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.BalancedMode, Key = "balanced" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.QualityMode, Key = "quality" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.StableMode, Key = "stable" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.MobileMode, Key = "mobile" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.BalancedMode, Key = "Balanced" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.QualityMode, Key = "Quality" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.StableMode, Key = "Stable" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.MobileMode, Key = "Mobile" });
 
             int i = 0;
             foreach (VideoPresetItem item in modeComboBox.Items)
@@ -290,7 +303,8 @@ namespace TwinsRemoteHost
         {
             if (this.screenName == string.Empty) { return ""; }
 
-            string newMode = modeComboBox.SelectedItem?.ToString() ?? this.currentModeValue;
+            string modeKey = GetSelectedModeKeyFromDisplayName((modeComboBox.SelectedItem?.ToString()));
+            string newMode = modeKey == string.Empty ? "Balanced" : modeKey;
             return "change_stream " + this.screenName + " " + newMode;
         }
 

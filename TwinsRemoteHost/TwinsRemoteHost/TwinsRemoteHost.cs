@@ -14,6 +14,7 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Forms;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace TwinsRemoteHost
 {
@@ -208,6 +209,19 @@ namespace TwinsRemoteHost
             return StringVersionToIntVersion(resp.Version);
         }
 
+        private string GetSelectedModeKeyFromDisplayName(string displayName)
+        {
+            foreach (VideoPresetItem item in modeComboBox.Items)
+            {
+                if (item.DisplayName == displayName)
+                {
+                    return item.Key;
+                }
+            }
+
+            return string.Empty;
+        }
+
         private void ResetModeList(String? previousModeValue = null)
         {
             List<string> customNames = GetCustomModeList();
@@ -218,10 +232,10 @@ namespace TwinsRemoteHost
             {
                 modeComboBox.Items.Add(new VideoPresetItem { DisplayName = customName, Key = customName });
             }
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.BalancedMode, Key = "balanced" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.QualityMode, Key = "quality" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.StableMode, Key = "stable" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.MobileMode, Key = "mobile" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.BalancedMode, Key = "Balanced" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.QualityMode, Key = "Quality" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.StableMode, Key = "Stable" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.MobileMode, Key = "Mobile" });
 
             if (previousModeValue != null || previousModeValue == String.Empty)
             {
@@ -576,8 +590,10 @@ namespace TwinsRemoteHost
                 return;
             }
 
-            string mode = (modeComboBox.SelectedItem?.ToString() ?? "Balanced");
+            string modeKey = GetSelectedModeKeyFromDisplayName((modeComboBox.SelectedItem?.ToString()));
+            string mode = modeKey == string.Empty ? "Balanced" : modeKey;
             AppendLog(mode);
+
             string sessionId = sessionIdTextBox.Text.Trim();
 
             if (string.IsNullOrWhiteSpace(sessionId))
@@ -742,7 +758,7 @@ namespace TwinsRemoteHost
 
         private void createMode_Click(object sender, EventArgs e)
         {
-            String selectedModeValue = string.Empty;
+            string selectedModeValue = string.Empty;
             if (modeComboBox.SelectedItem != null)
             {
                 selectedModeValue = modeComboBox.SelectedItem.ToString();
@@ -861,7 +877,8 @@ namespace TwinsRemoteHost
         {
             if (this.cStream == null || this.cStream.IsDisposed)
             {
-                string mode = (modeComboBox.SelectedItem?.ToString() ?? "Balanced");
+                string mode = modeComboBox.SelectedItem?.ToString();
+
                 this.cStream = new ChangeStream(this.locale, mode);
                 this.cStream.Left = this.Left + 200;
                 this.cStream.Top = this.Top + 200;
