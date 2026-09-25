@@ -1674,7 +1674,6 @@ int main(int argc, char** argv) {
 					StreamConfig cfg = GetStreamConfigByName(mode, customModes);
 
 					enc = CreateEncoder(encodeDevice, cfg);
-					forceIdrRequested.store(true);
 
 					std::cerr << "[INFO] Selected Mode: " << modeName
 						<< " (" << cfg.width << "x" << cfg.height
