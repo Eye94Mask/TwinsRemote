@@ -1624,7 +1624,7 @@ int main(int argc, char** argv) {
 
                     {
                         std::lock_guard<std::mutex> lock(pendingConfigMutex);
-                        pendingConfig = next;
+						pendingConfig = next;
                     }
 
                     reconfigureRequested.store(true);
@@ -1670,30 +1670,10 @@ int main(int argc, char** argv) {
 				}
 
 				if (iss >> cmd >> screen >> mode) {
-					int customIndex = GetCustomModeIndex(customModes, mode);
-					if (customIndex >= 0) {
-						auto& [mode, name] = customModes[customIndex];
-						if (modeName != name) {
-							modeName = name;
-							cfg = mode;
-						}
-					}
-					else {
-						std::string lowerMode = GetLowerMode(mode);
-						if (modeName != mode) {
-							modeName = lowerMode;
-							cfg = GetStreamConfig(GetPresetFromName(modeName));
-						}
-					}
+					modeName = mode;
+					StreamConfig cfg = GetStreamConfigByName(mode, customModes);
 
 					enc = CreateEncoder(encodeDevice, cfg);
-
-					{
-						std::lock_guard<std::mutex> lock(pendingConfigMutex);
-						pendingConfig = cfg;
-					}
-
-					reconfigureRequested.store(true);
 					forceIdrRequested.store(true);
 
 					std::cerr << "[INFO] Selected Mode: " << modeName
