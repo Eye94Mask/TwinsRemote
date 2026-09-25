@@ -114,5 +114,6 @@
   "saveLog": "Save Log",
   "logHasBeenSaved": "The log has been saved",
   "screen": "Screen",
-  "selectScreen": "Select the screen to share"
+  "selectScreen": "Select the screen to share",
+  "changeStream": "Change stream"
 }
