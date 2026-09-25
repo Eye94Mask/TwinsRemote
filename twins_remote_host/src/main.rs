@@ -13,6 +13,7 @@ use std::sync::{
     Arc, Mutex,
 };
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::str::FromStr;
 
 use serde::Deserialize;
 use serde_json::json;
@@ -52,7 +53,33 @@ struct Args {
 enum NvencCommand {
     ForceIdr,
     ApplyStreamPolicy(StreamPolicy),
-    RestorePreset
+    RestorePreset,
+    ChangeStream(String, String)
+}
+
+#[derive(Debug, PartialEq)]
+struct ModeChanger {
+    screen: String,
+    mode: String
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct ParseModeChangerError;
+
+impl FromStr for ModeChanger {
+    type Err = ParseModeChangerError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (screen, mode) = s
+            .trim()
+            .split_once(' ')
+            .ok_or(ParseModeChangerError{})?;
+
+        Ok(Self {
+            screen: screen.to_string(),
+            mode: mode.to_string()
+        })
+    }
 }
 
 struct AudioHelper {
@@ -88,7 +115,8 @@ async fn main() -> Result<()> {
 
     let (audio_cmd_tx, audio_cmd_rx) = std::sync::mpsc::channel::<AudioCommand>();
     let (quit_tx, quit_rx) = std::sync::mpsc::channel::<()>();
-    spawn_stdin_router(audio_cmd_tx.clone(), quit_tx);
+    let (nvenc_cmd_tx, nvenc_cmd_rx) = std::sync::mpsc::channel::<NvencCommand>();
+    spawn_stdin_router(audio_cmd_tx.clone(), nvenc_cmd_tx.clone(), quit_tx);
 
     println!("[INFO] fetching IceConfig from server");
     let ice = IceConfig::fetch_from_server(&session_id).await?;
@@ -150,7 +178,6 @@ async fn main() -> Result<()> {
     let video_watchdog_fired = Arc::new(AtomicBool::new(false));
 
     // NvEnc command thread
-    let (nvenc_cmd_tx, nvenc_cmd_rx) = std::sync::mpsc::channel::<NvencCommand>();
     std::thread::spawn(move || {
         while let Ok(cmd) = nvenc_cmd_rx.recv() {
             let line = match cmd {
@@ -186,7 +213,8 @@ async fn main() -> Result<()> {
                             format!("set_preset {}\n", preset)
                         }
                     }
-                }
+                },
+                NvencCommand::ChangeStream(new_screen, new_mode ) => format!("change_stream {} {}\n", new_screen, new_mode)
             };
 
             if let Err(e) = nvenc_stdin.write_all(line.as_bytes()) {
@@ -904,6 +932,7 @@ fn is_force_keyframe_message(text: &str) -> bool {
 
 fn spawn_stdin_router(
     audio_cmd_tx: std::sync::mpsc::Sender<AudioCommand>,
+    nvenc_cmd_tx: std::sync::mpsc::Sender<NvencCommand>,
     quit_tx: std::sync::mpsc::Sender<()>
 ) {
     std::thread::spawn(move || {
@@ -914,7 +943,17 @@ fn spawn_stdin_router(
             let Ok(line) = line else { break };
             let line = line.trim();
 
-            if let Some(rest) = line.strip_prefix("pid ") {
+            if let Some((_, rest)) = line.split_once("change_stream ") {
+                match rest.trim().parse::<ModeChanger>() {
+                    Ok(stream) => {
+                        let _ = nvenc_cmd_tx.send(NvencCommand::ChangeStream(stream.screen.clone(), stream.mode.clone()));
+                        eprintln!("[HOST] requested change stream: screen={} mode={}", stream.screen, stream.mode);
+                    }
+                    Err(e) => {
+                        eprintln!("[HOST] invalid screen: {:?} ({})", e, line);
+                    }
+                }
+            } else if let Some(rest) = line.strip_prefix("pid ") {
                 match rest.trim().parse::<u32>() {
                     Ok(pid) => {
                         let _ = audio_cmd_tx.send(AudioCommand::UsePid(pid));

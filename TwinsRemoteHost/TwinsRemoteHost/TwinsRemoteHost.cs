@@ -1,6 +1,8 @@
+using NAudio.Wave.Compression;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Data;
 using System.Diagnostics;
 using System.IO;
@@ -12,13 +14,13 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Forms;
-using System.ComponentModel;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace TwinsRemoteHost
 {
     public partial class Host : Form
     {
-        private readonly string version = "1.1.0";
+        private readonly string version = "1.2.0";
 
         private bool init = true;
         private List<string> notifications = [];
@@ -33,6 +35,7 @@ namespace TwinsRemoteHost
         private ModeCreatorForm? mCreator = null;
         private ModeEditorForm? mEditor = null;
         private ConnectionSettings? mSettings = null;
+        private ChangeStream? cStream = null;
         private NotificationsForm? notificationsForm = null;
         private string pId = string.Empty;
         private Status status = Status.Stop;
@@ -206,6 +209,19 @@ namespace TwinsRemoteHost
             return StringVersionToIntVersion(resp.Version);
         }
 
+        private string GetSelectedModeKeyFromDisplayName(string displayName)
+        {
+            foreach (VideoPresetItem item in modeComboBox.Items)
+            {
+                if (item.DisplayName == displayName)
+                {
+                    return item.Key;
+                }
+            }
+
+            return string.Empty;
+        }
+
         private void ResetModeList(String? previousModeValue = null)
         {
             List<string> customNames = GetCustomModeList();
@@ -216,10 +232,10 @@ namespace TwinsRemoteHost
             {
                 modeComboBox.Items.Add(new VideoPresetItem { DisplayName = customName, Key = customName });
             }
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.BalancedMode, Key = "balanced" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.QualityMode, Key = "quality" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.StableMode, Key = "stable" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.MobileMode, Key = "mobile" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.BalancedMode, Key = "Balanced" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.QualityMode, Key = "Quality" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.StableMode, Key = "Stable" });
+            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.MobileMode, Key = "Mobile" });
 
             if (previousModeValue != null || previousModeValue == String.Empty)
             {
@@ -317,6 +333,10 @@ namespace TwinsRemoteHost
             audioOnButton.Enabled = running;
             audioOffButton.Enabled = running;
             audioSystemButton.Enabled = running;
+
+            changeStreamButton.Enabled = running;
+            changeStreamButton.Visible = running;
+            connectButton.Visible = !running;
         }
 
         private void AppendLog(string message)
@@ -517,6 +537,7 @@ namespace TwinsRemoteHost
             createCustomModeButton.Text = this.locale.CreateCustomMode;
             updateCustomMode.Text = this.locale.UpdateCustomMode;
             saveLogButton.Text = this.locale.SaveLog;
+            changeStreamButton.Text = this.locale.ChangeStream;
 
             int selectedIndex = modeComboBox.SelectedIndex;
             ResetModeList();
@@ -569,8 +590,10 @@ namespace TwinsRemoteHost
                 return;
             }
 
-            string mode = (modeComboBox.SelectedItem?.ToString() ?? "Balanced");
+            string modeKey = GetSelectedModeKeyFromDisplayName((modeComboBox.SelectedItem?.ToString()));
+            string mode = modeKey == string.Empty ? "Balanced" : modeKey;
             AppendLog(mode);
+
             string sessionId = sessionIdTextBox.Text.Trim();
 
             if (string.IsNullOrWhiteSpace(sessionId))
@@ -653,6 +676,7 @@ namespace TwinsRemoteHost
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 CreateNoWindow = true,
+                StandardInputEncoding = Encoding.UTF8,
                 StandardOutputEncoding = Encoding.UTF8,
                 StandardErrorEncoding = Encoding.UTF8
             };
@@ -734,7 +758,7 @@ namespace TwinsRemoteHost
 
         private void createMode_Click(object sender, EventArgs e)
         {
-            String selectedModeValue = string.Empty;
+            string selectedModeValue = string.Empty;
             if (modeComboBox.SelectedItem != null)
             {
                 selectedModeValue = modeComboBox.SelectedItem.ToString();
@@ -847,6 +871,40 @@ namespace TwinsRemoteHost
 
             Properties.Settings.Default.Mode = modeComboBox.SelectedItem.ToString();
             Properties.Settings.Default.Save();
+        }
+
+        private void changeStreamButton_Click(object sender, EventArgs e)
+        {
+            if (this.cStream == null || this.cStream.IsDisposed)
+            {
+                string mode = modeComboBox.SelectedItem?.ToString();
+
+                this.cStream = new ChangeStream(this.locale, mode);
+                this.cStream.Left = this.Left + 200;
+                this.cStream.Top = this.Top + 200;
+                this.cStream.StartPosition = FormStartPosition.Manual;
+                this.cStream.ShowDialog();
+            }
+            else
+            {
+                this.cStream.WindowState = FormWindowState.Normal;
+                this.cStream.Activate();
+            }
+
+            bool isReady = this.cStream.IsChangingStreamReady();
+
+            string newStream = this.cStream.GetChangeStreamCommnad();
+            string newMode = this.cStream.GetNewMode();
+
+            cStream.Dispose();
+            cStream = null;
+            if (!isReady)
+            {
+                return;
+            }
+
+            ResetModeList(newMode);
+            SendCommand(newStream);
         }
     }
 
@@ -1239,6 +1297,9 @@ namespace TwinsRemoteHost
 
         [JsonProperty("selectScreen")]
         public required string SelectScreen { get; set; }
+
+        [JsonProperty("changeStream")]
+        public required string ChangeStream { get; set; }
     }
 
     public class IssueHostTokenRequest

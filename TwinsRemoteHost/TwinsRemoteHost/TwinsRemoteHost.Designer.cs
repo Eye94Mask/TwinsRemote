@@ -49,6 +49,7 @@
             saveLogButton = new Button();
             audioLabel = new Label();
             versionLabel = new Label();
+            changeStreamButton = new Button();
             ((System.ComponentModel.ISupportInitialize)infoBellPictureBox).BeginInit();
             SuspendLayout();
             // 
@@ -293,11 +294,26 @@
             versionLabel.Text = "label1";
             versionLabel.TextAlign = ContentAlignment.MiddleRight;
             // 
+            // changeStreamButton
+            // 
+            changeStreamButton.BackColor = Color.YellowGreen;
+            changeStreamButton.Enabled = false;
+            changeStreamButton.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
+            changeStreamButton.Location = new Point(1228, 44);
+            changeStreamButton.Name = "changeStreamButton";
+            changeStreamButton.Size = new Size(162, 59);
+            changeStreamButton.TabIndex = 20;
+            changeStreamButton.Text = "button1";
+            changeStreamButton.UseVisualStyleBackColor = false;
+            changeStreamButton.Visible = false;
+            changeStreamButton.Click += changeStreamButton_Click;
+            // 
             // Host
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(2304, 1050);
+            Controls.Add(changeStreamButton);
             Controls.Add(versionLabel);
             Controls.Add(audioLabel);
             Controls.Add(saveLogButton);
@@ -351,5 +367,6 @@
         private Button saveLogButton;
         private Label audioLabel;
         private Label versionLabel;
+        private Button changeStreamButton;
     }
 }
