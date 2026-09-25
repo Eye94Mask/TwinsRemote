@@ -162,15 +162,33 @@ struct StreamConfig {
     bool disableBadapt;
 };
 
+static const std::string GetLowerMode(std::string mode) {
+	std::string lower = mode;
+	for (auto& c : lower) {
+		c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+	}
+
+	return lower;
+}
+
+static StreamPreset GetPresetFromName(std::string mode) {
+	std::string arg = GetLowerMode(mode);
+	
+	if (arg == "stable")   return StreamPreset::Stable;
+	if (arg == "balanced") return StreamPreset::Balanced;
+	if (arg == "quality")  return StreamPreset::Quality;
+	if (arg == "mobile")   return StreamPreset::Mobile;
+
+	std::cerr << "[WARN] Unknown preset: " << arg << " (fallback to balanced)\n";
+	return StreamPreset::Balanced;
+}
+
 static StreamPreset ParseStreamPreset(int argc, char** argv) {
     if (argc < 2) {
         return StreamPreset::Balanced;
     }
 
-    std::string arg = argv[1];
-    for (auto& c : arg) {
-        c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
-    }
+	std::string arg = GetLowerMode(argv[1]);
 
     if (arg == "stable")   return StreamPreset::Stable;
     if (arg == "balanced") return StreamPreset::Balanced;
@@ -1458,14 +1476,26 @@ int main(int argc, char** argv) {
     GpuBridgeContext bridge{};
 
     StreamConfig cfg{};
+	std::string screenName = "";
+	std::string modeName = "";
 
     std::atomic<bool> forceIdrRequested{ false };
     std::atomic<bool> stopCommandThread{ false };
     std::atomic<bool> reconfigureRequested{ false };
     std::atomic<bool> relayCapActuallyApplied{ false };
+	std::atomic<bool> renderingThread{ false };
+	std::atomic<bool> changeStreamThread{ false };
 
     std::mutex pendingConfigMutex;
     StreamConfig pendingConfig{};
+
+	uint64_t frameIndex = 0;
+	bool firstFrame = true;
+
+	EncodeSlot* slotPtr = nullptr;
+	EncodeSlot* lastEncodedSlot = nullptr;
+	uint64_t lastEncodedMs = 0;
+	const uint64_t FREEZE_TIMEOUT_MS = 500;
 
     std::thread commandThread([&]() {
         std::string line;
@@ -1614,6 +1644,90 @@ int main(int argc, char** argv) {
                 continue;
             }
 
+			if (line.rfind("change_stream ", 0) == 0) {
+				while (changeStreamThread.load() || renderingThread.load()) {
+					Sleep(10);
+				}
+
+				changeStreamThread.store(true);
+
+				std::istringstream iss(line);
+
+				std::string cmd;
+				std::string screen;
+				std::string mode;
+
+				std::string modeName;
+
+				customModes = {};
+				for (std::string customFileName : customFileNames) {
+					StreamConfig config =
+						GetCustomModeFromFile(customDirectoryPath + "/", customFileName);
+
+					customModes.push_back(
+						std::pair(config, ReplaceOtherStr(customFileName, ".json", ""))
+					);
+				}
+
+				if (iss >> cmd >> screen >> mode) {
+					int customIndex = GetCustomModeIndex(customModes, mode);
+					if (customIndex >= 0) {
+						auto& [mode, name] = customModes[customIndex];
+						if (modeName != name) {
+							modeName = name;
+							cfg = mode;
+						}
+					}
+					else {
+						std::string lowerMode = GetLowerMode(mode);
+						if (modeName != mode) {
+							modeName = lowerMode;
+							cfg = GetStreamConfig(GetPresetFromName(modeName));
+						}
+					}
+
+					enc = CreateEncoder(encodeDevice, cfg);
+
+					{
+						std::lock_guard<std::mutex> lock(pendingConfigMutex);
+						pendingConfig = cfg;
+					}
+
+					reconfigureRequested.store(true);
+					forceIdrRequested.store(true);
+
+					std::cerr << "[INFO] Selected Mode: " << modeName
+						<< " (" << cfg.width << "x" << cfg.height
+						<< " @" << cfg.fps << "fps, "
+						<< cfg.averageBitrate / 1000000.0 << "Mbps)\n";
+
+					RecreateCaptureResourcesUntilSuccess(
+						captureDevice,
+						encodeDevice,
+						encodeContext,
+						dup,
+						bridge,
+						scaler,
+						enc,
+						cfg,
+						sameAdapter,
+						screen
+					);
+
+					// The first frame after recovery must be a keyframe.
+					firstFrame = true;
+					forceIdrRequested.store(true);
+
+					// A slot belongs to the old scaler resources and must never be reused.
+					lastEncodedSlot = nullptr;
+
+					screenName = screen;
+				}
+
+				changeStreamThread.store(false);
+				continue;
+			}
+
             std::cerr << "[NVENC] unknown command: " << line << "\n";
         }
     });
@@ -1713,14 +1827,11 @@ int main(int argc, char** argv) {
         LoadNvEnc();
         std::cerr << "[INFO] NVENC API Loaded\n";
 
-        std::string modeName;
-
         int customIndex = -1;
         if (argc >= 2) {
             customIndex = GetCustomModeIndex(customModes, argv[1]);
         }
 
-		std::string screenName = "";
 		if (argc >= 3) {
 			screenName = argv[2];
 		}
@@ -1740,14 +1851,6 @@ int main(int argc, char** argv) {
             << " (" << cfg.width << "x" << cfg.height
             << " @" << cfg.fps << "fps, "
             << cfg.averageBitrate / 1000000.0 << "Mbps)\n";
-
-        uint64_t frameIndex = 0;
-        bool firstFrame = true;
-
-		EncodeSlot* slotPtr = nullptr;
-        EncodeSlot* lastEncodedSlot = nullptr;
-		uint64_t lastEncodedMs = 0;
-		const uint64_t FREEZE_TIMEOUT_MS = 500;
 		
 		// Create the complete capture/encode session once.
 		// During a DXGI ACCESS_LOST recovery, only the resources that depend on
@@ -1792,6 +1895,15 @@ int main(int argc, char** argv) {
 
                     try {
                         DXGI_OUTDUPL_FRAME_INFO frameInfo{};
+
+						if (changeStreamThread.load()) {
+							Sleep(10);
+							continue;
+						}
+
+						renderingThread.store(true);
+						changeStreamThread.store(false);
+
                         HRESULT hr = dup.duplication->AcquireNextFrame(
                             5,
                             &frameInfo,
@@ -1905,6 +2017,8 @@ int main(int argc, char** argv) {
                         CheckHr(hr, "ReleaseFrame");
                         acquiredFrame = false;
 						lastEncodedMs = TickMs();
+
+						renderingThread.store(false);
 
                         Sleep(static_cast<DWORD>(1000.0 / cfg.fps));
                     }
