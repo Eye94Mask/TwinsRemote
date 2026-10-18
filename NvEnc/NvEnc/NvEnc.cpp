@@ -806,6 +806,7 @@ static DuplicationContext CreateDuplication(ID3D11Device* device, std::string sc
             std::string outputName = NarrowFromWide(outputDesc.DeviceName);
 
 			if (screenName != "" && screenName != outputName) {
+				output->Release();
 				continue;
 			}
 
@@ -1434,6 +1435,7 @@ static void RecreateCaptureResourcesUntilSuccess(
 	// which depend on the capture size (bridge + scaler) must be rebuilt together.
 	constexpr DWORD RETRY_MS = 200;
 	uint32_t retryCount = 0;
+	const auto recreateStart = std::chrono::steady_clock::now();
 
 	while (true) {
 		try {
@@ -1481,7 +1483,16 @@ static void RecreateCaptureResourcesUntilSuccess(
 				cfg.height
 			);
 
-			std::cerr << "[DXGI] Desktop capture resources recreated successfully.\n";
+			const auto recreateElapsedMs =
+				std::chrono::duration_cast<std::chrono::milliseconds>(
+					std::chrono::steady_clock::now() - recreateStart
+				).count();
+
+			std::cerr
+				<< "[DXGI] Desktop capture resources recreated successfully."
+				<< " retries=" << retryCount
+				<< " elapsed_ms=" << recreateElapsedMs
+				<< "\n";
 
 			return;
 		}
@@ -1497,9 +1508,16 @@ static void RecreateCaptureResourcesUntilSuccess(
 			DestroyDuplication(dup);
 
 			if (retryCount == 1 || retryCount % 10 == 0) {
+				const auto recreateElapsedMs =
+					std::chrono::duration_cast<std::chrono::milliseconds>(
+						std::chrono::steady_clock::now() - recreateStart
+					).count();
+
 				std::cerr
 					<< "[DXGI] Capture resource recreation failed: "
 					<< e.what()
+					<< " retries=" << retryCount
+					<< " elapsed_ms=" << recreateElapsedMs
 					<< "\n";
 			}
 
@@ -1570,12 +1588,12 @@ static StreamConfig GetStreamConfigByName(const std::string& name, const std::ve
 	if (arg == "balanced") { return GetStreamConfig(StreamPreset::Balanced); }
 	if (arg == "quality") { return GetStreamConfig(StreamPreset::Quality); }
 	if (arg == "mobile") { return GetStreamConfig(StreamPreset::Mobile); }
-	if (arg == "autoAdjust1080p60") { return GetAutoAdjustConfig(AutoAdjustPreset::Adjust1080p60); }
-	if (arg == "autoAdjust1080p") { return GetAutoAdjustConfig(AutoAdjustPreset::Adjust1080p); }
-	if (arg == "autoAdjust720p") { return GetAutoAdjustConfig(AutoAdjustPreset::Adjust720p); }
-	if (arg == "autoAdjust360p") { return GetAutoAdjustConfig(AutoAdjustPreset::Adjust360p); }
-	if (arg == "autoAdjust240p") { return GetAutoAdjustConfig(AutoAdjustPreset::Adjust240p); }
-	if (arg == "autoAdjust144p") { return GetAutoAdjustConfig(AutoAdjustPreset::Adjust144p); }
+	if (arg == "autoadjust1080p60") { return GetAutoAdjustConfig(AutoAdjustPreset::Adjust1080p60); }
+	if (arg == "autoadjust1080p") { return GetAutoAdjustConfig(AutoAdjustPreset::Adjust1080p); }
+	if (arg == "autoadjust720p") { return GetAutoAdjustConfig(AutoAdjustPreset::Adjust720p); }
+	if (arg == "autoadjust360p") { return GetAutoAdjustConfig(AutoAdjustPreset::Adjust360p); }
+	if (arg == "autoadjust240p") { return GetAutoAdjustConfig(AutoAdjustPreset::Adjust240p); }
+	if (arg == "autoadjust144p") { return GetAutoAdjustConfig(AutoAdjustPreset::Adjust144p); }
 
 	std::cerr << "[WARN] Unknown preset in set_preset: "
 		<< name
@@ -1685,8 +1703,11 @@ int main(int argc, char** argv) {
 	std::atomic<int> autoAdjustPresetIndex{ -1 };
 	std::atomic<int> autoAdjustEnabled{ false };
 
-    std::mutex pendingConfigMutex;
-    StreamConfig pendingConfig{};
+	std::mutex pendingConfigMutex;
+	std::mutex streamRangeMutex;
+	// Coordinates entry into the render loop with screen-switch resource changes.
+	std::mutex renderingStateMutex;
+	StreamConfig pendingConfig{};
 
 	uint64_t frameIndex = 0;
 	bool firstFrame = true;
@@ -2017,17 +2038,35 @@ int main(int argc, char** argv) {
             }
 
 			if (line.rfind("change_stream ", 0) == 0) {
-				while (changeStreamThread.load() || renderingThread.load()) {
-					Sleep(10);
+				// Stop new render-loop iterations first, then wait for the active
+			   // iteration to release DXGI/NVENC resources. The previous order
+			   // polled renderingThread before raising changeStreamThread, which
+			   // could starve for seconds because renderingThread is true almost
+			   // continuously and the false window can be shorter than Sleep(10).
+				const auto switchStart = std::chrono::steady_clock::now();
+				{
+					std::lock_guard<std::mutex> stateLock(renderingStateMutex);
+					changeStreamThread.store(true);
 				}
 
-				changeStreamThread.store(true);
+				const auto quiesceStart = std::chrono::steady_clock::now();
+				while (renderingThread.load()) {
+					Sleep(1);
+				}
+				const auto quiesceWaitMs =
+					std::chrono::duration_cast<std::chrono::milliseconds>(
+						std::chrono::steady_clock::now() - quiesceStart
+					).count();
+				std::cerr << "[STREAM SWITCH] render_quiesce_wait_ms="
+					<< quiesceWaitMs << "\n";
 
 				std::istringstream iss(line);
 
 				std::string cmd;
 				std::string screen;
 				std::string mode;
+
+				std::string requestedModeName;
 
 				customModes = {};
 				for (std::string customFileName : customFileNames) {
@@ -2040,33 +2079,62 @@ int main(int argc, char** argv) {
 				}
 
 				if (iss >> cmd >> screen >> mode) {
-					modeName = mode;
+					requestedModeName = mode;
+					// The initial CLI preset may be named "autoAdjust" while the UI
+					// sends the equivalent "autoAdjust1080p" command. Treat that
+					// alias as the same mode when auto-adjust is already active.
+					const bool sameAutoAdjustAlias =
+						autoAdjustEnabled.load() &&
+						modeName == "autoAdjust" &&
+						mode == "autoAdjust1080p";
+					const bool modeChanged = (mode != modeName) && !sameAutoAdjustAlias;
 					StreamConfig next = GetStreamConfigByName(mode, customModes);
 
-					std::cerr << "[TEST} mode: " << mode << "\n";
-					const bool selectingAutoMode = (mode == "autoAdjust1080p");
+					std::cerr << "[STREAM SWITCH] requested_screen=" << screen
+						<< " requested_mode=" << requestedModeName
+						<< " current_mode=" << modeName
+						<< " mode_changed=" << (modeChanged ? "true" : "false")
+						<< "\n";
+					if (modeChanged) {
+						const bool selectingAutoMode = (mode == "autoAdjust1080p");
 
-					autoAdjustEnabled.store(selectingAutoMode);
-					autoAdjustPresetIndex.store(InferAutoAdjustPresetIndex(next));
+						autoAdjustEnabled.store(selectingAutoMode);
+						autoAdjustPresetIndex.store(InferAutoAdjustPresetIndex(next));
 
-					std::cerr << "[AUTO_ADJUST] "
-						<< (selectingAutoMode ? "Enabled" : "Disabled")
-						<< " for selected mode: " << modeName << "\n";
+						std::cerr << "[AUTO_ADJUST] "
+							<< (selectingAutoMode ? "Enabled" : "Disabled")
+							<< " for selected mode: " << requestedModeName << "\n";
 
-					DestroyScaler(scaler, enc.encoder);
-					DestroyEncoder(enc);
-					enc = CreateEncoder(encodeDevice, next);
-					cfg = next;
+						const auto encoderRecreateStart = std::chrono::steady_clock::now();
+						DestroyScaler(scaler, enc.encoder);
+						DestroyEncoder(enc);
+						enc = CreateEncoder(encodeDevice, next);
+						cfg = next;
+						modeName = mode;
 
-					{
-						std::lock_guard<std::mutex> lock(pendingConfigMutex);
-						pendingConfig = next;
+						{
+							std::lock_guard<std::mutex> lock(pendingConfigMutex);
+							pendingConfig = next;
+						}
+
+						const auto encoderRecreateElapsedMs =
+							std::chrono::duration_cast<std::chrono::milliseconds>(
+								std::chrono::steady_clock::now() - encoderRecreateStart
+							).count();
+
+						std::cerr << "[STREAM SWITCH] encoder_recreate_ms="
+							<< encoderRecreateElapsedMs << "\n";
+					}
+					else {
+						// This is a screen-only change. Keep the existing NVENC encoder
+						// and active cfg (important when auto-adjust has changed its rung).
+						std::cerr << "[STREAM SWITCH] keeping existing encoder; recreating capture resources only.\n";
 					}
 
 					std::cerr << "[INFO] Selected Mode: " << modeName
-						<< " (" << next.width << "x" << next.height
-						<< " @" << next.fps << "fps, "
-						<< next.averageBitrate / 1000000.0 << "Mbps)\n";
+						<< " (" << cfg.width << "x" << cfg.height
+						<< " @" << cfg.fps << "fps, "
+						<< cfg.averageBitrate / 1000000.0 << "Mbps)\n";
 
 					RecreateCaptureResourcesUntilSuccess(
 						captureDevice,
@@ -2076,7 +2144,7 @@ int main(int argc, char** argv) {
 						bridge,
 						scaler,
 						enc,
-						next,
+						cfg,
 						sameAdapter,
 						screen
 					);
@@ -2091,9 +2159,19 @@ int main(int argc, char** argv) {
 					lastEncodedSlot = nullptr;
 
 					screenName = screen;
+
+					const auto switchElapsedMs =
+						std::chrono::duration_cast<std::chrono::milliseconds>(
+							std::chrono::steady_clock::now() - switchStart
+						).count();
+					std::cerr << "[STREAM SWITCH] completed elapsed_ms="
+						<< switchElapsedMs << "\n";
 				}
 
-				changeStreamThread.store(false);
+				{
+					std::lock_guard<std::mutex> stateLock(renderingStateMutex);
+					changeStreamThread.store(false);
+				}
 				continue;
 			}
 
@@ -2237,6 +2315,7 @@ int main(int argc, char** argv) {
         LoadNvEnc();
         std::cerr << "[INFO] NVENC API Loaded\n";
 
+		// Use the shared modeName captured by commandThread; do not shadow it.
         int customIndex = -1;
         if (argc >= 2) {
             customIndex = GetCustomModeIndex(customModes, argv[1]);
@@ -2293,6 +2372,23 @@ int main(int argc, char** argv) {
                     ID3D11Texture2D* desktopTex = nullptr;
                     bool acquiredFrame = false;
 
+					bool pauseForStreamSwitch = false;
+					{
+						std::lock_guard<std::mutex> stateLock(renderingStateMutex);
+						if (changeStreamThread.load()) {
+							pauseForStreamSwitch = true;
+						}
+						else {
+							// Mark the entire iteration, including reconfiguration
+							// recovery, as owning the shared capture/encode resources.
+							renderingThread.store(true);
+						}
+					}
+					if (pauseForStreamSwitch) {
+						Sleep(1);
+						continue;
+					}
+
                     if (reconfigureRequested.exchange(false)) {
                         {
                             std::lock_guard<std::mutex> lock(pendingConfigMutex);
@@ -2314,23 +2410,15 @@ int main(int argc, char** argv) {
                     }
 
                     try {
-						if (changeStreamThread.load()) {
-							Sleep(10);
-							continue;
-						}
-
-						renderingThread.store(true);
-						changeStreamThread.store(false);
-
 						DXGI_OUTDUPL_FRAME_INFO frameInfo{};
 
 						const auto acquireStart = PerfClock::now();
 
-                        HRESULT hr = dup.duplication->AcquireNextFrame(
-                            5,
-                            &frameInfo,
-                            &desktopResource
-                        );
+						HRESULT hr = dup.duplication->AcquireNextFrame(
+							5,
+							&frameInfo,
+							&desktopResource
+						);
 
 						const auto acquireEnd = PerfClock::now();
 						const double acquireMs = std::chrono::duration<double, std::milli>(acquireEnd - acquireStart).count();
@@ -2369,8 +2457,8 @@ int main(int argc, char** argv) {
 								lastKeepaliveMs = keepaliveNowMs;
 							}
 
-							renderingThread.store(false);
 							logPerformance();
+							renderingThread.store(false);
 							continue;
 						}
 
@@ -2422,8 +2510,8 @@ int main(int argc, char** argv) {
 								lastKeepaliveMs = keepaliveNowMs;
 							}
 
-							renderingThread.store(false);
 							logPerformance();
+							renderingThread.store(false);
 							continue;
 						}
 
@@ -2452,8 +2540,8 @@ int main(int argc, char** argv) {
 							}
 							CheckHr(hr, "ReleaseFrame(FPS limit)");
 
-							renderingThread.store(false);
 							logPerformance();
+							renderingThread.store(false);
 							continue;
 						}
 
@@ -2545,8 +2633,8 @@ int main(int argc, char** argv) {
 							CheckHr(hr, "ReleaseFrame(encode failure)");
 							++frameIndex;
 
-							renderingThread.store(false);
 							logPerformance();
+							renderingThread.store(false);
 							continue;
                         }
 
@@ -2566,12 +2654,10 @@ int main(int argc, char** argv) {
 						CheckHr(hr, "ReleaseFrame");
 						acquiredFrame = false;
 
-						renderingThread.store(false);
 						logPerformance();
+						renderingThread.store(false);
                     }
 					catch (...) {
-						renderingThread.store(false);
-
 						SafeRelease(desktopTex);
 						SafeRelease(desktopResource);
 
@@ -2621,7 +2707,8 @@ int main(int argc, char** argv) {
 					<< cfg.width << "x" << cfg.height
 					<< " @" << cfg.fps << "fps, bitrate="
 					<< cfg.averageBitrate / 1000 << "kbps\n";
-
+				
+				renderingThread.store(false);
 				continue;
 			}
 			catch (const RecreateSessionException& e) {
@@ -2660,6 +2747,7 @@ int main(int argc, char** argv) {
 					<< "[DXGI] Desktop capture recovered."
 					<< "\n";
 
+				renderingThread.store(false);
 				continue;
 			}
         }
