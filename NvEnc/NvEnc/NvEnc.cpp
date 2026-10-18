@@ -1301,13 +1301,45 @@ static void DestroyScaler(ScaleContext& sc, void* encoder) {
     SafeRelease(sc.videoDevice);
 }
 
+// Returns true only when the Annex-B payload contains an H.264 VCL NAL
+// (types 1..5: coded slice data). This is a diagnostic check; it does not
+// modify the encoded bitstream.
+static bool HasH264VclNal(const uint8_t* data, size_t size) {
+	if (!data || size < 4) return false;
+
+	for (size_t i = 0; i + 3 < size; ++i) {
+		size_t startCodeSize = 0;
+		if (data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 1) {
+			startCodeSize = 3;
+		}
+		else if (i + 4 <= size && data[i] == 0 && data[i + 1] == 0 &&
+			data[i + 2] == 0 && data[i + 3] == 1) {
+			startCodeSize = 4;
+		}
+
+		if (startCodeSize != 0) {
+			const size_t nalHeader = i + startCodeSize;
+			if (nalHeader < size) {
+				const uint8_t nalType = data[nalHeader] & 0x1F;
+				if (nalType >= 1 && nalType <= 5) return true;
+			}
+			i = nalHeader;
+		}
+	}
+	return false;
+}
+
 static bool EncodeRegisteredTexture(
     EncoderContext& enc,
     NV_ENC_REGISTERED_PTR registered,
     uint64_t frameIndex,
     bool forceIDR,
-    bool outputSpsPps
+	bool outputSpsPps,
+	uint32_t* outputBytesOut = nullptr,
+	bool* outputHasVclOut = nullptr
 ) {
+	if (outputBytesOut) *outputBytesOut = 0;
+	if (outputHasVclOut) *outputHasVclOut = false;
     NV_ENC_MAP_INPUT_RESOURCE map{};
     map.version = NV_ENC_MAP_INPUT_RESOURCE_VER;
     map.registeredResource = registered;
@@ -1352,15 +1384,24 @@ static bool EncodeRegisteredTexture(
             "nvEncLockBitstream"
         );
 
-        try {
-            if (!WritePacketToStdout(
-                reinterpret_cast<const uint8_t*>(lock.bitstreamBufferPtr),
-                static_cast<uint32_t>(lock.bitstreamSizeInBytes))) {
-                g_nvenc.nvEncUnlockBitstream(enc.encoder, enc.bitstreamBuffer);
-                g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource);
-                return false;
-            }
-        }
+		const uint32_t bitstreamBytes =
+			static_cast<uint32_t>(lock.bitstreamSizeInBytes);
+		if (outputBytesOut) *outputBytesOut = bitstreamBytes;
+		if (outputHasVclOut) {
+			*outputHasVclOut = HasH264VclNal(
+				reinterpret_cast<const uint8_t*>(lock.bitstreamBufferPtr),
+				static_cast<size_t>(lock.bitstreamSizeInBytes));
+		}
+
+		try {
+			if (!WritePacketToStdout(
+				reinterpret_cast<const uint8_t*>(lock.bitstreamBufferPtr),
+				bitstreamBytes)) {
+				g_nvenc.nvEncUnlockBitstream(enc.encoder, enc.bitstreamBuffer);
+				g_nvenc.nvEncUnmapInputResource(enc.encoder, map.mappedResource);
+				return false;
+			}
+		}
         catch (...) {
             g_nvenc.nvEncUnlockBitstream(enc.encoder, enc.bitstreamBuffer);
             throw;
@@ -1726,9 +1767,10 @@ int main(int argc, char** argv) {
 	// Rate-limit fresh frame encoding to cfg.fps while retaining immediate capture.
 	uint64_t nextEncodeAllowedUs = 0;
 
-	// Re-encode the last frame only occasionally while the desktop is idle.
+	// Re-encode the last frame at the configured FPS while the desktop is idle.
+	// Diagnostic test: keep the repeat-encode cadence aligned with Sample.duration.
 	constexpr uint64_t KEEPALIVE_INTERVAL_MS = 250;
-	uint64_t lastKeepaliveMs = 0;
+	uint64_t lastKeepaliveUs = 0;
 
 	// ----------------------------------------------------
 	// Performance monitoring
@@ -1760,6 +1802,25 @@ int main(int argc, char** argv) {
 	uint64_t perfFreshEncodeAttempts = 0;
 	uint64_t perfRepeatEncodeAttempts = 0;
 
+	// Separate successful/failed repeat encodes from fresh desktop frames.
+   // This helps determine whether a static desktop is still producing packets.
+	uint64_t perfFreshEncodeSuccess = 0;
+	uint64_t perfFreshEncodeFail = 0;
+	uint64_t perfRepeatEncodeSuccess = 0;
+	uint64_t perfRepeatEncodeFail = 0;
+
+	// A successful NVENC API call does not necessarily prove that the
+	// returned buffer contains a coded H.264 picture. Track payload bytes
+	// and VCL NALs separately, especially for idle keepalive/repeat frames.
+	uint64_t perfFreshPayloadBytes = 0;
+	uint64_t perfRepeatPayloadBytes = 0;
+	uint64_t perfFreshEmptyPayloads = 0;
+	uint64_t perfRepeatEmptyPayloads = 0;
+	uint64_t perfFreshNoVclPayloads = 0;
+	uint64_t perfRepeatNoVclPayloads = 0;
+	uint64_t perfFreshVclPayloads = 0;
+	uint64_t perfRepeatVclPayloads = 0;
+
 	auto encodeMeasured = [&](auto registered,
 		uint64_t index,
 		bool forceIDR,
@@ -1777,12 +1838,16 @@ int main(int argc, char** argv) {
 				++perfRepeatEncodeAttempts;
 			}
 
+			uint32_t outputBytes = 0;
+			bool outputHasVcl = false;
 			const bool success = EncodeRegisteredTexture(
 				enc,
 				registered,
 				index,
 				forceIDR,
-				outputSpsPps
+				outputSpsPps,
+				&outputBytes,
+				&outputHasVcl
 			);
 
 			const auto end = PerfClock::now();
@@ -1797,9 +1862,29 @@ int main(int argc, char** argv) {
 
 			if (success) {
 				++perfEncodeSuccess;
+				if (isFreshFrame) {
+					++perfFreshEncodeSuccess;
+					perfFreshPayloadBytes += outputBytes;
+					if (outputBytes == 0) ++perfFreshEmptyPayloads;
+					else if (outputHasVcl) ++perfFreshVclPayloads;
+					else ++perfFreshNoVclPayloads;
+				}
+				else {
+					++perfRepeatEncodeSuccess;
+					perfRepeatPayloadBytes += outputBytes;
+					if (outputBytes == 0) ++perfRepeatEmptyPayloads;
+					else if (outputHasVcl) ++perfRepeatVclPayloads;
+					else ++perfRepeatNoVclPayloads;
+				}
 			}
 			else {
 				++perfEncodeFail;
+				if (isFreshFrame) {
+					++perfFreshEncodeFail;
+				}
+				else {
+					++perfRepeatEncodeFail;
+				}
 			}
 
 			return success;
@@ -1867,6 +1952,34 @@ int main(int argc, char** argv) {
 
 		//	<< " repeat_encode_fps="
 		//	<< perfRepeatEncodeAttempts / elapsedSec
+		//	<< " fresh_encode_ok_fps="
+		//	<< perfFreshEncodeSuccess / elapsedSec
+		//	<< " fresh_encode_fail_fps="
+		//	<< perfFreshEncodeFail / elapsedSec
+		//	<< " repeat_encode_ok_fps="
+		//	<< perfRepeatEncodeSuccess / elapsedSec
+		//	<< " repeat_encode_fail_fps="
+		//	<< perfRepeatEncodeFail / elapsedSec
+		//	<< " fresh_avg_payload_bytes="
+		//	<< (perfFreshEncodeSuccess > 0
+		//		? static_cast<double>(perfFreshPayloadBytes) / perfFreshEncodeSuccess
+		//		: 0.0)
+		//	<< " fresh_empty_payload_fps="
+		//	<< perfFreshEmptyPayloads / elapsedSec
+		//	<< " fresh_no_vcl_payload_fps="
+		//	<< perfFreshNoVclPayloads / elapsedSec
+		//	<< " fresh_vcl_payload_fps="
+		//	<< perfFreshVclPayloads / elapsedSec
+		//	<< " repeat_avg_payload_bytes="
+		//	<< (perfRepeatEncodeSuccess > 0
+		//		? static_cast<double>(perfRepeatPayloadBytes) / perfRepeatEncodeSuccess
+		//		: 0.0)
+		//	<< " repeat_empty_payload_fps="
+		//	<< perfRepeatEmptyPayloads / elapsedSec
+		//	<< " repeat_no_vcl_payload_fps="
+		//	<< perfRepeatNoVclPayloads / elapsedSec
+		//	<< " repeat_vcl_payload_fps="
+		//	<< perfRepeatVclPayloads / elapsedSec
 		//	<< " no_desktop_update_fps="
 		//	<< perfNoDesktopUpdateFrames / elapsedSec
 		//	<< " fps_skipped_fps="
@@ -1894,6 +2007,19 @@ int main(int argc, char** argv) {
 
 		perfFreshEncodeAttempts = 0;
 		perfRepeatEncodeAttempts = 0;
+
+		perfFreshEncodeSuccess = 0;
+		perfFreshEncodeFail = 0;
+		perfRepeatEncodeSuccess = 0;
+		perfRepeatEncodeFail = 0;
+		perfFreshPayloadBytes = 0;
+		perfRepeatPayloadBytes = 0;
+		perfFreshEmptyPayloads = 0;
+		perfRepeatEmptyPayloads = 0;
+		perfFreshNoVclPayloads = 0;
+		perfRepeatNoVclPayloads = 0;
+		perfFreshVclPayloads = 0;
+		perfRepeatVclPayloads = 0;
 
 		perfWindowStart = now;
 		};
@@ -2178,7 +2304,7 @@ int main(int argc, char** argv) {
 					// The first frame after recovery must be a keyframe.
 					firstFrame = true;
 					nextEncodeAllowedUs = TickUs();
-					lastKeepaliveMs = 0;
+					lastKeepaliveUs = 0;
 					forceIdrRequested.store(true);
 
 					// A slot belongs to the old scaler resources and must never be reused.
@@ -2438,7 +2564,7 @@ int main(int argc, char** argv) {
 
                         firstFrame = true;
 						nextEncodeAllowedUs = TickUs();
-						lastKeepaliveMs = 0;
+						lastKeepaliveUs = 0;
                         forceIdrRequested.store(true);
 
                         std::cerr << "[NVENC] reconfigure requested: "
@@ -2473,17 +2599,20 @@ int main(int argc, char** argv) {
 
 						if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
 							++perfAcquireTimeouts;
-							const uint64_t keepaliveNowMs = TickMs();
+							const uint64_t keepaliveNowUs = TickUs();
 
-							if (
-								lastEncodedSlot &&
-								(lastKeepaliveMs == 0 || keepaliveNowMs - lastKeepaliveMs >= KEEPALIVE_INTERVAL_MS)
-								) {
+							const uint64_t fps =
+								static_cast<uint64_t>((std::max)(1u, cfg.fps));
+
+							const uint64_t keepaliveIntervalUs =
+								(1'000'000ULL + fps / 2) / fps;
+
+							if (lastEncodedSlot &&
+								(lastKeepaliveUs == 0 ||
+									keepaliveNowUs - lastKeepaliveUs >= keepaliveIntervalUs)) {
 								bool keepaliveForceIDR = forceIdrRequested.exchange(false);
-								if (
-									cfg.idrPeriod > 0 &&
-									(frameIndex % cfg.idrPeriod) == 0
-									) {
+								if (cfg.idrPeriod > 0 &&
+									(frameIndex % cfg.idrPeriod) == 0) {
 									keepaliveForceIDR = true;
 								}
 
@@ -2495,7 +2624,7 @@ int main(int argc, char** argv) {
 									false
 								);
 
-								lastKeepaliveMs = keepaliveNowMs;
+								lastKeepaliveUs = keepaliveNowUs;
 							}
 
 							logPerformance();
@@ -2531,10 +2660,17 @@ int main(int argc, char** argv) {
 							}
 							CheckHr(hr, "ReleaseFrame(no desktop update)");
 
-							const uint64_t keepaliveNowMs = TickMs();
+							const uint64_t keepaliveNowUs = TickUs();
+
+							const uint64_t fps =
+								static_cast<uint64_t>((std::max)(1u, cfg.fps));
+
+							const uint64_t keepaliveIntervalUs =
+								(1'000'000ULL + fps / 2) / fps;
+
 							if (lastEncodedSlot &&
-								(lastKeepaliveMs == 0 ||
-									keepaliveNowMs - lastKeepaliveMs >= KEEPALIVE_INTERVAL_MS)) {
+								(lastKeepaliveUs == 0 ||
+									keepaliveNowUs - lastKeepaliveUs >= keepaliveIntervalUs)) {
 								bool keepaliveForceIDR = forceIdrRequested.exchange(false);
 								if (cfg.idrPeriod > 0 &&
 									(frameIndex % cfg.idrPeriod) == 0) {
@@ -2548,7 +2684,7 @@ int main(int argc, char** argv) {
 									keepaliveForceIDR,
 									false
 								);
-								lastKeepaliveMs = keepaliveNowMs;
+								lastKeepaliveUs = keepaliveNowUs;
 							}
 
 							logPerformance();
@@ -2680,6 +2816,7 @@ int main(int argc, char** argv) {
                         }
 
                         lastEncodedSlot = &slot;
+						lastKeepaliveUs = TickUs();
 
                         firstFrame = false;
                         ++frameIndex;
@@ -2739,7 +2876,7 @@ int main(int argc, char** argv) {
 
 				firstFrame = true;
 				nextEncodeAllowedUs = TickUs();
-				lastKeepaliveMs = 0;
+				lastKeepaliveUs = 0;
 				forceIdrRequested.store(true);
 				lastEncodedSlot = nullptr;
 
@@ -2778,7 +2915,7 @@ int main(int argc, char** argv) {
 				// The first frame after recovery must be a keyframe.
 				firstFrame = true;
 				nextEncodeAllowedUs = TickUs();
-				lastKeepaliveMs = 0;
+				lastKeepaliveUs = 0;
 				forceIdrRequested.store(true);
 
 				// A slot belongs to the old scaler resources and must never be reused.
