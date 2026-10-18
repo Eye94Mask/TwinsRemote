@@ -1609,6 +1609,13 @@ bool ShouldApplyRelayCap(StreamConfig current, StreamConfig cap){
         || current.averageBitrate > cap.averageBitrate;
 }
 
+bool ShouldApplyRelayCapLimit(StreamConfig relayLimitCap, StreamConfig cfg) {
+	return cfg.width > relayLimitCap.width
+		|| cfg.height > relayLimitCap.height
+		|| cfg.fps > relayLimitCap.fps
+		|| cfg.averageBitrate > relayLimitCap.averageBitrate;
+}
+
 static std::string WideToSjis(const std::wstring& wstr) {
     if (wstr.empty()) return {};
 
@@ -1708,6 +1715,7 @@ int main(int argc, char** argv) {
 	// Coordinates entry into the render loop with screen-switch resource changes.
 	std::mutex renderingStateMutex;
 	StreamConfig pendingConfig{};
+	StreamConfig capLimitConfig{};
 
 	uint64_t frameIndex = 0;
 	bool firstFrame = true;
@@ -1928,6 +1936,9 @@ int main(int argc, char** argv) {
                     forceIdrRequested.store(true);
                     relayCapActuallyApplied.store(false);
 
+					std::cerr << "[DC_SEND] Set Preset " << next.averageBitrate << " " << next.fps << "\n";
+					std::cerr << "[DC_SEND] CFG CHANGED " << next.averageBitrate << " " << next.fps << "\n";
+
                     std::cerr << "[NVENC] command received: set_preset "
                         << presetName << "\n";
                 }
@@ -1986,42 +1997,43 @@ int main(int argc, char** argv) {
                         continue;
                     }
 
-                    StreamConfig next{};
-                    next.width = width;
-                    next.height = height;
-                    next.fps = fps;
-                    next.averageBitrate = averageBitrate;
-                    next.maxBitrate = maxBitrate;
-                    next.vbvBufferSize = vbvBufferSize;
-                    next.vbvInitialDelay = vbvInitialDelay;
-                    next.gopLength = gopLength;
-                    next.idrPeriod = idrPeriod;
-                    next.repeatSpsPps = repeatSpsPps != 0;
-                    next.outputAud = outputAud != 0;
-                    next.maxRefFrames = maxRefFrames;
-                    next.profileGuid = GetCustomProfileGuidFromStr(profileGuid);
-                    next.presetGuid = GetCustomPresetGuidFromStr(presetGuid);
-                    next.tuningInfo = GetCustomTuningInfoGuidFromStr(tuningInfo);
-                    next.enableLookahead = enableLookahead != 0;
-                    next.lookaheadDepth = lookaheadDepth;
-                    next.disableIadapt = disableIadapt != 0;
-                    next.disableBadapt = disableBadapt != 0;
+					capLimitConfig.width = width;
+                    capLimitConfig.height = height;
+                    capLimitConfig.fps = fps;
+                    capLimitConfig.averageBitrate = averageBitrate;
+                    capLimitConfig.maxBitrate = maxBitrate;
+                    capLimitConfig.vbvBufferSize = vbvBufferSize;
+                    capLimitConfig.vbvInitialDelay = vbvInitialDelay;
+                    capLimitConfig.gopLength = gopLength;
+                    capLimitConfig.idrPeriod = idrPeriod;
+                    capLimitConfig.repeatSpsPps = repeatSpsPps != 0;
+                    capLimitConfig.outputAud = outputAud != 0;
+                    capLimitConfig.maxRefFrames = maxRefFrames;
+                    capLimitConfig.profileGuid = GetCustomProfileGuidFromStr(profileGuid);
+                    capLimitConfig.presetGuid = GetCustomPresetGuidFromStr(presetGuid);
+                    capLimitConfig.tuningInfo = GetCustomTuningInfoGuidFromStr(tuningInfo);
+                    capLimitConfig.enableLookahead = enableLookahead != 0;
+                    capLimitConfig.lookaheadDepth = lookaheadDepth;
+                    capLimitConfig.disableIadapt = disableIadapt != 0;
+                    capLimitConfig.disableBadapt = disableBadapt != 0;
 
-                    if (!ShouldApplyRelayCap(cfg, next)) {
-                        relayCapActuallyApplied.store(false);
+					relayCapActuallyApplied.store(true);
+
+                    if (!ShouldApplyRelayCap(cfg, capLimitConfig)) {
                         std::cerr << "[NVENC] relay cap skipped: current config is already <= cap\n";
                         continue;
                     }
 
-                    relayCapActuallyApplied.store(true);
-
                     {
                         std::lock_guard<std::mutex> lock(pendingConfigMutex);
-						pendingConfig = next;
+						pendingConfig = capLimitConfig;
                     }
 
                     reconfigureRequested.store(true);
                     forceIdrRequested.store(true);
+
+					std::cerr << "[DC_SEND] Set Config " << capLimitConfig.averageBitrate << " " << capLimitConfig.fps << "\n";
+					std::cerr << "[DC_SEND] CFG CHANGED " << capLimitConfig.averageBitrate << " " << capLimitConfig.fps << "\n";
 
                     std::cerr << "[NVENC] command received: set_config "
                         << width << "x" << height
@@ -2087,14 +2099,28 @@ int main(int argc, char** argv) {
 						autoAdjustEnabled.load() &&
 						modeName == "autoAdjust" &&
 						mode == "autoAdjust1080p";
-					const bool modeChanged = (mode != modeName) && !sameAutoAdjustAlias;
+					bool modeChanged = (mode != modeName) && !sameAutoAdjustAlias;
 					StreamConfig next = GetStreamConfigByName(mode, customModes);
+
+					if (relayCapActuallyApplied.load() && !ShouldApplyRelayCap(cfg, next)) {
+						std::cerr << "[NVENC] relay cap skipped: current config is already <= cap\n";
+
+						if (ShouldApplyRelayCapLimit(capLimitConfig, next)) {
+							modeChanged = true;
+							next = capLimitConfig;
+						}
+						else {
+							modeChanged = false;
+							next = cfg;
+						}
+					}
 
 					std::cerr << "[STREAM SWITCH] requested_screen=" << screen
 						<< " requested_mode=" << requestedModeName
 						<< " current_mode=" << modeName
 						<< " mode_changed=" << (modeChanged ? "true" : "false")
 						<< "\n";
+
 					if (modeChanged) {
 						const bool selectingAutoMode = (mode == "autoAdjust1080p");
 
@@ -2148,6 +2174,9 @@ int main(int argc, char** argv) {
 						sameAdapter,
 						screen
 					);
+
+					std::cerr << "[DC_SEND] Change Stream " << cfg.averageBitrate << " " << cfg.fps << "\n";
+					std::cerr << "[DC_SEND] CFG CHANGED " << cfg.averageBitrate << " " << cfg.fps << "\n";
 
 					// The first frame after recovery must be a keyframe.
 					firstFrame = true;
@@ -2205,6 +2234,9 @@ int main(int argc, char** argv) {
 
 				autoAdjustPresetIndex.store(nextIndex);
 				reconfigureRequested.store(true);
+
+				std::cerr << "[DC_SEND] Auto Adjust " << next.averageBitrate << " " << next.fps << "\n";
+				std::cerr << "[DC_SEND] CFG CHANGED " << next.averageBitrate << " " << next.fps << "\n";
 
 				std::cerr
 					<< "[AUTO_ADJUST] command received: " << line
@@ -2337,6 +2369,9 @@ int main(int argc, char** argv) {
 			selectedAutoMode = (preset == StreamPreset::AutoAdjust);
             cfg = GetStreamConfig(preset);
         }
+
+		std::cerr << "[DC_SEND] Initialize " << cfg.averageBitrate << " " << cfg.fps << "\n";
+		std::cerr << "[DC_SEND] CFG CHANGED " << cfg.averageBitrate << " " << cfg.fps << "\n";
 
 		std::cerr << "[INFO] Selected Mode: " << modeName
             << " (" << cfg.width << "x" << cfg.height

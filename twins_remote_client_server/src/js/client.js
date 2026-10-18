@@ -144,6 +144,13 @@ const MAX_RENDER_BACKLOG = 1;
 const LOG_RTC_MS = 5000;
 const MEASURE_MS = 1000;
 
+const STRONG_PLAYBACKRATE_MS = 2000;
+const MIDDLE_PLAYBACKRATE_MS = 1500;
+const WEAK_PLAYBACKRATE_MS = 800;
+const STRONG_PLAYBACKRATE = 1.06;
+const MIDDLE_PLAYBACKRATE = 1.04;
+const WEAK_PLAYBACKRATE = 1.03;
+
 // ==================================
 // 画質自動調整 - 画質を下げる
 // ==================================
@@ -203,7 +210,8 @@ let bpsReference = null;
 let lastBytesReceived = 0;
 let lastPacketsLost = 0;
 let lastPacketsReceived = 0;
-let currentAverageBitrate = 0;
+let currentOriginalAverageBitrate = 0;
+let currentOriginalFps = 0;
 let lastStatsTime = 0;
 let configChangedAt = 0;
 let lastAdjustQualityRequestAt = 0;
@@ -217,7 +225,7 @@ let rttHistory = Array.from({ length: HISTORY_SIZE }, () => -1);
 // "relay-test" | "normal" | "stun-first"
 // !!!! リリース前には絶対に const ICE_MODE = "normal"; に変更すること !!!!
 // =======================================================================================
-const ICE_MODE = "normal";
+const ICE_MODE = "relay-test";
 
 let badRttCount = 0;
 let lastIceRestartAt = 0;
@@ -230,16 +238,14 @@ const ICE_RESTART_COOLDOWN_MS = 15000;
 // =================================================
 // Cap 外し予防
 // =================================================
+const COUNT_LIMIT_OF_CAP_VIOLATION = 4;
+
 const RELAY_CAP_WIDTH = 1200;
 const RELAY_CAP_HEIGHT = 720;
 const RELAY_CAP_FPS = 30;
 const RELAY_CAP_BITRATE_BPS = 5_000_000;
 
-const FPS_MARGIN = 5;           // 35fps 超えで違反
-const BITRATE_MARGIN = 1.4;     // 7Mbps 超えで違反
-const HARD_BITRATE_MARGIN = 2.0 // 10Mbps 超えで強違反
-
-let capViolationScore = 0;
+let capViolationCount = 0;
 let lastVideoBytes = null;
 let lastVideoBytesAt = null;
 
@@ -266,33 +272,48 @@ function estimateVideoBitrateBps(report) {
     return (deltaBytes * 8 * 1000) / deltaMs;
 }
 
-function updateCapViolationScore(report, bitrateBps, isRelay) {
+function checkCapViolation(report, bitrateBps, isRelay) {
     if (!isRelay) {
-        capViolationScore = 0;
+        capViolationCount = 0;
         return false;
     }
 
     const width  = report.frameWidth || 0;
     const height = report.frameHeight || 0;
-    const fps    = report.framesPerSecond || 0;
 
-    let scoreAdd = 0;
+    console.log("[CAP VIOLATION] check (width: " + width +
+        ", height: " + height +
+        ", bps: " + currentOriginalAverageBitrate +
+        ", fps: " + currentOriginalFps
+    );
 
-    if (width > RELAY_CAP_WIDTH || height > RELAY_CAP_HEIGHT) {
-        scoreAdd += 4;
+    if (
+        Number.isFinite(RELAY_CAP_WIDTH) &&
+        Number.isFinite(RELAY_CAP_HEIGHT) &&
+        RELAY_CAP_WIDTH > 0 &&
+        RELAY_CAP_HEIGHT > 0 &&
+        (width > RELAY_CAP_WIDTH || height > RELAY_CAP_HEIGHT)
+    ) {
+        return true;
     }
 
-    if (fps > RELAY_CAP_FPS + FPS_MARGIN) {
-        scoreAdd += 3;
+    if (
+        Number.isFinite(currentOriginalFps) &&
+        currentOriginalFps > 0 && 
+        currentOriginalFps > RELAY_CAP_FPS
+    ) {
+        return true;
     }
 
-    if (scoreAdd > 0) {
-        capViolationScore += scoreAdd;
-    } else {
-        capViolationScore = Math.max(0, capViolationScore - 1);
+    if (
+        Number.isFinite(currentOriginalAverageBitrate) &&
+        currentOriginalAverageBitrate > 0 && 
+        currentOriginalAverageBitrate > RELAY_CAP_BITRATE_BPS
+    ) {
+        return true;
     }
 
-    return capViolationScore >= 12
+    return false;
 }
 
 function disconnectForCapViolation(report, bitrateBps) {
@@ -727,7 +748,8 @@ function setupDataChannel(channel, controller) {
 
         if (msg.type == "config") {
             resetAutoAdjustVariables();
-            currentAverageBitrate = msg.bps;
+            currentOriginalAverageBitrate = msg.bps;
+            currentOriginalFps = msg.fps;
             configChangedAt = nowMs();
         }
     };
@@ -1554,7 +1576,7 @@ async function measureQualityOfRtc(pc) {
                 dataTransportRateBps = (8 * deltaBytes) / elapsedSec;
 
                 console.log("[REPORT] Bitrate(bps): " + dataTransportRateBps);
-                console.log("[REPORT] originalBitrate(bps): " + currentAverageBitrate);
+                console.log("[REPORT] originalBitrate(bps): " + currentOriginalAverageBitrate);
             }
         }
     }
@@ -1679,7 +1701,8 @@ function resetAutoAdjustVariables() {
     lastBytesReceived = 0;
     lastPacketsLost = 0;
     lastPacketsReceived = 0;
-    currentAverageBitrate = 0;
+    currentOriginalAverageBitrate = 0;
+    currentOriginalFps = 0;
     lastStatsTime = 0;
     configChangedAt = 0;
     lastAdjustQualityRequestAt = 0;
@@ -3066,11 +3089,15 @@ function startStatsMonitor() {
                         ? isRelayConnection(stats, selectedCandidatePair)
                         : false;
                     
-                    if (updateCapViolationScore(report, bitrateBps, isRelay)) {
-                        disconnectForCapViolation(report, bitrateBps);
-                        return;
+                    if (checkCapViolation(report, bitrateBps, isRelay)) {
+                        capViolationCount++;
+                        if (capViolationCount > COUNT_LIMIT_OF_CAP_VIOLATION) {
+                            disconnectForCapViolation(report, bitrateBps);
+                        }
                     }
                     
+                    capViolationCount = 0;
+
                     console.log("[video stats]", {
                         packetsReceived: report.packetsReceived,
                         bytesReceived: report.bytesReceived,

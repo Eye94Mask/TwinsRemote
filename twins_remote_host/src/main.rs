@@ -94,29 +94,6 @@ struct ModeChanger {
     mode: String
 }
 
-#[derive(Debug, PartialEq)]
-struct CfgSend {
-    bps: u32
-}
-
-#[derive(Debug, PartialEq, Eq)]
-struct ParseCfgSendError;
-
-impl FromStr for CfgSend {
-    type Err = ParseCfgSendError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let bitrate = s
-            .trim()
-            .parse::<u32>()
-            .unwrap();
-
-        Ok(Self {
-            bps: bitrate
-        })
-    }
-}
-
 #[derive(Debug, PartialEq, Eq)]
 struct ParseModeChangerError;
 
@@ -132,6 +109,35 @@ impl FromStr for ModeChanger {
         Ok(Self {
             screen: screen.to_string(),
             mode: mode.to_string()
+        })
+    }
+}
+
+#[derive(Debug, PartialEq)]
+struct CfgSend {
+    bps: u32,
+    fps: u32
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct ParseCfgSendError;
+
+impl FromStr for CfgSend {
+    type Err = ParseCfgSendError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (str_bitrate, str_fps) = s
+            .trim()
+            .split_once(' ')
+            .ok_or(ParseCfgSendError{})?;
+
+
+        let bitrate: u32 = str_bitrate.parse().unwrap();
+        let fps: u32 = str_fps.parse().unwrap();
+
+        Ok(Self {
+            bps: bitrate,
+            fps
         })
     }
 }
@@ -587,11 +593,12 @@ async fn main() -> Result<()> {
                         };
 
                         if let Some(line) = line {
-                            if let Some(rest) = line.strip_prefix("[DC_SEND] Average bitrate: ") {
+                            if let Some(rest) = line.strip_prefix("[DC_SEND] CFG CHANGED ") {
                                 match rest.trim().parse::<CfgSend>() {
                                     Ok(cfg) => {
                                         let cfg_info = json!({
                                             "type": "config",
+                                            "fps": cfg.fps,
                                             "bps": cfg.bps,
                                             "from": "host"
                                         })
