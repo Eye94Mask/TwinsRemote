@@ -244,7 +244,18 @@ namespace TwinsRemoteHost
 
                 if (i >= modeComboBox.Items.Count) { modeComboBox.SelectedIndex = 0; }
             }
-            else modeComboBox.SelectedIndex = 0;
+            else
+            {
+                int modeDefault = modeComboBox.FindStringExact(Properties.Settings.Default.Mode);
+                if (modeDefault < 0)
+                {
+                    modeComboBox.SelectedIndex = 0;
+                }
+                else
+                {
+                    modeComboBox.SelectedIndex = modeComboBox.FindStringExact(Properties.Settings.Default.Mode);
+                }
+            }
         }
 
         public static VideoPresetItem[] GetModeList(Locale locale)
