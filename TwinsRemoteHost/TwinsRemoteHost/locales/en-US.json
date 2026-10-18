@@ -41,6 +41,7 @@
   "stablePresets": "Stable Priority",
   "qualityPresets": "Quality Priority",
   "reducingNetworkLoadPresets": "Reduce Network Load",
+  "autoAdjustMode": "Auto Adjust",
   "balancedMode": "Balanced",
   "qualityMode": "Quality",
   "stableMode": "Stable",

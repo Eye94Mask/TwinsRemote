@@ -3,10 +3,10 @@
   <Profiles />
   <Settings>
     <Setting Name="Language" Type="System.String" Scope="User">
-      <Value Profile="(Default)">Japanese</Value>
+      <Value Profile="(Default)">日本語</Value>
     </Setting>
     <Setting Name="Mode" Type="System.String" Scope="User">
-      <Value Profile="(Default)">バランス</Value>
+      <Value Profile="(Default)">自動</Value>
     </Setting>
     <Setting Name="NotificationDate" Type="System.DateTime" Scope="User">
       <Value Profile="(Default)">1970-01-01</Value>

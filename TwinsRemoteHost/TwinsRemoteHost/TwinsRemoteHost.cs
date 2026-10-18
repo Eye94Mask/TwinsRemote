@@ -20,7 +20,7 @@ namespace TwinsRemoteHost
 {
     public partial class Host : Form
     {
-        private readonly string version = "1.1.0";
+        private readonly string version = "1.2.0";
 
         private bool init = true;
         private List<string> notifications = [];
@@ -227,15 +227,7 @@ namespace TwinsRemoteHost
             List<string> customNames = GetCustomModeList();
 
             modeComboBox.Items.Clear();
-            List<object> modes = [];
-            foreach (string customName in customNames)
-            {
-                modeComboBox.Items.Add(new VideoPresetItem { DisplayName = customName, Key = customName });
-            }
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.BalancedMode, Key = "Balanced" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.QualityMode, Key = "Quality" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.StableMode, Key = "Stable" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.MobileMode, Key = "Mobile" });
+            modeComboBox.Items.AddRange(GetModeList(this.locale));
 
             if (previousModeValue != null || previousModeValue == String.Empty)
             {
@@ -253,6 +245,24 @@ namespace TwinsRemoteHost
                 if (i >= modeComboBox.Items.Count) { modeComboBox.SelectedIndex = 0; }
             }
             else modeComboBox.SelectedIndex = 0;
+        }
+
+        public static VideoPresetItem[] GetModeList(Locale locale)
+        {
+            List<VideoPresetItem> modeList = [];
+            List<string> customNames = GetCustomModeList();
+
+            modeList.Add(new VideoPresetItem { DisplayName = locale.AutoAdjustMode, Key = "autoAdjust1080p" });
+            modeList.Add(new VideoPresetItem { DisplayName = locale.BalancedMode, Key = "balanced" });
+            modeList.Add(new VideoPresetItem { DisplayName = locale.QualityMode, Key = "quality" });
+            modeList.Add(new VideoPresetItem { DisplayName = locale.StableMode, Key = "stable" });
+            modeList.Add(new VideoPresetItem { DisplayName = locale.MobileMode, Key = "mobile" });
+            foreach (string customName in customNames)
+            {
+                modeList.Add(new VideoPresetItem { DisplayName = customName, Key = customName });
+            }
+
+            return modeList.ToArray();
         }
 
         private async Task InitializeUi()
@@ -1057,6 +1067,9 @@ namespace TwinsRemoteHost
 
         [JsonProperty("reducingNetworkLoadPresets")]
         public required string ReducingNetworkLoadPresets { get; set; }
+
+        [JsonProperty("autoAdjustMode")]
+        public required string AutoAdjustMode { get; set; }
 
         [JsonProperty("balancedMode")]
         public required string BalancedMode { get; set; }

@@ -6,7 +6,7 @@ mod consts;
 mod env;
 
 use anyhow::{anyhow, Result};
-use std::io::{Read, Write};
+use std::io::{Read, Write, BufRead, BufReader};
 use std::process::{Child, ChildStdout, Command, Stdio};
 use std::sync::{
     atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
@@ -21,9 +21,8 @@ use serde_json::json;
 use clap::Parser;
 use bytes::Bytes;
 use rustls::crypto::ring::default_provider;
-use tokio::io::BufReader;
 use tokio::sync::{broadcast, mpsc};
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, Instant, sleep};
 
 use webrtc::data_channel::data_channel_message::DataChannelMessage;
 use webrtc::data_channel::data_channel_state::RTCDataChannelState;
@@ -31,10 +30,40 @@ use webrtc::ice_transport::ice_connection_state::RTCIceConnectionState;
 use webrtc::media::Sample;
 
 use crate::audio_encoder::AudioEncoder;
-use crate::consts::{VIDEO_FRAME_DURATION, CAP_THRESHOLD};
+use crate::consts::{VIDEO_FRAME_DURATION, CAP_THRESHOLD, AUTO_ADJUST_MODE};
 use crate::controller::{Controller, GamepadState, PsRumbleState, XboxRumbleState, VirtualPadType};
 use crate::env::IceConfig;
 use crate::webrtc_sender::{WebRtcSender, StreamPolicy};
+
+// Diagnostic metadata for one encoded video packet.
+struct QueuedVideoPacket {
+    data: Vec<u8>,
+    // Time immediately before blocking_send. The measured age at recv includes
+    // both producer backpressure and time spent in the channel queue.
+    created_at: Instant,
+}
+
+#[derive(Default)]
+struct VideoPipelineMetrics {
+    packets_read: AtomicU64,
+    queue_full_hits: AtomicU64,
+    send_attempts: AtomicU64,
+    send_block_us_total: AtomicU64,
+    send_block_us_max: AtomicU64,
+    writer_received: AtomicU64,
+    reader_to_writer_us_total: AtomicU64,
+    reader_to_writer_us_max: AtomicU64,
+    write_attempts: AtomicU64,
+    write_sample_us_total: AtomicU64,
+    write_sample_us_max: AtomicU64,
+    write_errors: AtomicU64,
+}
+
+fn record_duration_us(total: &AtomicU64, max: &AtomicU64, elapsed: Duration) {
+    let elapsed_us = elapsed.as_micros().min(u64::MAX as u128) as u64;
+    total.fetch_add(elapsed_us, Ordering::Relaxed);
+    max.fetch_max(elapsed_us, Ordering::Relaxed);
+}
 
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
@@ -53,6 +82,8 @@ struct Args {
 enum NvencCommand {
     ForceIdr,
     ApplyStreamPolicy(StreamPolicy),
+    AutoAdjustLower,
+    AutoAdjustHigher,
     RestorePreset,
     ChangeStream(String, String)
 }
@@ -61,6 +92,29 @@ enum NvencCommand {
 struct ModeChanger {
     screen: String,
     mode: String
+}
+
+#[derive(Debug, PartialEq)]
+struct CfgSend {
+    bps: u32
+}
+
+#[derive(Debug, PartialEq, Eq)]
+struct ParseCfgSendError;
+
+impl FromStr for CfgSend {
+    type Err = ParseCfgSendError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let bitrate = s
+            .trim()
+            .parse::<u32>()
+            .unwrap();
+
+        Ok(Self {
+            bps: bitrate
+        })
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -113,10 +167,15 @@ async fn main() -> Result<()> {
     println!("[INFO] session={}", session_id);
     println!("[INFO] screen={}", screen);
 
+    // -------------------------------
+    // Auto Adjust
+    // -------------------------------
+    let auto_adjust = Arc::new(Mutex::new(&preset_for_nvenc_thread == AUTO_ADJUST_MODE));
+
     let (audio_cmd_tx, audio_cmd_rx) = std::sync::mpsc::channel::<AudioCommand>();
     let (quit_tx, quit_rx) = std::sync::mpsc::channel::<()>();
     let (nvenc_cmd_tx, nvenc_cmd_rx) = std::sync::mpsc::channel::<NvencCommand>();
-    spawn_stdin_router(audio_cmd_tx.clone(), nvenc_cmd_tx.clone(), quit_tx);
+    spawn_stdin_router(audio_cmd_tx.clone(), nvenc_cmd_tx.clone(), quit_tx, Arc::clone(&auto_adjust));
 
     println!("[INFO] fetching IceConfig from server");
     let ice = IceConfig::fetch_from_server(&session_id).await?;
@@ -166,24 +225,39 @@ async fn main() -> Result<()> {
         .arg(&screen)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
+        .stderr(Stdio::piped())
         .spawn()
         .expect("failed to start nvenc");
 
     let mut nvenc_stdin = child.stdin.take().expect("failed to take nvenc stdin");
     let nvenc_stdout = child.stdout.take().expect("failed to take nvenc stdout");
+    let nvenc_errout = child.stderr.take().expect("failed to take nvenc stderr");
+
+    let (nvenc_err_tx, nvenc_err_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    let nvenc_err_rx = Arc::new(tokio::sync::Mutex::new(nvenc_err_rx));
 
     let last_nvenc_packet_at = Arc::new(AtomicU64::new(now_millis()));
     let last_video_sample_at = Arc::new(AtomicU64::new(now_millis()));
     let video_watchdog_fired = Arc::new(AtomicBool::new(false));
 
-    // NvEnc command thread
+    // Keep Sample.duration aligned with the encoder's currently reported FPS.
+    // VIDEO_FRAME_DURATION is only the startup fallback until NvEnc.exe reports its mode.
+    let video_frame_duration_us = Arc::new(AtomicU64::new(
+        VIDEO_FRAME_DURATION.as_micros().min(u64::MAX as u128) as u64,
+    ));
+
+    // -------------------------------
+    // NvEnc COMMAND THREAD
+    // -------------------------------
     std::thread::spawn(move || {
         while let Ok(cmd) = nvenc_cmd_rx.recv() {
             let line = match cmd {
                 NvencCommand::ForceIdr => "force_idr\n".to_string(),
 
                 NvencCommand::RestorePreset => format!("set_preset {}\n", preset_for_nvenc_thread),
+
+                NvencCommand::AutoAdjustHigher => "auto_adjust_higher_quality\n".to_string(),
+                NvencCommand::AutoAdjustLower => "auto_adjust_lower_quality\n".to_string(),
 
                 NvencCommand::ApplyStreamPolicy(policy) => {
                     match policy.cap {
@@ -226,6 +300,49 @@ async fn main() -> Result<()> {
                 break;
             }
         }
+    });
+
+    // -------------------------------
+    // CONFIG SEND THREAD
+    // -------------------------------
+    let video_frame_duration_us_reader = video_frame_duration_us.clone();
+    std::thread::spawn(move || {
+        let reader = BufReader::new(nvenc_errout);
+
+        for line in reader.lines() {
+            match line {
+                Ok(line) => {
+                    // NvEnc mode logs include strings such as "@30fps" or "@60fps".
+                    // Update Sample.duration whenever the active encoder mode changes.
+                    if let Some(fps) = extract_fps_from_nvenc_log(&line) {
+                        let duration_us = (1_000_000u64 + fps / 2) / fps;
+                        let previous_us = video_frame_duration_us_reader
+                            .swap(duration_us.max(1), Ordering::Relaxed);
+
+                        if previous_us != duration_us {
+                            eprintln!(
+                                "[VIDEO TIMING] encoder_fps={} sample_duration_us={} (previous={}us)",
+                                fps,
+                                duration_us,
+                                previous_us,
+                            );
+                        }
+                    }
+
+                    println!("{}", line);
+                    if nvenc_err_tx.send(line).is_err() {
+                        eprintln!("[HOST] NvEnc error output receiver closed");
+                        break;
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[HOST] NvEnc stderr read failed: {:?}", e);
+                    break;
+                }
+            }
+        }
+
+        eprintln!("[HOST] NvEnc stderr reader existed");
     });
 
     // -------------------------------
@@ -328,6 +445,7 @@ async fn main() -> Result<()> {
     let xbox_controller_clone = xbox_controller.clone();
     let ps_controller_clone = ps_controller.clone();
     let nvenc_cmd_tx_clone = nvenc_cmd_tx.clone();
+    let auto_adjust_clone = auto_adjust.clone();
     let xbox_rumble_tx_for_dc = xbox_rumble_tx.clone();
     let ps_rumble_tx_for_dc = ps_rumble_tx.clone();
 
@@ -339,11 +457,13 @@ async fn main() -> Result<()> {
 
     let mut currentController = VirtualPadType::Xbox360;
 
+    let nvenc_err_rx = nvenc_err_rx.clone();
     webrtc.peer.on_data_channel(Box::new(move |dc| {
         println!("DataChannel accepted from client: {}", dc.label());
 
         let xbox_controller_clone = xbox_controller_clone.clone();
         let ps_controller_clone = ps_controller_clone.clone();
+        let auto_adjust_clone = auto_adjust_clone.clone();
         let nvenc_cmd_tx_clone = nvenc_cmd_tx_clone.clone();
         let last_force_keyframe_at_clone = last_force_keyframe_at_clone.clone();
         let xbox_rumble_tx_for_dc = xbox_rumble_tx_for_dc.clone();
@@ -352,15 +472,20 @@ async fn main() -> Result<()> {
 
         let pc_clone = pc.clone();
         let dc_clone = dc.clone();
-        Box::pin(async move {
+        Box::pin({
+            let nvenc_err_rx_clone = nvenc_err_rx.clone();
+            async move {
             let last_gamepad_seq = last_gamepad_seq_clone.clone();
             let pc_clone_clone = pc_clone.clone();
             let dc_clone_clone = dc_clone.clone();
+            let auto_adjust_clone_clone = auto_adjust_clone.clone();
             dc.on_open(Box::new(move || {
                 let pc_clone_1 = pc_clone_clone.clone();
                 let dc_clone_1 = dc_clone_clone.clone();
                 let xbox_rumble_tx_for_open = xbox_rumble_tx_for_dc.clone();
                 let ps_rumble_tx_for_open = ps_rumble_tx_for_dc.clone();
+                let auto_adjust_clone = auto_adjust_clone_clone.clone();
+                let nvenc_err_rx = nvenc_err_rx_clone.clone();
 
                 println!("[HOST] DataChannel OPEN");
 
@@ -441,6 +566,47 @@ async fn main() -> Result<()> {
                         if let Err(e) = dc_ping.send_text(ping).await {
                             eprintln!("[HOST] failed to send dc_ping: {:?}", e);
                             break;
+                        }
+                    }
+                });
+
+                // -------------------------------
+                // Config send task
+                // -------------------------------
+                let dc_cfg = dc_clone_clone.clone();
+                tokio::spawn(async move {
+                    let nvenc_err_rx = nvenc_err_rx.clone();
+
+                    loop {
+                        if dc_cfg.label() != "input" { break; }
+                        if dc_cfg.ready_state() != RTCDataChannelState::Open { break; }
+
+                        let line: Option<String> = {
+                            let mut rx = nvenc_err_rx.lock().await;
+                            rx.recv().await
+                        };
+
+                        if let Some(line) = line {
+                            if let Some(rest) = line.strip_prefix("[DC_SEND] Average bitrate: ") {
+                                match rest.trim().parse::<CfgSend>() {
+                                    Ok(cfg) => {
+                                        let cfg_info = json!({
+                                            "type": "config",
+                                            "bps": cfg.bps,
+                                            "from": "host"
+                                        })
+                                        .to_string();
+
+                                        if let Err(e) = dc_cfg.send_text(cfg_info).await {
+                                            eprintln!("[HOST_TEST] failed to send dc_cfg: {:?}", e);
+                                            break;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        eprintln!("[HOST] invalid config: {:?} ({})", e, line);
+                                    }
+                                }
+                            }
                         }
                     }
                 });
@@ -543,6 +709,7 @@ async fn main() -> Result<()> {
             dc.on_message(Box::new(move |msg: DataChannelMessage| {
                 let xbox_controller = xbox_controller_clone.clone();
                 let ps_controller = ps_controller_clone.clone();
+                let auto_adjust = auto_adjust_clone.clone();
                 let nvenc_cmd_tx = nvenc_cmd_tx_clone.clone();
                 let last_force_keyframe_at = last_force_keyframe_at_clone.clone();
                 let dc = dc_for_message.clone();
@@ -550,6 +717,7 @@ async fn main() -> Result<()> {
 
                 Box::pin(async move {
                     let data = &msg.data;
+                    let auto_adjust_clone = auto_adjust.clone();
 
                     if data.len() == 13 || data.len() == 17 {
                         let buttons = u16::from_le_bytes([data[0], data[1]]);
@@ -631,6 +799,28 @@ async fn main() -> Result<()> {
                             if v.get("type").and_then(|x| x.as_str()) == Some("dc_pong") {
                                 return;
                             }
+
+                            if v.get("type").and_then(|x| x.as_str()) == Some("auto_adjust_higher_quality") {
+                                if let Ok(mut adjust_cfg) = auto_adjust_clone.lock() {
+                                    if *adjust_cfg {
+                                        eprintln!("[HOST] auto_adjust_higher_quality received");
+                                        let _ = nvenc_cmd_tx.send(NvencCommand::AutoAdjustHigher);
+                                        println!("[HOST] auto_adjust_higher_quality");
+                                    }
+                                }
+                                return;
+                            }
+
+                            if v.get("type").and_then(|x| x.as_str()) == Some("auto_adjust_lower_quality") {
+                                if let Ok(mut adjust_cfg) = auto_adjust_clone.lock() {
+                                    if *adjust_cfg {
+                                        eprintln!("[HOST] auto_adjust_lower_quality received");
+                                        let _ = nvenc_cmd_tx.send(NvencCommand::AutoAdjustLower);
+                                        println!("[HOST] auto_adjust_lower_quality");
+                                    }
+                                }
+                                return;
+                            }
                         }
 
                         if is_force_keyframe_message(text) {
@@ -650,14 +840,17 @@ async fn main() -> Result<()> {
                     }
                 })
             }));
-        })
+        }})
     }));
 
     // -------------------------------
-    // VIDEO READER THREAD
+    // VIDEO READER THREAD + PIPELINE DIAGNOSTICS
     // -------------------------------
-    let (tx_video, mut rx_video) = mpsc::channel::<Vec<u8>>(16);
+    const VIDEO_QUEUE_CAPACITY: usize = 16;
+    let (tx_video, mut rx_video) = mpsc::channel::<QueuedVideoPacket>(VIDEO_QUEUE_CAPACITY);
     let last_nvenc_packet_at_reader = last_nvenc_packet_at.clone();
+    let video_pipeline_metrics = Arc::new(VideoPipelineMetrics::default());
+    let metrics_reader = video_pipeline_metrics.clone();
 
     std::thread::spawn(move || {
         let mut stdout = nvenc_stdout;
@@ -666,8 +859,26 @@ async fn main() -> Result<()> {
             match read_packet(&mut stdout) {
                 Ok(packet) => {
                     last_nvenc_packet_at_reader.store(now_millis(), Ordering::Relaxed);
+                    metrics_reader.packets_read.fetch_add(1, Ordering::Relaxed);
 
-                    if tx_video.blocking_send(packet).is_err() {
+                    if tx_video.capacity() == 0 {
+                        metrics_reader.queue_full_hits.fetch_add(1, Ordering::Relaxed);
+                    }
+
+                    let send_started = Instant::now();
+                    let queued_packet = QueuedVideoPacket {
+                        data: packet,
+                        created_at: Instant::now(),
+                    };
+                    let send_result = tx_video.blocking_send(queued_packet);
+                    record_duration_us(
+                        &metrics_reader.send_block_us_total,
+                        &metrics_reader.send_block_us_max,
+                        send_started.elapsed(),
+                    );
+                    metrics_reader.send_attempts.fetch_add(1, Ordering::Relaxed);
+
+                    if send_result.is_err() {
                         break;
                     }
                 }
@@ -681,24 +892,99 @@ async fn main() -> Result<()> {
 
     let video_track = webrtc_clone.video_track.clone();
     let last_video_sample_at_writer = last_video_sample_at.clone();
+    let metrics_writer = video_pipeline_metrics.clone();
+    let video_frame_duration_us_writer = video_frame_duration_us.clone();
 
     tokio::spawn(async move {
-        while let Some(frame) = rx_video.recv().await {
+        while let Some(queued_packet) = rx_video.recv().await {
+            record_duration_us(
+                &metrics_writer.reader_to_writer_us_total,
+                &metrics_writer.reader_to_writer_us_max,
+                queued_packet.created_at.elapsed(),
+            );
+            metrics_writer.writer_received.fetch_add(1, Ordering::Relaxed);
+
+            let frame = queued_packet.data;
             let filtered = rebuild_annexb_without_aud(&frame);
+
+            let duration_us = video_frame_duration_us_writer
+                .load(Ordering::Relaxed)
+                .max(1);
 
             let sample = Sample {
                 data: Bytes::from(filtered),
-                duration: VIDEO_FRAME_DURATION,
+                duration: Duration::from_micros(duration_us),
                 ..Default::default()
             };
 
-            if let Err(e) = video_track.write_sample(&sample).await {
+            let write_started = Instant::now();
+            let write_result = video_track.write_sample(&sample).await;
+            record_duration_us(
+                &metrics_writer.write_sample_us_total,
+                &metrics_writer.write_sample_us_max,
+                write_started.elapsed(),
+            );
+            metrics_writer.write_attempts.fetch_add(1, Ordering::Relaxed);
+
+            if let Err(e) = write_result {
+                metrics_writer.write_errors.fetch_add(1, Ordering::Relaxed);
                 eprintln!("video write_sample failed: {:?}", e);
                 tokio::time::sleep(Duration::from_millis(10)).await;
                 continue;
             }
 
             last_video_sample_at_writer.store(now_millis(), Ordering::Relaxed);
+        }
+    });
+
+    // Print one-second windows so diagnostics do not spam the log per frame.
+    let metrics_logger = video_pipeline_metrics.clone();
+    tokio::spawn(async move {
+        loop {
+            sleep(Duration::from_secs(1)).await;
+
+            let packets_read = metrics_logger.packets_read.swap(0, Ordering::Relaxed);
+            let queue_full_hits = metrics_logger.queue_full_hits.swap(0, Ordering::Relaxed);
+            let send_attempts = metrics_logger.send_attempts.swap(0, Ordering::Relaxed);
+            let send_block_total = metrics_logger.send_block_us_total.swap(0, Ordering::Relaxed);
+            let send_block_max = metrics_logger.send_block_us_max.swap(0, Ordering::Relaxed);
+            let writer_received = metrics_logger.writer_received.swap(0, Ordering::Relaxed);
+            let handoff_total = metrics_logger.reader_to_writer_us_total.swap(0, Ordering::Relaxed);
+            let handoff_max = metrics_logger.reader_to_writer_us_max.swap(0, Ordering::Relaxed);
+            let write_attempts = metrics_logger.write_attempts.swap(0, Ordering::Relaxed);
+            let write_total = metrics_logger.write_sample_us_total.swap(0, Ordering::Relaxed);
+            let write_max = metrics_logger.write_sample_us_max.swap(0, Ordering::Relaxed);
+            let write_errors = metrics_logger.write_errors.swap(0, Ordering::Relaxed);
+
+            if packets_read > 0 || writer_received > 0 || write_attempts > 0 {
+                let send_avg_ms = if send_attempts > 0 {
+                    send_block_total as f64 / send_attempts as f64 / 1000.0
+                } else { 0.0 };
+                let handoff_avg_ms = if writer_received > 0 {
+                    handoff_total as f64 / writer_received as f64 / 1000.0
+                } else { 0.0 };
+                let write_avg_ms = if write_attempts > 0 {
+                    write_total as f64 / write_attempts as f64 / 1000.0
+                } else { 0.0 };
+
+                // eprintln!(
+                //     "[VIDEO PIPE] read={} recv={} write={} errors={} queue_full={} \
+                //     reader_to_writer_ms(avg/max)={:.2}/{:.2} \
+                //     blocking_send_ms(avg/max)={:.2}/{:.2} \
+                //     write_sample_ms(avg/max)={:.2}/{:.2}",
+                //     packets_read,
+                //     writer_received,
+                //     write_attempts,
+                //     write_errors,
+                //     queue_full_hits,
+                //     handoff_avg_ms,
+                //     handoff_max as f64 / 1000.0,
+                //     send_avg_ms,
+                //     send_block_max as f64 / 1000.0,
+                //     write_avg_ms,
+                //     write_max as f64 / 1000.0,
+                // );
+            }
         }
     });
 
@@ -933,7 +1219,8 @@ fn is_force_keyframe_message(text: &str) -> bool {
 fn spawn_stdin_router(
     audio_cmd_tx: std::sync::mpsc::Sender<AudioCommand>,
     nvenc_cmd_tx: std::sync::mpsc::Sender<NvencCommand>,
-    quit_tx: std::sync::mpsc::Sender<()>
+    quit_tx: std::sync::mpsc::Sender<()>,
+    auto_adjust: Arc<Mutex<bool>>
 ) {
     std::thread::spawn(move || {
         use std::io::{self, BufRead};
@@ -946,6 +1233,9 @@ fn spawn_stdin_router(
             if let Some((_, rest)) = line.split_once("change_stream ") {
                 match rest.trim().parse::<ModeChanger>() {
                     Ok(stream) => {
+                        if let Ok(mut adjust_cfg) = auto_adjust.lock() {
+                            *adjust_cfg = &stream.mode == AUTO_ADJUST_MODE;
+                        }
                         let _ = nvenc_cmd_tx.send(NvencCommand::ChangeStream(stream.screen.clone(), stream.mode.clone()));
                         eprintln!("[HOST] requested change stream: screen={} mode={}", stream.screen, stream.mode);
                     }
@@ -1023,6 +1313,32 @@ fn read_exact_pcm_20ms(stdout: &mut ChildStdout) -> std::io::Result<Vec<i16>> {
     }
 
     Ok(pcm)
+}
+
+fn extract_fps_from_nvenc_log(line: &str) -> Option<u64> {
+    let at = line.find('@')?;
+    let after_at = &line[at + 1..];
+    let digit_len = after_at
+        .as_bytes()
+        .iter()
+        .take_while(|b| b.is_ascii_digit())
+        .count();
+
+    if digit_len == 0 {
+        return None;
+    }
+
+    let (digits, suffix) = after_at.split_at(digit_len);
+    if !suffix.starts_with("fps") {
+        return None;
+    }
+
+    let fps = digits.parse::<u64>().ok()?;
+    if !(1..=240).contains(&fps) {
+        return None;
+    }
+
+    Some(fps)
 }
 
 fn read_packet<R: Read>(r: &mut R) -> std::io::Result<Vec<u8>> {

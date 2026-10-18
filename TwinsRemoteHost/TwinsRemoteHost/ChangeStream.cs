@@ -103,15 +103,7 @@ namespace TwinsRemoteHost
             List<string> customNames = Host.GetCustomModeList();
 
             modeComboBox.Items.Clear();
-            List<object> modes = [];
-            foreach (string customName in customNames)
-            {
-                modeComboBox.Items.Add(new VideoPresetItem { DisplayName = customName, Key = customName });
-            }
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.BalancedMode, Key = "Balanced" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.QualityMode, Key = "Quality" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.StableMode, Key = "Stable" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.MobileMode, Key = "Mobile" });
+            modeComboBox.Items.AddRange(Host.GetModeList(this.locale));
 
             int i = 0;
             foreach (VideoPresetItem item in modeComboBox.Items)

@@ -4,6 +4,7 @@
 #include <dxgi1_2.h>
 #include <io.h>
 #include <fcntl.h>
+#include <chrono>
 
 #include <iostream>
 #include <vector>
@@ -28,281 +29,468 @@
 NV_ENCODE_API_FUNCTION_LIST g_nvenc = {};
 std::vector<nlohmann::json> customs;
 
+const std::string AUTO_ADJUST_TO_HIGHER = "auto_adjust_higher_quality";
+const std::string AUTO_ADJUST_TO_LOWER = "auto_adjust_lower_quality";
+
 static const char* NvEncStatusToString(NVENCSTATUS st) {
-    switch (st) {
-    case NV_ENC_SUCCESS: return "NV_ENC_SUCCESS";
-    case NV_ENC_ERR_NO_ENCODE_DEVICE: return "NV_ENC_ERR_NO_ENCODE_DEVICE";
-    case NV_ENC_ERR_UNSUPPORTED_DEVICE: return "NV_ENC_ERR_UNSUPPORTED_DEVICE";
-    case NV_ENC_ERR_INVALID_ENCODERDEVICE: return "NV_ENC_ERR_INVALID_ENCODERDEVICE";
-    case NV_ENC_ERR_INVALID_DEVICE: return "NV_ENC_ERR_INVALID_DEVICE";
-    case NV_ENC_ERR_DEVICE_NOT_EXIST: return "NV_ENC_ERR_DEVICE_NOT_EXIST";
-    case NV_ENC_ERR_INVALID_PTR: return "NV_ENC_ERR_INVALID_PTR";
-    case NV_ENC_ERR_INVALID_EVENT: return "NV_ENC_ERR_INVALID_EVENT";
-    case NV_ENC_ERR_INVALID_PARAM: return "NV_ENC_ERR_INVALID_PARAM";
-    case NV_ENC_ERR_INVALID_CALL: return "NV_ENC_ERR_INVALID_CALL";
-    case NV_ENC_ERR_OUT_OF_MEMORY: return "NV_ENC_ERR_OUT_OF_MEMORY";
-    case NV_ENC_ERR_ENCODER_NOT_INITIALIZED: return "NV_ENC_ERR_ENCODER_NOT_INITIALIZED";
-    case NV_ENC_ERR_UNSUPPORTED_PARAM: return "NV_ENC_ERR_UNSUPPORTED_PARAM";
-    case NV_ENC_ERR_LOCK_BUSY: return "NV_ENC_ERR_LOCK_BUSY";
-    case NV_ENC_ERR_NOT_ENOUGH_BUFFER: return "NV_ENC_ERR_NOT_ENOUGH_BUFFER";
-    case NV_ENC_ERR_INVALID_VERSION: return "NV_ENC_ERR_INVALID_VERSION";
-    case NV_ENC_ERR_MAP_FAILED: return "NV_ENC_ERR_MAP_FAILED";
-    case NV_ENC_ERR_NEED_MORE_INPUT: return "NV_ENC_ERR_NEED_MORE_INPUT";
-    case NV_ENC_ERR_ENCODER_BUSY: return "NV_ENC_ERR_ENCODER_BUSY";
-    case NV_ENC_ERR_EVENT_NOT_REGISTERD: return "NV_ENC_ERR_EVENT_NOT_REGISTERD";
-    case NV_ENC_ERR_GENERIC: return "NV_ENC_ERR_GENERIC";
-    case NV_ENC_ERR_INCOMPATIBLE_CLIENT_KEY: return "NV_ENC_ERR_INCOMPATIBLE_CLIENT_KEY";
-    case NV_ENC_ERR_UNIMPLEMENTED: return "NV_ENC_ERR_UNIMPLEMENTED";
-    case NV_ENC_ERR_RESOURCE_REGISTER_FAILED: return "NV_ENC_ERR_RESOURCE_REGISTER_FAILED";
-    case NV_ENC_ERR_RESOURCE_NOT_REGISTERED: return "NV_ENC_ERR_RESOURCE_NOT_REGISTERED";
-    case NV_ENC_ERR_RESOURCE_NOT_MAPPED: return "NV_ENC_ERR_RESOURCE_NOT_MAPPED";
-    default: return "UNKNOWN_NVENC_STATUS";
-    }
+	switch (st) {
+	case NV_ENC_SUCCESS: return "NV_ENC_SUCCESS";
+	case NV_ENC_ERR_NO_ENCODE_DEVICE: return "NV_ENC_ERR_NO_ENCODE_DEVICE";
+	case NV_ENC_ERR_UNSUPPORTED_DEVICE: return "NV_ENC_ERR_UNSUPPORTED_DEVICE";
+	case NV_ENC_ERR_INVALID_ENCODERDEVICE: return "NV_ENC_ERR_INVALID_ENCODERDEVICE";
+	case NV_ENC_ERR_INVALID_DEVICE: return "NV_ENC_ERR_INVALID_DEVICE";
+	case NV_ENC_ERR_DEVICE_NOT_EXIST: return "NV_ENC_ERR_DEVICE_NOT_EXIST";
+	case NV_ENC_ERR_INVALID_PTR: return "NV_ENC_ERR_INVALID_PTR";
+	case NV_ENC_ERR_INVALID_EVENT: return "NV_ENC_ERR_INVALID_EVENT";
+	case NV_ENC_ERR_INVALID_PARAM: return "NV_ENC_ERR_INVALID_PARAM";
+	case NV_ENC_ERR_INVALID_CALL: return "NV_ENC_ERR_INVALID_CALL";
+	case NV_ENC_ERR_OUT_OF_MEMORY: return "NV_ENC_ERR_OUT_OF_MEMORY";
+	case NV_ENC_ERR_ENCODER_NOT_INITIALIZED: return "NV_ENC_ERR_ENCODER_NOT_INITIALIZED";
+	case NV_ENC_ERR_UNSUPPORTED_PARAM: return "NV_ENC_ERR_UNSUPPORTED_PARAM";
+	case NV_ENC_ERR_LOCK_BUSY: return "NV_ENC_ERR_LOCK_BUSY";
+	case NV_ENC_ERR_NOT_ENOUGH_BUFFER: return "NV_ENC_ERR_NOT_ENOUGH_BUFFER";
+	case NV_ENC_ERR_INVALID_VERSION: return "NV_ENC_ERR_INVALID_VERSION";
+	case NV_ENC_ERR_MAP_FAILED: return "NV_ENC_ERR_MAP_FAILED";
+	case NV_ENC_ERR_NEED_MORE_INPUT: return "NV_ENC_ERR_NEED_MORE_INPUT";
+	case NV_ENC_ERR_ENCODER_BUSY: return "NV_ENC_ERR_ENCODER_BUSY";
+	case NV_ENC_ERR_EVENT_NOT_REGISTERD: return "NV_ENC_ERR_EVENT_NOT_REGISTERD";
+	case NV_ENC_ERR_GENERIC: return "NV_ENC_ERR_GENERIC";
+	case NV_ENC_ERR_INCOMPATIBLE_CLIENT_KEY: return "NV_ENC_ERR_INCOMPATIBLE_CLIENT_KEY";
+	case NV_ENC_ERR_UNIMPLEMENTED: return "NV_ENC_ERR_UNIMPLEMENTED";
+	case NV_ENC_ERR_RESOURCE_REGISTER_FAILED: return "NV_ENC_ERR_RESOURCE_REGISTER_FAILED";
+	case NV_ENC_ERR_RESOURCE_NOT_REGISTERED: return "NV_ENC_ERR_RESOURCE_NOT_REGISTERED";
+	case NV_ENC_ERR_RESOURCE_NOT_MAPPED: return "NV_ENC_ERR_RESOURCE_NOT_MAPPED";
+	default: return "UNKNOWN_NVENC_STATUS";
+	}
 }
 
 static void CheckNvEnc(NVENCSTATUS st, const char* where) {
-    if (st != NV_ENC_SUCCESS) {
-        std::cerr << where << " failed: " << NvEncStatusToString(st)
-            << " (" << static_cast<int>(st) << ")\n";
-        throw std::runtime_error(where);
-    }
+	if (st != NV_ENC_SUCCESS) {
+		std::cerr << where << " failed: " << NvEncStatusToString(st)
+			<< " (" << static_cast<int>(st) << ")\n";
+
+		if (
+			st == NV_ENC_ERR_NO_ENCODE_DEVICE ||
+			st == NV_ENC_ERR_UNSUPPORTED_DEVICE ||
+			st == NV_ENC_ERR_INVALID_ENCODERDEVICE ||
+			st == NV_ENC_ERR_INVALID_DEVICE
+			) {
+			std::cerr
+				<< "[HINT] NVENC device initialization failed.\n"
+				<< "[HINT] Possible causes:\n"
+				<< "[HINT] - NVIDIA driver is too old\n"
+				<< "[HINT] - App is running on Intel/AMD GPU instead of NVIDIA GPU\n"
+				<< "[HINT] - Windows Graphics Settings is not set to High performance\n"
+				<< "[HINT] - This GPU/driver does not expose NVENC\n";
+		}
+
+		throw std::runtime_error(where);
+	}
 }
 
 static void CheckHr(HRESULT hr, const char* where) {
-    if (FAILED(hr)) {
-        std::cerr << where << " failed: HRESULT=0x" << std::hex << hr << std::dec << "\n";
-        throw std::runtime_error(where);
-    }
+	if (FAILED(hr)) {
+		std::cerr << where << " failed: HRESULT=0x" << std::hex << hr << std::dec << "\n";
+		throw std::runtime_error(where);
+	}
 }
 
 template<typename T>
 static void SafeRelease(T*& p) {
-    if (p) {
-        p->Release();
-        p = nullptr;
-    }
+	if (p) {
+		p->Release();
+		p = nullptr;
+	}
 }
 
 static uint64_t TickMs() {
-    return GetTickCount64();
+	return GetTickCount64();
+}
+
+// Monotonic timestamp with microsecond resolution, used for FPS pacing.
+static uint64_t TickUs() {
+	return static_cast<uint64_t>(
+		std::chrono::duration_cast<std::chrono::microseconds>(
+			std::chrono::steady_clock::now().time_since_epoch()
+		).count()
+		);
 }
 
 static bool WriteAllStdout(const void* data, size_t size) {
-    const uint8_t* p = reinterpret_cast<const uint8_t*>(data);
-    while (size > 0) {
-        size_t written = fwrite(p, 1, size, stdout);
-        if (written == 0) {
-            return false;
-        }
-        p += written;
-        size -= written;
-    }
-    return true;
+	const uint8_t* p = reinterpret_cast<const uint8_t*>(data);
+	while (size > 0) {
+		size_t written = fwrite(p, 1, size, stdout);
+		if (written == 0) {
+			return false;
+		}
+		p += written;
+		size -= written;
+	}
+	return true;
 }
 
 static bool WritePacketToStdout(const uint8_t* data, uint32_t size) {
-    uint8_t len[4];
-    len[0] = static_cast<uint8_t>(size & 0xFF);
-    len[1] = static_cast<uint8_t>((size >> 8) & 0xFF);
-    len[2] = static_cast<uint8_t>((size >> 16) & 0xFF);
-    len[3] = static_cast<uint8_t>((size >> 24) & 0xFF);
+	uint8_t len[4];
+	len[0] = static_cast<uint8_t>(size & 0xFF);
+	len[1] = static_cast<uint8_t>((size >> 8) & 0xFF);
+	len[2] = static_cast<uint8_t>((size >> 16) & 0xFF);
+	len[3] = static_cast<uint8_t>((size >> 24) & 0xFF);
 
-    if (!WriteAllStdout(len, 4)) return false;
-    if (!WriteAllStdout(data, size)) return false;
-    fflush(stdout);
-    return true;
+	if (!WriteAllStdout(len, 4)) return false;
+	if (!WriteAllStdout(data, size)) return false;
+	fflush(stdout);
+	return true;
 }
 
 void LoadNvEnc() {
-    HMODULE h = LoadLibraryA("nvEncodeAPI64.dll");
-    if (!h) throw std::runtime_error("nvEncodeAPI64.dll not found");
+	HMODULE h = LoadLibraryA("nvEncodeAPI64.dll");
+	if (!h) throw std::runtime_error("nvEncodeAPI64.dll not found");
 
-    auto create = reinterpret_cast<NVENCSTATUS(NVENCAPI*)(NV_ENCODE_API_FUNCTION_LIST*)>(
-        GetProcAddress(h, "NvEncodeAPICreateInstance")
-        );
+	auto create = reinterpret_cast<NVENCSTATUS(NVENCAPI*)(NV_ENCODE_API_FUNCTION_LIST*)>(
+		GetProcAddress(h, "NvEncodeAPICreateInstance")
+		);
 
-    if (!create) throw std::runtime_error("NvEncodeAPICreateInstance not found");
+	if (!create) throw std::runtime_error("NvEncodeAPICreateInstance not found");
 
-    g_nvenc.version = NV_ENCODE_API_FUNCTION_LIST_VER;
+	g_nvenc.version = NV_ENCODE_API_FUNCTION_LIST_VER;
 
-    if (create(&g_nvenc) != NV_ENC_SUCCESS) {
-        throw std::runtime_error("NvEncodeAPICreateInstance failed");
-    }
+	if (create(&g_nvenc) != NV_ENC_SUCCESS) {
+		throw std::runtime_error("NvEncodeAPICreateInstance failed");
+	}
+}
+
+enum class StreamPreset {
+	Stable,
+	Balanced,
+	Quality,
+	Mobile,
+	AutoAdjust
+};
+
+struct StreamConfig {
+	uint32_t width;
+	uint32_t height;
+	uint32_t fps;
+	uint32_t averageBitrate;
+	uint32_t maxBitrate;
+	uint32_t vbvBufferSize;
+	uint32_t vbvInitialDelay;
+	uint32_t gopLength;
+	uint32_t idrPeriod;
+	bool repeatSpsPps;
+	bool outputAud;
+	uint32_t maxRefFrames;
+	GUID profileGuid;
+	GUID presetGuid;
+	NV_ENC_TUNING_INFO tuningInfo;
+	bool enableLookahead;
+	uint32_t lookaheadDepth;
+	bool disableIadapt;
+	bool disableBadapt;
+};
+
+enum class AutoAdjustPreset {
+	Adjust1080p60,
+	Adjust1080p,
+	Adjust720p,
+	Adjust360p,
+	Adjust240p,
+	Adjust144p
+};
+
+// ----------------------------------------------------
+// Auto Adjust
+// ----------------------------------------------------
+static uint64_t InferAutoAdjustPresetIndex(const StreamConfig& cfg) {
+	if (cfg.width >= 1920 && cfg.height >= 1080 && cfg.fps >= 50) return 0;
+	if (cfg.width >= 1920 && cfg.height >= 1080) return 1;
+	if (cfg.width >= 1280 && cfg.height >= 720) return 2;
+	if (cfg.width >= 640 && cfg.height >= 360) return 3;
+	if (cfg.width >= 426 && cfg.height >= 240) return 4;
+	return 5;
+}
+
+static const char* AutoAdjustPresetToString(AutoAdjustPreset preset) {
+	switch (preset) {
+	case AutoAdjustPreset::Adjust1080p60: return "autoAdjust1080p60";
+	case AutoAdjustPreset::Adjust1080p:   return "autoAdjust1080p";
+	case AutoAdjustPreset::Adjust720p:    return "autoAdjust720p";
+	case AutoAdjustPreset::Adjust360p:    return "autoAdjust360p";
+	case AutoAdjustPreset::Adjust240p:    return "autoAdjust240p";
+	case AutoAdjustPreset::Adjust144p:    return "autoAdjust144p";
+	default:                              return "unknown";
+	}
+}
+
+
+
+static StreamConfig GetAutoAdjustConfig(AutoAdjustPreset preset) {
+	switch (preset) {
+	case AutoAdjustPreset::Adjust1080p60:
+		return StreamConfig{
+			1920, 1080,
+			60,
+			6 * 1000 * 1000,
+			8 * 1000 * 1000,
+			1 * 1000 * 1000,
+			1 * 1000 * 1000,
+			60,
+			60,
+			true,
+			false,
+			1,
+			NV_ENC_H264_PROFILE_HIGH_GUID,
+			NV_ENC_PRESET_P5_GUID,
+			NV_ENC_TUNING_INFO_LOW_LATENCY,
+			false,
+			0,
+			true,
+			true
+		};
+
+	case AutoAdjustPreset::Adjust1080p:
+		return StreamConfig{
+			1920, 1080,
+			30,
+			4 * 1000 * 1000,
+			6 * 1000 * 1000,
+			1 * 1000 * 1000,
+			1 * 1000 * 1000,
+			60,
+			60,
+			true,
+			false,
+			1,
+			NV_ENC_H264_PROFILE_HIGH_GUID,
+			NV_ENC_PRESET_P4_GUID,
+			NV_ENC_TUNING_INFO_LOW_LATENCY,
+			false,
+			0,
+			true,
+			true
+		};
+
+	case AutoAdjustPreset::Adjust720p:
+		return StreamConfig{
+			1280, 720,
+			30,
+			2 * 1000 * 1000,
+			4 * 1000 * 1000,
+			1 * 1000 * 1000,
+			1 * 1000 * 1000,
+			60,
+			60,
+			true,
+			false,
+			1,
+			NV_ENC_H264_PROFILE_HIGH_GUID,
+			NV_ENC_PRESET_P3_GUID,
+			NV_ENC_TUNING_INFO_LOW_LATENCY,
+			false,
+			0,
+			true,
+			true
+		};
+
+	case AutoAdjustPreset::Adjust360p:
+		return StreamConfig{
+			640, 360,
+			30,
+			800 * 1000,
+			1500 * 1000,
+			400 * 1000,
+			400 * 1000,
+			60,
+			60,
+			true,
+			false,
+			1,
+			NV_ENC_H264_PROFILE_HIGH_GUID,
+			NV_ENC_PRESET_P3_GUID,
+			NV_ENC_TUNING_INFO_LOW_LATENCY,
+			false,
+			0,
+			true,
+			true
+		};
+
+	case AutoAdjustPreset::Adjust240p:
+		return StreamConfig{
+			426, 240,
+			30,
+			400 * 1000,
+			800 * 1000,
+			200 * 1000,
+			200 * 1000,
+			60,
+			60,
+			true,
+			false,
+			1,
+			NV_ENC_H264_PROFILE_HIGH_GUID,
+			NV_ENC_PRESET_P2_GUID,
+			NV_ENC_TUNING_INFO_LOW_LATENCY,
+			false,
+			0,
+			true,
+			true
+		};
+
+	case AutoAdjustPreset::Adjust144p:
+		return StreamConfig{
+			256, 144,
+			30,
+			150 * 1000,
+			300 * 1000,
+			150 * 1000,
+			150 * 1000,
+			30,
+			30,
+			true,
+			false,
+			1,
+			NV_ENC_H264_PROFILE_HIGH_GUID,
+			NV_ENC_PRESET_P2_GUID,
+			NV_ENC_TUNING_INFO_LOW_LATENCY,
+			false,
+			0,
+			true,
+			true
+		};
+	};
+
+	return GetAutoAdjustConfig(AutoAdjustPreset::Adjust1080p);
 }
 
 // ----------------------------------------------------
 // Stream Presets
 // ----------------------------------------------------
-enum class StreamPreset {
-    Stable,
-    Balanced,
-    Quality,
-    Mobile
-};
+static StreamPreset ParseStreamPreset(int argc, char** argv) {
+	if (argc < 2) {
+		return StreamPreset::AutoAdjust;
+	}
 
-struct StreamConfig {
-    uint32_t width;
-    uint32_t height;
-    uint32_t fps;
-    uint32_t averageBitrate;
-    uint32_t maxBitrate;
-    uint32_t vbvBufferSize;
-    uint32_t vbvInitialDelay;
-    uint32_t gopLength;
-    uint32_t idrPeriod;
-    bool repeatSpsPps;
-    bool outputAud;
-    uint32_t maxRefFrames;
-    GUID profileGuid;
-    GUID presetGuid;
-    NV_ENC_TUNING_INFO tuningInfo;
-    bool enableLookahead;
-    uint32_t lookaheadDepth;
-    bool disableIadapt;
-    bool disableBadapt;
-};
-
-static const std::string GetLowerMode(std::string mode) {
-	std::string lower = mode;
-	for (auto& c : lower) {
+	std::string arg = argv[1];
+	for (auto& c : arg) {
 		c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
 	}
 
-	return lower;
-}
+	if (arg == "stable")     return StreamPreset::Stable;
+	if (arg == "balanced")   return StreamPreset::Balanced;
+	if (arg == "quality")    return StreamPreset::Quality;
+	if (arg == "mobile")     return StreamPreset::Mobile;
+	if (arg == "autoadjust") return StreamPreset::AutoAdjust;
 
-static StreamPreset GetPresetFromName(std::string mode) {
-	std::string arg = GetLowerMode(mode);
-	
-	if (arg == "stable")   return StreamPreset::Stable;
-	if (arg == "balanced") return StreamPreset::Balanced;
-	if (arg == "quality")  return StreamPreset::Quality;
-	if (arg == "mobile")   return StreamPreset::Mobile;
-
-	std::cerr << "[WARN] Unknown preset: " << arg << " (fallback to balanced)\n";
-	return StreamPreset::Balanced;
-}
-
-static StreamPreset ParseStreamPreset(int argc, char** argv) {
-    if (argc < 2) {
-        return StreamPreset::Balanced;
-    }
-
-	std::string arg = GetLowerMode(argv[1]);
-
-    if (arg == "stable")   return StreamPreset::Stable;
-    if (arg == "balanced") return StreamPreset::Balanced;
-    if (arg == "quality")  return StreamPreset::Quality;
-    if (arg == "mobile")   return StreamPreset::Mobile;
-
-    std::cerr << "[WARN] Unknown preset: " << arg << " (fallback to balanced)\n";
-    return StreamPreset::Balanced;
+	//std::cerr << "[WARN] Unknown preset: " << arg << " (fallback to balanced)\n";
+	return StreamPreset::AutoAdjust;
 }
 
 static const char* StreamPresetToString(StreamPreset preset) {
-    switch (preset) {
-    case StreamPreset::Stable:   return "stable";
-    case StreamPreset::Balanced: return "balanced";
-    case StreamPreset::Quality:  return "quality";
-    case StreamPreset::Mobile:   return "mobile";
-    default:                     return "unknown";
-    }
+	switch (preset) {
+	case StreamPreset::Stable:     return "stable";
+	case StreamPreset::Balanced:   return "balanced";
+	case StreamPreset::Quality:    return "quality";
+	case StreamPreset::Mobile:     return "mobile";
+	case StreamPreset::AutoAdjust: return "autoAdjust";
+	default:                       return "unknown";
+	}
 }
 
 static StreamConfig GetStreamConfig(StreamPreset preset) {
-    switch (preset) {
-    case StreamPreset::Stable:
-        return StreamConfig{
-            1280, 720,
-            30,
-            2 * 1000 * 1000,
-            4 * 1000 * 1000,
-            6000 * 1000,
-            6000 * 1000,
-            60,
-            60,
-            true,
-            false,
-            1,
-            NV_ENC_H264_PROFILE_HIGH_GUID,
-            NV_ENC_PRESET_P3_GUID,
-            NV_ENC_TUNING_INFO_LOW_LATENCY,
-            false,
-            0,
-            true,
-            true
-        };
+	switch (preset) {
+	case StreamPreset::Stable:
+		return StreamConfig{
+			1280, 720,
+			30,
+			2 * 1000 * 1000,
+			4 * 1000 * 1000,
+			6000 * 1000,
+			6000 * 1000,
+			60,
+			60,
+			true,
+			false,
+			1,
+			NV_ENC_H264_PROFILE_HIGH_GUID,
+			NV_ENC_PRESET_P3_GUID,
+			NV_ENC_TUNING_INFO_LOW_LATENCY,
+			false,
+			0,
+			true,
+			true
+		};
 
-    case StreamPreset::Balanced:
-        return StreamConfig{
-            1920, 1080,
-            30,
-            4 * 1000 * 1000,
-            6 * 1000 * 1000,
-            1 * 1000 * 1000,
-            0 * 1000 * 1000,
-            60,
-            60,
-            true,
-            false,
-            1,
-            NV_ENC_H264_PROFILE_HIGH_GUID,
-            NV_ENC_PRESET_P4_GUID,
-            NV_ENC_TUNING_INFO_LOW_LATENCY,
-            false,
-            0,
-            true,
-            true
-        };
+	case StreamPreset::Balanced:
+		return StreamConfig{
+			1920, 1080,
+			30,
+			4 * 1000 * 1000,
+			6 * 1000 * 1000,
+			1 * 1000 * 1000,
+			0 * 1000 * 1000,
+			60,
+			60,
+			true,
+			false,
+			1,
+			NV_ENC_H264_PROFILE_HIGH_GUID,
+			NV_ENC_PRESET_P4_GUID,
+			NV_ENC_TUNING_INFO_LOW_LATENCY,
+			false,
+			0,
+			true,
+			true
+		};
 
-    case StreamPreset::Quality:
-        return StreamConfig{
-            1920, 1080,
-            60,
-            6 * 1000 * 1000,
-            8 * 1000 * 1000,
-            1 * 1000 * 1000,
-            1 * 1000 * 1000,
-            60,
-            60,
-            true,
-            false,
-            1,
-            NV_ENC_H264_PROFILE_HIGH_GUID,
-            NV_ENC_PRESET_P5_GUID,
-            NV_ENC_TUNING_INFO_LOW_LATENCY,
-            false,
-            0,
-            true,
-            true
-        };
+	case StreamPreset::Quality:
+		return StreamConfig{
+			1920, 1080,
+			60,
+			6 * 1000 * 1000,
+			8 * 1000 * 1000,
+			1 * 1000 * 1000,
+			1 * 1000 * 1000,
+			60,
+			60,
+			true,
+			false,
+			1,
+			NV_ENC_H264_PROFILE_HIGH_GUID,
+			NV_ENC_PRESET_P5_GUID,
+			NV_ENC_TUNING_INFO_LOW_LATENCY,
+			false,
+			0,
+			true,
+			true
+		};
 
-    case StreamPreset::Mobile:
-        return StreamConfig{
-            1280, 720,
-            30,
-            5000 * 1000,
-            2 * 1000 * 1000,
-            2000 * 1000,
-            2000 * 1000,
-            30,
-            30,
-            true,
-            false,
-            1,
-            NV_ENC_H264_PROFILE_HIGH_GUID,
-            NV_ENC_PRESET_P2_GUID,
-            NV_ENC_TUNING_INFO_LOW_LATENCY,
-            false,
-            0,
-            true,
-            true
-        };
-    }
+	case StreamPreset::Mobile:
+		return StreamConfig{
+			1280, 720,
+			30,
+			5000 * 1000,
+			2 * 1000 * 1000,
+			2000 * 1000,
+			2000 * 1000,
+			30,
+			30,
+			true,
+			false,
+			1,
+			NV_ENC_H264_PROFILE_HIGH_GUID,
+			NV_ENC_PRESET_P2_GUID,
+			NV_ENC_TUNING_INFO_LOW_LATENCY,
+			false,
+			0,
+			true,
+			true
+		};
 
+	case StreamPreset::AutoAdjust:
+		return GetAutoAdjustConfig(AutoAdjustPreset::Adjust1080p);
+	}
 
-
-    return GetStreamConfig(StreamPreset::Balanced);
+	return GetAutoAdjustConfig(AutoAdjustPreset::Adjust1080p);
 }
 
 // ----------------------------------------------------
@@ -1204,6 +1392,10 @@ struct RecreateSessionException : public std::runtime_error {
     explicit RecreateSessionException(const char* msg) : std::runtime_error(msg) {}
 };
 
+struct ReconfigureEncoderException : public std::runtime_error {
+	explicit ReconfigureEncoderException(const char* msg) : std::runtime_error(msg) {}
+};
+
 static void DestroyDuplication(DuplicationContext& dup) {
     if (dup.duplication) {
         dup.duplication->Release();
@@ -1362,38 +1554,41 @@ std::string ReplaceOtherStr(std::string& replacedStr, std::string from, std::str
     return replacedStr.replace(pos, len, to);
 }
 
+static StreamConfig GetStreamConfigByName(const std::string& name, const std::vector<std::pair<StreamConfig, std::string>>& customModes) {
+	const int customIndex = GetCustomModeIndex(customModes, name);
+
+	if (customIndex >= 0) {
+		return customModes[customIndex].first;
+	}
+
+	std::string arg = name;
+	for (auto& c : arg) {
+		c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
+	}
+
+	if (arg == "stable") { return GetStreamConfig(StreamPreset::Stable); }
+	if (arg == "balanced") { return GetStreamConfig(StreamPreset::Balanced); }
+	if (arg == "quality") { return GetStreamConfig(StreamPreset::Quality); }
+	if (arg == "mobile") { return GetStreamConfig(StreamPreset::Mobile); }
+	if (arg == "autoAdjust1080p60") { return GetAutoAdjustConfig(AutoAdjustPreset::Adjust1080p60); }
+	if (arg == "autoAdjust1080p") { return GetAutoAdjustConfig(AutoAdjustPreset::Adjust1080p); }
+	if (arg == "autoAdjust720p") { return GetAutoAdjustConfig(AutoAdjustPreset::Adjust720p); }
+	if (arg == "autoAdjust360p") { return GetAutoAdjustConfig(AutoAdjustPreset::Adjust360p); }
+	if (arg == "autoAdjust240p") { return GetAutoAdjustConfig(AutoAdjustPreset::Adjust240p); }
+	if (arg == "autoAdjust144p") { return GetAutoAdjustConfig(AutoAdjustPreset::Adjust144p); }
+
+	std::cerr << "[WARN] Unknown preset in set_preset: "
+		<< name
+		<< " fallback to AutoAdjust1080p\n";
+
+	return GetAutoAdjustConfig(AutoAdjustPreset::Adjust1080p);
+}
+
 bool ShouldApplyRelayCap(StreamConfig current, StreamConfig cap){
     return current.width > cap.width
         || current.height > cap.height
         || current.fps > cap.fps
         || current.averageBitrate > cap.averageBitrate;
-}
-
-static StreamConfig GetStreamConfigByName(
-    const std::string& name,
-    const std::vector<std::pair<StreamConfig, std::string>>& customModes
-) {
-    const int customIndex = GetCustomModeIndex(customModes, name);
-
-    if (customIndex >= 0) {
-        return customModes[customIndex].first;
-    }
-
-    std::string arg = name;
-    for (auto& c : arg) {
-        c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
-    }
-
-    if (arg == "stable")   { return GetStreamConfig(StreamPreset::Stable); }
-    if (arg == "balanced") { return GetStreamConfig(StreamPreset::Balanced); }
-    if (arg == "quality")  { return GetStreamConfig(StreamPreset::Quality); }
-    if (arg == "mobile")   { return GetStreamConfig(StreamPreset::Mobile); }
-
-    std::cerr << "[WARN] Unknown preset in set_preset: "
-        << name
-        << " fallback to balanced\n";
-
-    return GetStreamConfig(StreamPreset::Balanced);
 }
 
 static std::string WideToSjis(const std::wstring& wstr) {
@@ -1486,6 +1681,10 @@ int main(int argc, char** argv) {
 	std::atomic<bool> renderingThread{ false };
 	std::atomic<bool> changeStreamThread{ false };
 
+	// 0=1080p60, 1=1080p, 2=720p, 3=360p, 4=240p, 5=144p
+	std::atomic<int> autoAdjustPresetIndex{ -1 };
+	std::atomic<int> autoAdjustEnabled{ false };
+
     std::mutex pendingConfigMutex;
     StreamConfig pendingConfig{};
 
@@ -1494,8 +1693,181 @@ int main(int argc, char** argv) {
 
 	EncodeSlot* slotPtr = nullptr;
 	EncodeSlot* lastEncodedSlot = nullptr;
-	uint64_t lastEncodedMs = 0;
-	const uint64_t FREEZE_TIMEOUT_MS = 500;
+
+	// Rate-limit fresh frame encoding to cfg.fps while retaining immediate capture.
+	uint64_t nextEncodeAllowedUs = 0;
+
+	// Re-encode the last frame only occasionally while the desktop is idle.
+	constexpr uint64_t KEEPALIVE_INTERVAL_MS = 250;
+	uint64_t lastKeepaliveMs = 0;
+
+	// ----------------------------------------------------
+	// Performance monitoring
+	// ----------------------------------------------------
+	using PerfClock = std::chrono::steady_clock;
+
+	auto perfWindowStart = PerfClock::now();
+
+	uint64_t perfCaptureFrames = 0;
+	uint64_t perfNoDesktopUpdateFrames = 0;
+	uint64_t perfFpsSkippedFrames = 0;
+	uint64_t perfEncodeAttempts = 0;
+	uint64_t perfEncodeSuccess = 0;
+	uint64_t perfEncodeFail = 0;
+
+	double perfEncodeTotalMs = 0.0;
+	double perfEncodeMaxMs = 0.0;
+
+	double perfAcquireTotalMs = 0.0;
+	double perfAcquireMaxMs = 0.0;
+
+	double perfScaleTotalMs = 0.0;
+	double perfScaleMaxMs = 0.0;
+
+	uint64_t perfAcquireCalls = 0;
+	uint64_t perfAcquireTimeouts = 0;
+	uint64_t perfScaleCalls = 0;
+
+	uint64_t perfFreshEncodeAttempts = 0;
+	uint64_t perfRepeatEncodeAttempts = 0;
+
+	auto encodeMeasured = [&](auto registered,
+		uint64_t index,
+		bool forceIDR,
+		bool outputSpsPps,
+		bool isFreshFrame) -> bool {
+
+			const auto start = PerfClock::now();
+
+			++perfEncodeAttempts;
+
+			if (isFreshFrame) {
+				++perfFreshEncodeAttempts;
+			}
+			else {
+				++perfRepeatEncodeAttempts;
+			}
+
+			const bool success = EncodeRegisteredTexture(
+				enc,
+				registered,
+				index,
+				forceIDR,
+				outputSpsPps
+			);
+
+			const auto end = PerfClock::now();
+
+			const double elapsedMs =
+				std::chrono::duration<double, std::milli>(
+					end - start
+				).count();
+
+			perfEncodeTotalMs += elapsedMs;
+			perfEncodeMaxMs = (std::max)(perfEncodeMaxMs, elapsedMs);
+
+			if (success) {
+				++perfEncodeSuccess;
+			}
+			else {
+				++perfEncodeFail;
+			}
+
+			return success;
+		};
+
+	auto logPerformance = [&]() {
+		const auto now = PerfClock::now();
+
+		const double elapsedSec =
+			std::chrono::duration<double>(
+				now - perfWindowStart
+			).count();
+
+		if (elapsedSec < 1.0) {
+			return;
+		}
+
+		const double captureFps =
+			perfCaptureFrames / elapsedSec;
+
+		const double encodeAttemptFps =
+			perfEncodeAttempts / elapsedSec;
+
+		const double encodeSuccessFps =
+			perfEncodeSuccess / elapsedSec;
+
+		const double encodeFailFps =
+			perfEncodeFail / elapsedSec;
+
+		const double encodeAvgMs =
+			perfEncodeAttempts > 0
+			? perfEncodeTotalMs / perfEncodeAttempts
+			: 0.0;
+
+		//std::cerr
+		//	<< "[PERF]"
+		//	<< " capture_fps=" << captureFps
+		//	<< " encode_attempt_fps=" << encodeAttemptFps
+		//	<< " encode_success_fps=" << encodeSuccessFps
+		//	<< " encode_fail_fps=" << encodeFailFps
+		//	<< " encode_avg_ms=" << encodeAvgMs
+		//	<< " encode_max_ms=" << perfEncodeMaxMs
+		//	<< " target_fps=" << cfg.fps
+		//	<< " resolution=" << cfg.width << "x" << cfg.height
+		//	<< " acquire_avg_ms="
+		//	<< (perfAcquireCalls > 0
+		//		? perfAcquireTotalMs / perfAcquireCalls
+		//		: 0.0)
+
+		//	<< " acquire_max_ms="
+		//	<< perfAcquireMaxMs
+
+		//	<< " acquire_timeouts="
+		//	<< perfAcquireTimeouts
+
+		//	<< " scale_avg_ms="
+		//	<< (perfScaleCalls > 0
+		//		? perfScaleTotalMs / perfScaleCalls
+		//		: 0.0)
+
+		//	<< " scale_max_ms="
+		//	<< perfScaleMaxMs
+		//	<< " fresh_encode_fps="
+		//	<< perfFreshEncodeAttempts / elapsedSec
+
+		//	<< " repeat_encode_fps="
+		//	<< perfRepeatEncodeAttempts / elapsedSec
+		//	<< " no_desktop_update_fps="
+		//	<< perfNoDesktopUpdateFrames / elapsedSec
+		//	<< " fps_skipped_fps="
+		//	<< perfFpsSkippedFrames / elapsedSec
+		//	<< "\n";
+
+		perfCaptureFrames = 0;
+		perfNoDesktopUpdateFrames = 0;
+		perfFpsSkippedFrames = 0;
+		perfEncodeAttempts = 0;
+		perfEncodeSuccess = 0;
+		perfEncodeFail = 0;
+
+		perfEncodeTotalMs = 0.0;
+		perfEncodeMaxMs = 0.0;
+
+		perfAcquireTotalMs = 0.0;
+		perfAcquireMaxMs = 0.0;
+		perfAcquireCalls = 0;
+		perfAcquireTimeouts = 0;
+
+		perfScaleTotalMs = 0.0;
+		perfScaleMaxMs = 0.0;
+		perfScaleCalls = 0;
+
+		perfFreshEncodeAttempts = 0;
+		perfRepeatEncodeAttempts = 0;
+
+		perfWindowStart = now;
+		};
 
     std::thread commandThread([&]() {
         std::string line;
@@ -1657,8 +2029,6 @@ int main(int argc, char** argv) {
 				std::string screen;
 				std::string mode;
 
-				std::string modeName;
-
 				customModes = {};
 				for (std::string customFileName : customFileNames) {
 					StreamConfig config =
@@ -1671,14 +2041,32 @@ int main(int argc, char** argv) {
 
 				if (iss >> cmd >> screen >> mode) {
 					modeName = mode;
-					StreamConfig cfg = GetStreamConfigByName(mode, customModes);
+					StreamConfig next = GetStreamConfigByName(mode, customModes);
 
-					enc = CreateEncoder(encodeDevice, cfg);
+					std::cerr << "[TEST} mode: " << mode << "\n";
+					const bool selectingAutoMode = (mode == "autoAdjust1080p");
+
+					autoAdjustEnabled.store(selectingAutoMode);
+					autoAdjustPresetIndex.store(InferAutoAdjustPresetIndex(next));
+
+					std::cerr << "[AUTO_ADJUST] "
+						<< (selectingAutoMode ? "Enabled" : "Disabled")
+						<< " for selected mode: " << modeName << "\n";
+
+					DestroyScaler(scaler, enc.encoder);
+					DestroyEncoder(enc);
+					enc = CreateEncoder(encodeDevice, next);
+					cfg = next;
+
+					{
+						std::lock_guard<std::mutex> lock(pendingConfigMutex);
+						pendingConfig = next;
+					}
 
 					std::cerr << "[INFO] Selected Mode: " << modeName
-						<< " (" << cfg.width << "x" << cfg.height
-						<< " @" << cfg.fps << "fps, "
-						<< cfg.averageBitrate / 1000000.0 << "Mbps)\n";
+						<< " (" << next.width << "x" << next.height
+						<< " @" << next.fps << "fps, "
+						<< next.averageBitrate / 1000000.0 << "Mbps)\n";
 
 					RecreateCaptureResourcesUntilSuccess(
 						captureDevice,
@@ -1688,13 +2076,15 @@ int main(int argc, char** argv) {
 						bridge,
 						scaler,
 						enc,
-						cfg,
+						next,
 						sameAdapter,
 						screen
 					);
 
 					// The first frame after recovery must be a keyframe.
 					firstFrame = true;
+					nextEncodeAllowedUs = TickUs();
+					lastKeepaliveMs = 0;
 					forceIdrRequested.store(true);
 
 					// A slot belongs to the old scaler resources and must never be reused.
@@ -1704,6 +2094,47 @@ int main(int argc, char** argv) {
 				}
 
 				changeStreamThread.store(false);
+				continue;
+			}
+
+			if (line == AUTO_ADJUST_TO_HIGHER || line == AUTO_ADJUST_TO_LOWER) {
+				if (!autoAdjustEnabled.load()) {
+					// [AUTO_ADJUST] Ignored because the selected stream mode is not auto
+					continue;
+				}
+
+				const bool higher = (line == AUTO_ADJUST_TO_HIGHER);
+				const int currentIndex = autoAdjustPresetIndex.load();
+
+				if (currentIndex < 0 || currentIndex > 5) {
+					std::cerr << "[AUTO_ADJUST] Current preset index is not initialized; command ignored.\n";
+					continue;
+				}
+
+				const int nextIndex = currentIndex + (higher ? -1 : 1);
+				if (nextIndex < 0 || nextIndex > 5) {
+					// [AUTO_ADJUST] Already at (lowest / highest) quality preset.
+					continue;
+				}
+
+				const AutoAdjustPreset nextPreset = static_cast<AutoAdjustPreset>(nextIndex);
+				const StreamConfig next = GetAutoAdjustConfig(nextPreset);
+
+				{
+					std::lock_guard<std::mutex> lock(pendingConfigMutex);
+					pendingConfig = next;
+				}
+
+				autoAdjustPresetIndex.store(nextIndex);
+				reconfigureRequested.store(true);
+
+				std::cerr
+					<< "[AUTO_ADJUST] command received: " << line
+					<< " -> " << AutoAdjustPresetToString(nextPreset)
+					<< " (" << next.width << "x" << next.height
+					<< " @" << next.fps << "fps, "
+					<< next.averageBitrate / 1000000.0 << "Mbps)\n";
+
 				continue;
 			}
 
@@ -1815,6 +2246,7 @@ int main(int argc, char** argv) {
 			screenName = argv[2];
 		}
 
+		bool selectedAutoMode = false;
         if (customIndex >= 0) {
             auto& [mode, name] = customModes[customIndex];
             modeName = name;
@@ -1823,6 +2255,7 @@ int main(int argc, char** argv) {
         else {
             StreamPreset preset = ParseStreamPreset(argc, argv);
             modeName = StreamPresetToString(preset);
+			selectedAutoMode = (preset == StreamPreset::AutoAdjust);
             cfg = GetStreamConfig(preset);
         }
 
@@ -1830,6 +2263,12 @@ int main(int argc, char** argv) {
             << " (" << cfg.width << "x" << cfg.height
             << " @" << cfg.fps << "fps, "
             << cfg.averageBitrate / 1000000.0 << "Mbps)\n";
+
+		autoAdjustEnabled.store(selectedAutoMode);
+		autoAdjustPresetIndex.store(InferAutoAdjustPresetIndex(cfg));
+
+		std::cerr << "[AUTO_ADJUST] Initial ladder position: "
+			<< AutoAdjustPresetToString(static_cast<AutoAdjustPreset>(autoAdjustPresetIndex.load())) << "\n";
 		
 		// Create the complete capture/encode session once.
 		// During a DXGI ACCESS_LOST recovery, only the resources that depend on
@@ -1861,6 +2300,8 @@ int main(int argc, char** argv) {
                         }
 
                         firstFrame = true;
+						nextEncodeAllowedUs = TickUs();
+						lastKeepaliveMs = 0;
                         forceIdrRequested.store(true);
 
                         std::cerr << "[NVENC] reconfigure requested: "
@@ -1869,12 +2310,10 @@ int main(int argc, char** argv) {
                             << " bitrate=" << cfg.averageBitrate / 1000
                             << "kbps\n";
 
-                        throw RecreateSessionException("stream config changed");
+                        throw ReconfigureEncoderException("stream config changed");
                     }
 
                     try {
-                        DXGI_OUTDUPL_FRAME_INFO frameInfo{};
-
 						if (changeStreamThread.load()) {
 							Sleep(10);
 							continue;
@@ -1883,29 +2322,58 @@ int main(int argc, char** argv) {
 						renderingThread.store(true);
 						changeStreamThread.store(false);
 
+						DXGI_OUTDUPL_FRAME_INFO frameInfo{};
+
+						const auto acquireStart = PerfClock::now();
+
                         HRESULT hr = dup.duplication->AcquireNextFrame(
                             5,
                             &frameInfo,
                             &desktopResource
                         );
 
-                        if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-							if (TickMs() - lastEncodedMs < FREEZE_TIMEOUT_MS) {
-								if (lastEncodedSlot) {
-									EncodeRegisteredTexture(
-										enc,
-										lastEncodedSlot->registered,
-										frameIndex++,
-										false,
-										true
-									);
+						const auto acquireEnd = PerfClock::now();
+						const double acquireMs = std::chrono::duration<double, std::milli>(acquireEnd - acquireStart).count();
+
+						perfAcquireTotalMs += acquireMs;
+						perfAcquireMaxMs = (std::max)(
+							perfAcquireMaxMs,
+							acquireMs
+						);
+						++perfAcquireCalls;
+
+						if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+							++perfAcquireTimeouts;
+							const uint64_t keepaliveNowMs = TickMs();
+
+							if (
+								lastEncodedSlot &&
+								(lastKeepaliveMs == 0 || keepaliveNowMs - lastKeepaliveMs >= KEEPALIVE_INTERVAL_MS)
+								) {
+								bool keepaliveForceIDR = forceIdrRequested.exchange(false);
+								if (
+									cfg.idrPeriod > 0 &&
+									(frameIndex % cfg.idrPeriod) == 0
+									) {
+									keepaliveForceIDR = true;
 								}
+
+								encodeMeasured(
+									lastEncodedSlot->registered,
+									frameIndex++,
+									keepaliveForceIDR,
+									keepaliveForceIDR,
+									false
+								);
+
+								lastKeepaliveMs = keepaliveNowMs;
 							}
 
-							lastEncodedMs = TickMs();
+							renderingThread.store(false);
+							logPerformance();
+							continue;
+						}
 
-                            continue;
-                        }
 
                         if (hr == DXGI_ERROR_ACCESS_LOST) {
 							std::cerr << "[DXGI] AcquireNextFrame: ACCESS_LOST"
@@ -1916,6 +2384,91 @@ int main(int argc, char** argv) {
 
                         CheckHr(hr, "AcquireNextFrame");
                         acquiredFrame = true;
+
+						++perfCaptureFrames;
+
+						// LastPresentTime == 0 means there is no new desktop image to encode.
+					   // Skip cursor-only/no-present updates because the cursor is not separately composited.
+						if (!firstFrame && frameInfo.LastPresentTime.QuadPart == 0) {
+							++perfNoDesktopUpdateFrames;
+							SafeRelease(desktopResource);
+							hr = dup.duplication->ReleaseFrame();
+							acquiredFrame = false;
+
+							if (hr == DXGI_ERROR_ACCESS_LOST) {
+								throw RecreateSessionException(
+									"ReleaseFrame(no desktop update): ACCESS_LOST"
+								);
+							}
+							CheckHr(hr, "ReleaseFrame(no desktop update)");
+
+							const uint64_t keepaliveNowMs = TickMs();
+							if (lastEncodedSlot &&
+								(lastKeepaliveMs == 0 ||
+									keepaliveNowMs - lastKeepaliveMs >= KEEPALIVE_INTERVAL_MS)) {
+								bool keepaliveForceIDR = forceIdrRequested.exchange(false);
+								if (cfg.idrPeriod > 0 &&
+									(frameIndex % cfg.idrPeriod) == 0) {
+									keepaliveForceIDR = true;
+								}
+
+								encodeMeasured(
+									lastEncodedSlot->registered,
+									frameIndex++,
+									keepaliveForceIDR,
+									keepaliveForceIDR,
+									false
+								);
+								lastKeepaliveMs = keepaliveNowMs;
+							}
+
+							renderingThread.store(false);
+							logPerformance();
+							continue;
+						}
+
+						// Acquire promptly, but use a fixed-rate deadline schedule.
+						// Do not reset the full interval from every accepted frame: on a
+						// 70-Hz desktop that quantizes 30 FPS to about 23.3 FPS and 60 FPS
+						// to roughly 35-40 FPS. Advance the target timeline instead.
+						const uint64_t frameArrivedUs = TickUs();
+						const uint64_t safeFps = (std::max)(1u, cfg.fps);
+						const uint64_t frameIntervalUs =
+							(std::max)(1ULL, 1000000ULL / safeFps);
+						const bool bypassFpsLimit =
+							firstFrame || forceIdrRequested.load();
+
+						if (!bypassFpsLimit &&
+							frameArrivedUs < nextEncodeAllowedUs) {
+							++perfFpsSkippedFrames;
+							SafeRelease(desktopResource);
+							hr = dup.duplication->ReleaseFrame();
+							acquiredFrame = false;
+
+							if (hr == DXGI_ERROR_ACCESS_LOST) {
+								throw RecreateSessionException(
+									"ReleaseFrame(FPS limit): ACCESS_LOST"
+								);
+							}
+							CheckHr(hr, "ReleaseFrame(FPS limit)");
+
+							renderingThread.store(false);
+							logPerformance();
+							continue;
+						}
+
+						if (nextEncodeAllowedUs == 0 || bypassFpsLimit) {
+							// Initial frame / explicit IDR request: re-anchor the schedule
+							// so a forced frame is not immediately followed by a burst.
+							nextEncodeAllowedUs = frameArrivedUs + frameIntervalUs;
+						}
+						else {
+							// Preserve the target cadence. Catch up if capture or encoding
+							// was late instead of adding another full interval to that delay.
+							do {
+								nextEncodeAllowedUs += frameIntervalUs;
+							} while (nextEncodeAllowedUs <= frameArrivedUs);
+						}
 
                         CheckHr(
                             desktopResource->QueryInterface(
@@ -1932,6 +2485,8 @@ int main(int argc, char** argv) {
                             throw RecreateSessionException("Captured frame size changed");
                         }
 
+						const auto scaleStart = PerfClock::now();
+
 						if (sameAdapter) {
 							slotPtr = &ScaleTexture(scaler, desktopTex);
 						}
@@ -1947,6 +2502,19 @@ int main(int argc, char** argv) {
 							slotPtr = &ScaleTexture(scaler, encodeInputTex);
 						}
 
+						const auto scaleEnd = PerfClock::now();
+						const double scaleMs =
+							std::chrono::duration<double, std::milli>(
+								scaleEnd - scaleStart
+							).count();
+
+						perfScaleTotalMs += scaleMs;
+						perfScaleMaxMs = (std::max)(
+							perfScaleMaxMs,
+							scaleMs
+						);
+						++perfScaleCalls;
+
 						EncodeSlot& slot = *slotPtr;
 
                         bool periodicIdr =
@@ -1958,26 +2526,28 @@ int main(int argc, char** argv) {
                         bool forceIDR = periodicIdr || requestedIdr;
                         bool outputSpsPps = forceIDR;
 
-                        if (!EncodeRegisteredTexture(
-                            enc,
-                            slot.registered,
-                            frameIndex,
-                            forceIDR,
-                            outputSpsPps
-                        )) {
-                            SafeRelease(desktopTex);
-                            SafeRelease(desktopResource);
+                        if (!encodeMeasured(
+							slot.registered,
+							frameIndex,
+							forceIDR,
+							outputSpsPps,
+							true
+						)) {
+							SafeRelease(desktopTex);
+							SafeRelease(desktopResource);
 
-                            hr = dup.duplication->ReleaseFrame();
-                            if (hr == DXGI_ERROR_ACCESS_LOST) {
-                                throw RecreateSessionException("ReleaseFrame: ACCESS_LOST");
-                            }
+							hr = dup.duplication->ReleaseFrame();
+							if (hr == DXGI_ERROR_ACCESS_LOST) {
+								throw RecreateSessionException("ReleaseFrame: ACCESS_LOST");
+							}
 
-                            acquiredFrame = false;
-                            ++frameIndex;
+							acquiredFrame = false;
+							CheckHr(hr, "ReleaseFrame(encode failure)");
+							++frameIndex;
 
-							lastEncodedMs = TickMs();
-                            continue;
+							renderingThread.store(false);
+							logPerformance();
+							continue;
                         }
 
                         lastEncodedSlot = &slot;
@@ -1993,32 +2563,68 @@ int main(int argc, char** argv) {
                             throw RecreateSessionException("ReleaseFrame: ACCESS_LOST");
                         }
 
-                        CheckHr(hr, "ReleaseFrame");
-                        acquiredFrame = false;
-						lastEncodedMs = TickMs();
+						CheckHr(hr, "ReleaseFrame");
+						acquiredFrame = false;
 
 						renderingThread.store(false);
-
-                        Sleep(static_cast<DWORD>(1000.0 / cfg.fps));
+						logPerformance();
                     }
-                    catch (...) {
-                        SafeRelease(desktopTex);
-                        SafeRelease(desktopResource);
+					catch (...) {
+						renderingThread.store(false);
 
-                        if (acquiredFrame && dup.duplication) {
-                            HRESULT r = dup.duplication->ReleaseFrame();
+						SafeRelease(desktopTex);
+						SafeRelease(desktopResource);
 
-                            if (FAILED(r) && r != DXGI_ERROR_ACCESS_LOST) {
-                                std::cerr << "[WARN] ReleaseFrame during exception failed: 0x"
-                                    << std::hex << r << std::dec << "\n";
-                            }
-                        }
+						if (acquiredFrame && dup.duplication) {
+							HRESULT r = dup.duplication->ReleaseFrame();
 
-                        throw;
-                    }
+							if (FAILED(r) && r != DXGI_ERROR_ACCESS_LOST) {
+								std::cerr << "[WARN] ReleaseFrame during exception failed: 0x"
+									<< std::hex << r << std::dec << "\n";
+							}
+						}
+
+						throw;
+					}
                 }
             }
-            catch (const RecreateSessionException& e) {
+			catch (const ReconfigureEncoderException& e) {
+				std::cerr
+					<< "[NVENC] Reconfiguring encoder: "
+					<< e.what()
+					<< "\n";
+
+				// Encoder設定が変わるため、Scalerの登録リソースを破棄してから
+				// Encoderを作り直す。Desktop DuplicationとBridgeは再利用する。
+				DestroyScaler(scaler, enc.encoder);
+				DestroyEncoder(enc);
+
+				enc = CreateEncoder(encodeDevice, cfg);
+				scaler = CreateScaler(
+					encodeDevice,
+					encodeContext,
+					enc.encoder,
+					dup.width,
+					dup.height,
+					cfg.width,
+					cfg.height
+				);
+
+				firstFrame = true;
+				nextEncodeAllowedUs = TickUs();
+				lastKeepaliveMs = 0;
+				forceIdrRequested.store(true);
+				lastEncodedSlot = nullptr;
+
+				std::cerr
+					<< "[AUTO_ADJUST] Applied: "
+					<< cfg.width << "x" << cfg.height
+					<< " @" << cfg.fps << "fps, bitrate="
+					<< cfg.averageBitrate / 1000 << "kbps\n";
+
+				continue;
+			}
+			catch (const RecreateSessionException& e) {
 				std::cerr
 					<< "[WARN] Desktop capture lost: "
 					<< e.what()
@@ -2043,35 +2649,38 @@ int main(int argc, char** argv) {
 
 				// The first frame after recovery must be a keyframe.
 				firstFrame = true;
+				nextEncodeAllowedUs = TickUs();
+				lastKeepaliveMs = 0;
 				forceIdrRequested.store(true);
 
 				// A slot belongs to the old scaler resources and must never be reused.
 				lastEncodedSlot = nullptr;
 
-				std::cerr << "[DXGI] Desktop capture recovered."
+				std::cerr
+					<< "[DXGI] Desktop capture recovered."
 					<< "\n";
 
 				continue;
-            }
+			}
         }
     }
-    catch (const std::exception& e) {
-        std::cerr << "[ERROR] " << e.what() << "\n";
-    }
+	catch (const std::exception& e) {
+		std::cerr << "[ERROR] " << e.what() << "\n";
+	}
 
-    stopCommandThread.store(true);
+	stopCommandThread.store(true);
 
-    if (commandThread.joinable()) {
-        commandThread.detach();
-    }
+	if (commandThread.joinable()) {
+		commandThread.detach();
+	}
 
-    DestroySession(dup, bridge, scaler, enc);
+	DestroySession(dup, bridge, scaler, enc);
 
-    SafeRelease(captureContext);
-    SafeRelease(captureDevice);
+	SafeRelease(captureContext);
+	SafeRelease(captureDevice);
 
-    SafeRelease(encodeContext);
-    SafeRelease(encodeDevice);
+	SafeRelease(encodeContext);
+	SafeRelease(encodeDevice);
 
-    return 0;
+	return 0;
 }

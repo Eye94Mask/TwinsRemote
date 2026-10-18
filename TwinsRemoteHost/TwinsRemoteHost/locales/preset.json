@@ -41,6 +41,7 @@
   "lowLatencyPresets": "",
   "qualityPresets": "",
   "reducingNetworkLoadPresets": "",
+  "autoAdjustMode": "",
   "balancedMode": "",
   "qualityMode": "",
   "stableMode": "",

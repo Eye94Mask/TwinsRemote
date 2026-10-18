@@ -41,6 +41,7 @@
   "stablePresets": "安定優先",
   "qualityPresets": "品質優先",
   "reducingNetworkLoadPresets": "回線負荷軽減",
+  "autoAdjustMode": "自動",
   "balancedMode": "バランス",
   "qualityMode": "品質重視",
   "stableMode": "安定重視",

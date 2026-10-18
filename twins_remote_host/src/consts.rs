@@ -1,7 +1,7 @@
 use std::time::Duration;
 
-// 60fps
-pub const VIDEO_FRAME_DURATION: Duration = Duration::from_micros(16_667);
+// 30fps
+pub const VIDEO_FRAME_DURATION: Duration = Duration::from_micros(33_333);
 
 // Capping
 pub const CAP_THRESHOLD: u32 = 10;
@@ -50,3 +50,7 @@ pub const BUTTON_B: u16         = 0x2000;
 pub const BUTTON_X: u16         = 0x4000;
 pub const BUTTON_Y: u16         = 0x8000;
 
+// -------------------------------
+// Auto Adjust
+// -------------------------------
+pub const AUTO_ADJUST_MODE: &str = "autoAdjust1080p";
