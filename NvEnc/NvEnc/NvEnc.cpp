@@ -1936,7 +1936,6 @@ int main(int argc, char** argv) {
                     forceIdrRequested.store(true);
                     relayCapActuallyApplied.store(false);
 
-					std::cerr << "[DC_SEND] Set Preset " << next.averageBitrate << " " << next.fps << "\n";
 					std::cerr << "[DC_SEND] CFG CHANGED " << next.averageBitrate << " " << next.fps << "\n";
 
                     std::cerr << "[NVENC] command received: set_preset "
@@ -2032,7 +2031,6 @@ int main(int argc, char** argv) {
                     reconfigureRequested.store(true);
                     forceIdrRequested.store(true);
 
-					std::cerr << "[DC_SEND] Set Config " << capLimitConfig.averageBitrate << " " << capLimitConfig.fps << "\n";
 					std::cerr << "[DC_SEND] CFG CHANGED " << capLimitConfig.averageBitrate << " " << capLimitConfig.fps << "\n";
 
                     std::cerr << "[NVENC] command received: set_config "
@@ -2175,7 +2173,6 @@ int main(int argc, char** argv) {
 						screen
 					);
 
-					std::cerr << "[DC_SEND] Change Stream " << cfg.averageBitrate << " " << cfg.fps << "\n";
 					std::cerr << "[DC_SEND] CFG CHANGED " << cfg.averageBitrate << " " << cfg.fps << "\n";
 
 					// The first frame after recovery must be a keyframe.
@@ -2225,7 +2222,18 @@ int main(int argc, char** argv) {
 				}
 
 				const AutoAdjustPreset nextPreset = static_cast<AutoAdjustPreset>(nextIndex);
-				const StreamConfig next = GetAutoAdjustConfig(nextPreset);
+				StreamConfig next = GetAutoAdjustConfig(nextPreset);
+
+				if (relayCapActuallyApplied.load() && !ShouldApplyRelayCap(cfg, next)) {
+					if (ShouldApplyRelayCapLimit(capLimitConfig, next)) {
+						next = capLimitConfig;
+						std::cerr << "[DC_SEND] Apply Cap " << next.averageBitrate << " " << next.fps << "\n";
+					}
+					else {
+						next = cfg;
+						std::cerr << "[DC_SEND] Not Apply Cap " << next.averageBitrate << " " << next.fps << "\n";
+					}
+				}
 
 				{
 					std::lock_guard<std::mutex> lock(pendingConfigMutex);
@@ -2235,7 +2243,6 @@ int main(int argc, char** argv) {
 				autoAdjustPresetIndex.store(nextIndex);
 				reconfigureRequested.store(true);
 
-				std::cerr << "[DC_SEND] Auto Adjust " << next.averageBitrate << " " << next.fps << "\n";
 				std::cerr << "[DC_SEND] CFG CHANGED " << next.averageBitrate << " " << next.fps << "\n";
 
 				std::cerr
@@ -2370,7 +2377,6 @@ int main(int argc, char** argv) {
             cfg = GetStreamConfig(preset);
         }
 
-		std::cerr << "[DC_SEND] Initialize " << cfg.averageBitrate << " " << cfg.fps << "\n";
 		std::cerr << "[DC_SEND] CFG CHANGED " << cfg.averageBitrate << " " << cfg.fps << "\n";
 
 		std::cerr << "[INFO] Selected Mode: " << modeName

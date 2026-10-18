@@ -225,7 +225,7 @@ let rttHistory = Array.from({ length: HISTORY_SIZE }, () => -1);
 // "relay-test" | "normal" | "stun-first"
 // !!!! リリース前には絶対に const ICE_MODE = "normal"; に変更すること !!!!
 // =======================================================================================
-const ICE_MODE = "relay-test";
+const ICE_MODE = "normal";
 
 let badRttCount = 0;
 let lastIceRestartAt = 0;
@@ -287,19 +287,12 @@ function checkCapViolation(report, bitrateBps, isRelay) {
         ", fps: " + currentOriginalFps
     );
 
-    if (
-        Number.isFinite(RELAY_CAP_WIDTH) &&
-        Number.isFinite(RELAY_CAP_HEIGHT) &&
-        RELAY_CAP_WIDTH > 0 &&
-        RELAY_CAP_HEIGHT > 0 &&
-        (width > RELAY_CAP_WIDTH || height > RELAY_CAP_HEIGHT)
-    ) {
+    if (width > RELAY_CAP_WIDTH || height > RELAY_CAP_HEIGHT) {
         return true;
     }
 
     if (
         Number.isFinite(currentOriginalFps) &&
-        currentOriginalFps > 0 && 
         currentOriginalFps > RELAY_CAP_FPS
     ) {
         return true;
@@ -307,7 +300,6 @@ function checkCapViolation(report, bitrateBps, isRelay) {
 
     if (
         Number.isFinite(currentOriginalAverageBitrate) &&
-        currentOriginalAverageBitrate > 0 && 
         currentOriginalAverageBitrate > RELAY_CAP_BITRATE_BPS
     ) {
         return true;
