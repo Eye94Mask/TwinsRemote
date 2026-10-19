@@ -41,6 +41,7 @@
   "stablePresets": "安定優先",
   "qualityPresets": "品質優先",
   "reducingNetworkLoadPresets": "回線負荷軽減",
+  "autoAdjustMode": "自動",
   "balancedMode": "バランス",
   "qualityMode": "品質重視",
   "stableMode": "安定重視",
@@ -115,5 +116,6 @@
   "logHasBeenSaved": "ログを保存しました",
   "screen": "画面",
   "selectScreen": "共有する画面を選択",
-  "changeStream": "配信変更"
+  "changeStream": "配信変更",
+  "controllerCaution": "ViGEmをインストールする必要があります"
 }

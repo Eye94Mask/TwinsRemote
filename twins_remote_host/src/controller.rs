@@ -84,11 +84,12 @@ pub struct PadState {
 
 pub enum ControllerKind {
     Xbox(TargetHandle<Xbox360>),
-    Ds4(TargetHandle<DualShock4>)
+    Ds4(TargetHandle<DualShock4>),
+    Failed
 }
 
 pub struct Controller {
-    pub client: Client,
+    pub client: Option<Client>,
     pub pad_type: VirtualPadType,
     pub kind: ControllerKind
 }
@@ -138,7 +139,7 @@ impl Controller {
                 });
 
                 Ok(Self {
-                    client,
+                    client: Some(client),
                     pad_type,
                     kind: ControllerKind::Xbox(gamepad),
                 })
@@ -179,7 +180,7 @@ impl Controller {
                 });
 
                 Ok(Self {
-                    client,
+                    client: Some(client),
                     pad_type,
                     kind: ControllerKind::Ds4(gamepad),
                 })
@@ -234,6 +235,8 @@ impl Controller {
                     .update(&report)
                     .map_err(|e| anyhow!("failed to update DualShock4/DualSense report: {:?}", e))?;
             }
+
+            _ => {}
         }
 
         Ok(())

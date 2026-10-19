@@ -11,6 +11,7 @@ let sessionEnded = false;
 
 let statsIntervalId = null;
 let rtcSummaryIntervalId = null;
+let measureQualityIntervalId = null;
 let videoStatsMonitorAbort = null;
 let hostCandidatePollIntervalId = null;
 let answerPollIntervalId = null;
@@ -140,6 +141,85 @@ const FORCE_KEYFRAME_COOLDOWN_MS = 3000;
 const RENDER_IDLE_WAIT_MS = 8;
 const MAX_FRAME_AGE_MS = 150;
 const MAX_RENDER_BACKLOG = 1;
+const LOG_RTC_MS = 5000;
+const MEASURE_MS = 1000;
+
+const STRONG_PLAYBACKRATE_MS = 2000;
+const MIDDLE_PLAYBACKRATE_MS = 1500;
+const WEAK_PLAYBACKRATE_MS = 800;
+const STRONG_PLAYBACKRATE = 1.06;
+const MIDDLE_PLAYBACKRATE = 1.04;
+const WEAK_PLAYBACKRATE = 1.03;
+
+// ==================================
+// 画質自動調整 - 画質を下げる
+// ==================================
+const AUTO_ADJUST_LOWER_QUALITY_COOLDOWN_MS = 15000;
+
+// ==================================
+// SERIOUS DESTERIORATION
+// ==================================
+const CONSECUTIVE_SERIOUS_DETERIORATION_LIMIT = 2;
+const SERIOUS_DETERIORATION_RATIO = 0.05;
+const SERIOUS_DETERIORATION_RTT_MS = 100;
+
+let seriousDeteriorationLossRatioCount = 0;
+let seriousDeteriorationBadRttCount = 0;
+
+// ==================================
+// CONTINUAL DESTERIORATION
+// ==================================
+const CONSECUTIVE_CONTINUAL_DETERIORATION_SPAN_SEC = 5;
+const CONSECUTIVE_CONTINUAL_DETERIORATION_LIMIT = 3;
+const DETECT_CONTINUAL_DESTERIORATION_LIMIT = 2;
+const CONTINUAL_DESTERIORATION_BPS = 0.3;
+const CONTINUAL_DESTERIORATION_RATIO = 0.02;
+const CONTINUAL_DESTERIORATION_RTT_MS = 50;
+
+let continualDesteriorationIndex = 0;
+let continualDesterioration = Array.from({ length: CONSECUTIVE_CONTINUAL_DETERIORATION_SPAN_SEC }, () => false);
+
+// ==================================
+// 画質自動調整 - 画質を上げる
+// ==================================
+const DETECT_GOOD_CONDITION_LOSS_RATIO = 0.005;
+const DETECT_GOOD_CONDITION_RTT_MS = 30;
+const DETECT_GOOD_CONDITION_BPS_RANGE = 0.3;
+const DETECT_GOOD_CONDITION_BPS_RANGE_COUNT_LIMIT = 4;
+const DETECT_GOOD_CONDITION_BPS_SPAN_SEC = 10;
+const CONSECUTIVE_HIGH_QUALITY_SPAN_SEC = 30;
+const AUTO_ADJUST_HIGHER_QUALITY_COOLDOWN_MS = 30000;
+
+let continualGoodBpsIndex = 0;
+let continualGoodBps = Array.from({ length: DETECT_GOOD_CONDITION_BPS_SPAN_SEC }, () => false);
+
+let goodRtcConditionStart = null;
+
+// ==================================
+// 画質自動調整 COMMON
+// ==================================
+const HISTORY_SIZE = 10;
+const AUTO_ADJUST_EXCEPTION_COOLDOWN_MS = 5000; 
+const RTT_STABLE_COUNT = 5;
+const RTT_STABLE_RANGE = 10;
+const BPS_STABLE_COUNT = 5;
+const BPS_STABLE_RANGE = 1000000;
+
+let rttReference = null;
+let bpsReference = null;
+let lastBytesReceived = 0;
+let lastPacketsLost = 0;
+let lastPacketsReceived = 0;
+let currentOriginalAverageBitrate = 0;
+let currentOriginalFps = 0;
+let lastStatsTime = 0;
+let configChangedAt = 0;
+let lastAdjustQualityRequestAt = 0;
+
+let historyIndex = 0;
+let bpsHistory = Array.from({ length: HISTORY_SIZE }, () => -1);
+let lossHistory = Array.from({ length: HISTORY_SIZE }, () => -1);
+let rttHistory = Array.from({ length: HISTORY_SIZE }, () => -1);
 
 // =======================================================================================
 // "relay-test" | "normal" | "stun-first"
@@ -158,16 +238,14 @@ const ICE_RESTART_COOLDOWN_MS = 15000;
 // =================================================
 // Cap 外し予防
 // =================================================
+const COUNT_LIMIT_OF_CAP_VIOLATION = 4;
+
 const RELAY_CAP_WIDTH = 1200;
 const RELAY_CAP_HEIGHT = 720;
 const RELAY_CAP_FPS = 30;
 const RELAY_CAP_BITRATE_BPS = 5_000_000;
 
-const FPS_MARGIN = 5;           // 35fps 超えで違反
-const BITRATE_MARGIN = 1.4;     // 7Mbps 超えで違反
-const HARD_BITRATE_MARGIN = 2.0 // 10Mbps 超えで強違反
-
-let capViolationScore = 0;
+let capViolationCount = 0;
 let lastVideoBytes = null;
 let lastVideoBytesAt = null;
 
@@ -175,7 +253,7 @@ let relayMonitorIntervalId = null;
 let lastPostedNetworkMode = null;
 
 function estimateVideoBitrateBps(report) {
-    const now = performance.now();
+    const now = nowMs();
 
     if (lastVideoBytes == null || lastVideoBytesAt == null) {
         lastVideoBytes = report.bytesReceived;
@@ -194,33 +272,40 @@ function estimateVideoBitrateBps(report) {
     return (deltaBytes * 8 * 1000) / deltaMs;
 }
 
-function updateCapViolationScore(report, bitrateBps, isRelay) {
+function checkCapViolation(report, bitrateBps, isRelay) {
     if (!isRelay) {
-        capViolationScore = 0;
+        capViolationCount = 0;
         return false;
     }
 
     const width  = report.frameWidth || 0;
     const height = report.frameHeight || 0;
-    const fps    = report.framesPerSecond || 0;
 
-    let scoreAdd = 0;
+    console.log("[CAP VIOLATION] check (width: " + width +
+        ", height: " + height +
+        ", bps: " + currentOriginalAverageBitrate +
+        ", fps: " + currentOriginalFps
+    );
 
     if (width > RELAY_CAP_WIDTH || height > RELAY_CAP_HEIGHT) {
-        scoreAdd += 4;
+        return true;
     }
 
-    if (fps > RELAY_CAP_FPS + FPS_MARGIN) {
-        scoreAdd += 3;
+    if (
+        Number.isFinite(currentOriginalFps) &&
+        currentOriginalFps > RELAY_CAP_FPS
+    ) {
+        return true;
     }
 
-    if (scoreAdd > 0) {
-        capViolationScore += scoreAdd;
-    } else {
-        capViolationScore = Math.max(0, capViolationScore - 1);
+    if (
+        Number.isFinite(currentOriginalAverageBitrate) &&
+        currentOriginalAverageBitrate > RELAY_CAP_BITRATE_BPS
+    ) {
+        return true;
     }
 
-    return capViolationScore >= 12
+    return false;
 }
 
 function disconnectForCapViolation(report, bitrateBps) {
@@ -404,7 +489,7 @@ function startGamepadLoop() {
 
         if (!gamepad) { return; }
 
-        const now = performance.now();
+        const now = nowMs();
         if (now - lastGamepadSendAt < GAMEPAD_SEND_INTERVAL_MS) { return; }
 
         if (controllerDc.bufferedAmount > GAMEPAD_BUFFER_LIMIT) {
@@ -422,7 +507,7 @@ function startGamepadLoop() {
         try {
             controllerDc.send(packet);
 
-            const nowLog = performance.now();
+            const nowLog = nowMs();
             if (nowLog - lastGamepadSendLogAt > 1000) {
                 console.log("[GAMEPAD SEND]", {
                     seq,
@@ -651,6 +736,13 @@ function setupDataChannel(channel, controller) {
                 dcBufferedAmount: inputDc.bufferedAmount,
             });
             return;
+        }
+
+        if (msg.type == "config") {
+            resetAutoAdjustVariables();
+            currentOriginalAverageBitrate = msg.bps;
+            currentOriginalFps = msg.fps;
+            configChangedAt = nowMs();
         }
     };
 
@@ -1086,6 +1178,533 @@ function logPcState(prefix, pc, inputDc, controllerDc) {
     });
 }
 
+// ==================================
+// 画質自動調整 - 画質を下げる
+// ==================================
+function detectSeriousDeterioration(bps, ratio, rtt) {
+    // ========================================================================================================================================
+    // パケット損失率: {SERIOUS_DETERIORATION_RATIO * 100}%以上
+    // RTT: 「前回より{SERIOUS_DETERIORATION_RTT_MS}ms以上増加」またはRTT悪化前から{SERIOUS_DETERIORATION_RTT_MS}ms以上増加が継続している
+    // 上記2つの現象のどちらかが連続して{CONSECUTIVE_SERIOUS_DETERIORATION_LIMIT}回以上発生した場合は画質を下げる
+    // ========================================================================================================================================
+    if (Number.isFinite(ratio) && ratio >= SERIOUS_DETERIORATION_RATIO) {
+        console.log("[SERIOUS_BAD] serious ratio detected, ratio: " + ratio);
+        log("[SERIOUS_BAD] serious ratio detected, ratio: " + ratio);
+        seriousDeteriorationLossRatioCount++;
+    } else {
+        seriousDeteriorationLossRatioCount = 0;
+    }
+
+    if (Number.isFinite(rtt) && Number.isFinite(rttReference) && rtt >= rttReference + SERIOUS_DETERIORATION_RTT_MS) {
+        console.log("[SERIOUS_BAD] serious rtt detected: " + rtt);
+        log("[SERIOUS_BAD] serious rtt detected: " + rtt);
+        seriousDeteriorationBadRttCount++;
+    } else {
+        seriousDeteriorationBadRttCount = 0;
+    }
+
+    const isBadLossRatio = seriousDeteriorationLossRatioCount >= CONSECUTIVE_SERIOUS_DETERIORATION_LIMIT;
+    const isBadRtt = seriousDeteriorationBadRttCount >= CONSECUTIVE_SERIOUS_DETERIORATION_LIMIT;
+
+    return {
+        isSerious: isBadLossRatio || isBadRtt,
+        isBadLossRatio,
+        isBadRtt
+    }
+}
+
+function detectContinualDeterioration(bps, ratio, rtt) {
+    // ========================================================================================================================================
+    // 受信ビットレート： 安定時のbpsと比べて{CONTINUAL_DESTERIORATION_BPS * 100}%以上低下している
+    // パケット損失率: 「今回」と「直近{HISTORY_SIZE}秒のパケット損失率の平均」が{CONTINUAL_DESTERIORATION_RATIO * 100}%以上
+    // RTT: 安定時のrttと比べて{CONTINUAL_DESTERIORATION_RTT_MS}ms以上増加している
+    // 上記3つの現象のうち2つ以上が下記の条件を満たした場合画質を下げる
+    // ・直近{CONSECUTIVE_CONTINUAL_DETERIORATION_SPAN_SEC}秒のうち{CONSECUTIVE_CONTINUAL_DETERIORATION_LIMIT}秒以上で発生
+    // ========================================================================================================================================
+    const averageLossRatio = getAverageFrom(lossHistory);
+
+    if (
+        !Number.isFinite(bps) || !Number.isFinite(ratio) || !Number.isFinite(rtt) ||
+        !Number.isFinite(bpsReference) || !Number.isFinite(averageLossRatio) || !Number.isFinite(rttReference)
+    ) return false;
+
+    let count = 0;
+    let isBadBps = false;
+    let isBadLossRatio = false;
+    let isBadRtt = false;
+    
+    if (bps <= bpsReference * (1 - CONTINUAL_DESTERIORATION_BPS)) {
+        console.log("[CONTINUAL_BAD] continual bps detected");
+        isBadBps = true;
+        count++;
+    }
+    
+    if (ratio >= CONTINUAL_DESTERIORATION_RATIO && averageLossRatio >= CONTINUAL_DESTERIORATION_RATIO) {
+        console.log("[CONTINUAL_BAD] continual ratio detected");
+        isBadLossRatio = true;
+        count++;
+    }
+
+    if (rtt >= rttReference + CONTINUAL_DESTERIORATION_RTT_MS) {
+        console.log("[CONTINUAL_BAD] continual rtt detected");
+        isBadRtt = true;
+        count++;
+    }
+
+    continualDesterioration[continualDesteriorationIndex] = count >= DETECT_CONTINUAL_DESTERIORATION_LIMIT;
+    continualDesteriorationIndex = (continualDesteriorationIndex + 1) % CONSECUTIVE_CONTINUAL_DETERIORATION_SPAN_SEC;
+
+    const recentDetectedCount = continualDesterioration.filter(b => b).length;
+
+    return {
+        isContinual: recentDetectedCount >= CONSECUTIVE_CONTINUAL_DETERIORATION_LIMIT,
+        isBadBps,
+        isBadLossRatio,
+        isBadRtt
+    };
+}
+
+function assessRtcDeterioration(bps, ratio, rtt) {
+    const serious = detectSeriousDeterioration(bps, ratio, rtt);
+    const continual = detectContinualDeterioration(bps, ratio, rtt);
+
+    return {
+        serious: {
+            isSerious: serious.isSerious,
+            isBadLossRatio: serious.isBadLossRatio,
+            isBadRtt: serious.isBadRtt
+        },
+        continual: {
+            isContinual: continual.isContinual,
+            isBadBps: continual.isBadBps,
+            isBadLossRatio: continual.isBadLossRatio,
+            isBadRtt: continual.isBadRtt
+        },
+        requestLowerQuality: serious.isSerious || continual.isContinual
+    }
+}
+
+function sendRequestLowerQuality(seriousReason, continualReason) {
+    const now = nowMs();
+
+    if (!inputDc || inputDc.readyState !== "open") return;
+    if (now - lastAdjustQualityRequestAt < AUTO_ADJUST_LOWER_QUALITY_COOLDOWN_MS) return;
+
+    lastAdjustQualityRequestAt = now;
+
+    const type = "auto_adjust_lower_quality";
+
+    const msg = JSON.stringify({
+        type,
+        seriousReason,
+        continualReason,
+        ts: Date.now()
+    });
+
+    try {
+        inputDc.send(msg);
+        console.log("[CLIENT] sent auto_adjust request: " + type);
+        console.log("[CLIENT] serious reason: " + seriousReason);
+        console.log("[CLIENT] continual reason: " + continualReason);
+    } catch (e) {
+        console.warn("[CLIENT] auto_adjust send failed: ", e);
+        log("[CLIENT] auto_adjust send failed: ", e);
+    }
+}
+
+// ==================================
+// 画質自動調整 - 画質を上げる
+// ==================================
+function detectGoodConditionOfLossRatio(ratio) {
+    // ========================================================================================================================================
+    // パケット損失率: 今回のパケット損失率が{DETECT_GOOD_CONDITION_LOSS_RATIO * 100}%未満の範囲
+    // ========================================================================================================================================
+    if (!Number.isFinite(ratio)) return false;
+
+    if (ratio < DETECT_GOOD_CONDITION_LOSS_RATIO) {
+        console.log("[GOOD_LOSS_RATIO] Good ratio: " + ratio);
+        return true;
+    }
+
+    console.log("[GOOD_LOSS_RATIO] Not good ratio: " + ratio);
+
+    return false;
+}
+
+function detectGoodConditionOfRtt(rtt) {
+    // ========================================================================================================================================
+    // RTT: 安定時のrttと比べて{DETECT_GOOD_CONDITION_RTT_MS}ms未満の範囲
+    // ========================================================================================================================================
+    if (
+        Number.isFinite(rtt) &&
+        Number.isFinite(rttReference) &&
+        rtt < rttReference + DETECT_GOOD_CONDITION_RTT_MS
+    ) {
+        console.log("[GOOD_RTT] Good rtt(ms): " + rtt);
+        return true;
+    }
+
+    console.log("[GOOD_RTT] Not good rtt(ms): " + rtt);
+    return false;
+}
+
+function detectGoodConditionOfBps(bps) {
+    // ========================================================================================================================================
+    // 受信ビットレート： 安定時のbpsと比べて{DETECT_GOOD_CONDITION_BPS_RANGE * 100}%未満の範囲
+    // ========================================================================================================================================
+    if (!Number.isFinite(bps) || !Number.isFinite(bpsReference)) return false;
+
+    continualGoodBps[continualGoodBpsIndex] = bps > bpsReference * (1 - DETECT_GOOD_CONDITION_BPS_RANGE);
+    continualGoodBpsIndex = (continualGoodBpsIndex + 1) % DETECT_GOOD_CONDITION_BPS_SPAN_SEC;
+
+    if (continualGoodBps.filter(b => b).length >= DETECT_GOOD_CONDITION_BPS_RANGE_COUNT_LIMIT) {
+        console.log("[GOOD_BPS] Good bps: " + bps + ", standard: " + bpsReference * (1 - DETECT_GOOD_CONDITION_BPS_RANGE));
+    } else {
+        console.log("[GOOD_BPS] NOT good bps: " +  + bps + ", standard: " + bpsReference * (1 - DETECT_GOOD_CONDITION_BPS_RANGE))
+    }
+    return continualGoodBps.filter(b => b).length >= DETECT_GOOD_CONDITION_BPS_RANGE_COUNT_LIMIT;
+}
+
+function assessRtcGoodCondition(bps, ratio, rtt) {
+    const ILossRatio = detectGoodConditionOfLossRatio(ratio);
+    const IRtt = detectGoodConditionOfRtt(rtt);
+    const IBps = detectGoodConditionOfBps(bps);
+
+    const allGood = ILossRatio && IRtt && IBps;
+
+    if (!allGood) {
+        goodRtcConditionStart = null;
+        return false;
+    }
+
+    const now = nowMs();
+    if (goodRtcConditionStart === null) {
+        goodRtcConditionStart = now;
+        return false;
+    }
+
+    return now - goodRtcConditionStart > CONSECUTIVE_HIGH_QUALITY_SPAN_SEC;
+}
+
+function canIncreaseQuality(isGoodCondition) {
+    if (!isGoodCondition) {
+        goodRtcConditionStart = null;
+        return false;
+    }
+
+    const now = nowMs();
+
+    if (goodRtcConditionStart === null) {
+        goodRtcConditionStart = now;
+        return false;
+    }
+
+    return now - goodRtcConditionStart
+        >= CONSECUTIVE_HIGH_QUALITY_SPAN_SEC * 1000;
+}
+
+function isRtcGoodCondition(bps, ratio, rtt) {
+    const isLossRatioGood = detectGoodConditionOfLossRatio(ratio);
+    const isRttGood = detectGoodConditionOfRtt(rtt);
+    const isBpsGood = detectGoodConditionOfBps(bps);
+
+    return isLossRatioGood && isRttGood && isBpsGood;
+}
+
+function sendRequestHigherQuality() {
+    const now = nowMs();
+
+    if (!inputDc || inputDc.readyState !== "open") return;
+    if (now - lastAdjustQualityRequestAt < AUTO_ADJUST_HIGHER_QUALITY_COOLDOWN_MS) return;
+
+    lastAdjustQualityRequestAt = now;
+    const type = "auto_adjust_higher_quality";
+
+    const msg = JSON.stringify({
+        type,
+        ts: Date.now()
+    });
+
+    try {
+        inputDc.send(msg);
+        console.log("[CLIENT] sent auto_adjust request: " + type);
+    } catch (e) {
+        console.warn("[CLIENT] auto_adjust send failed: ", e);
+        log("[CLIENT] auto_adjust send failed: ", e);
+    }
+}
+
+// ==================================
+// 画質自動調整Utils
+// ==================================
+function getAverageFrom(array) {
+    const validValues = array.filter(
+        v => Number.isFinite(v) && v >= 0
+    );
+
+    if (validValues.length === 0) { return null; }
+
+    return validValues.reduce((sum, v) => sum + v, 0) / validValues.length;
+}
+
+function getMedian(arr) {
+    const sorted = [...arr].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+
+    if (sorted.length % 2 !== 0) { return sorted[mid]; }
+
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function updateRttReference(isGoodCondition) {
+    if (rttHistory.filter((v) => v >= 0).length < 5) {
+        console.log("[RTT] updateRttReference skip", rttHistory);
+        return;
+    }
+
+    let recentRtts = [];
+    for (let i = 1; i <= RTT_STABLE_COUNT; i++) {
+        const v = rttHistory[(historyIndex - i + HISTORY_SIZE) % HISTORY_SIZE];
+
+        if (!Number.isFinite(v) || v < 0) return;
+        recentRtts.push(v);
+    }
+
+    const min = Math.min(...recentRtts);
+    const max = Math.max(...recentRtts);
+    const medianRtt = getMedian(recentRtts);
+
+    if (max - min < RTT_STABLE_RANGE) {
+        if (!Number.isFinite(rttReference)) {
+            rttReference = medianRtt;
+            console.log("[RTT] next rttReference: " + rttReference);
+
+            return;
+        }
+    }
+
+    if (!isGoodCondition) return;
+
+    if (medianRtt < rttReference) {
+        rttReference = medianRtt;
+        console.log("[RTT] next rttReference: " + rttReference);
+    }
+}
+
+function updateBpsReference(isGoodCondition) {
+    if (bpsHistory.filter((v) => v >= 0).length < 5) {
+        console.log("[BPS] updateBpsReference skip", bpsHistory);
+        return;
+    }
+
+    let recentBps = [];
+    for (let i = 1; i <= BPS_STABLE_COUNT; i++) {
+        let v = bpsHistory[(historyIndex - i + HISTORY_SIZE) % HISTORY_SIZE];
+
+        if (!Number.isFinite(v) || v < 0) return;
+        recentBps.push(v);
+    }
+
+    const min = Math.min(...recentBps);
+    const max = Math.max(...recentBps);
+    const medianBps = getMedian(recentBps);
+
+    if (max - min < BPS_STABLE_RANGE) {
+        if (!Number.isFinite(bpsReference)) {
+            bpsReference = medianBps;
+            console.log("[BPS] next bpsReference: " + bpsReference);
+
+            return;
+        }
+    }
+
+    if (!isGoodCondition) return;
+
+    if (medianBps < bpsReference) {
+        bpsReference = medianBps
+        console.log("[BPS] next bpsReference: " + bpsReference);
+    }
+}
+
+async function measureQualityOfRtc(pc) {
+    const now = nowMs();
+
+    // 接続直後・画質変更直後は計測しない
+    if (now - configChangedAt < AUTO_ADJUST_EXCEPTION_COOLDOWN_MS) return;
+
+    const stats = await pc.getStats();
+
+    let selectedPair = null;
+    let inboundVideo = null;
+
+    stats.forEach(report => {
+        if (report.type === "candidate-pair" && report.state === "succeeded" && report.nominated) {
+            selectedPair = report;
+        }
+        if (report.type === "transport" && report.selectedCandidatePairId && !selectedPair) {
+            selectedPair = stats.get(report.selectedCandidatePairId);
+        }
+        if (report.type === "inbound-rtp" && report.kind === "video") {
+            inboundVideo = report;
+        }
+    });
+
+    const initData = -1.0;
+    let dataTransportRateBps = initData;
+    let lossRatio = initData;
+    let rttMs = initData;
+
+    // ==================================
+    // ビットレート算出
+    // ==================================
+    const bytesReceived = inboundVideo?.bytesReceived;
+    if (Number.isFinite(bytesReceived) && Number.isFinite(lastBytesReceived) && lastBytesReceived !== 0 && lastBytesReceived !== null) {
+        const deltaBytes = bytesReceived - lastBytesReceived;
+
+        if (deltaBytes >= 0) {
+            const elapsedSec = (nowMs() - lastStatsTime) / 1000;
+
+            if (elapsedSec > 0) {
+                dataTransportRateBps = (8 * deltaBytes) / elapsedSec;
+
+                console.log("[REPORT] Bitrate(bps): " + dataTransportRateBps);
+                console.log("[REPORT] originalBitrate(bps): " + currentOriginalAverageBitrate);
+            }
+        }
+    }
+    if (Number.isFinite(bytesReceived)) {
+        lastBytesReceived = inboundVideo?.bytesReceived;
+        lastStatsTime = nowMs();
+    }
+
+    // ==================================
+    // パケットロス算出
+    // ==================================
+    const packetsLost = inboundVideo?.packetsLost;
+    const packetsReceived = inboundVideo?.packetsReceived;
+    if (Number.isFinite(packetsLost) && Number.isFinite(packetsReceived)) {
+        if (Number.isFinite(lastPacketsLost) && Number.isFinite(lastPacketsReceived)) {
+            const deltaLost = packetsLost - lastPacketsLost;
+            const deltaReceived = packetsReceived - lastPacketsReceived;
+            const totalDelta = deltaLost + deltaReceived;
+
+            if (
+                deltaLost >= 0 &&
+                deltaReceived >= 0 &&
+                totalDelta > 0
+            ) {
+                lossRatio = deltaLost / totalDelta;
+                console.log("[REPORT] LossRatio: " + lossRatio);
+            }
+        }
+
+        lastPacketsLost = packetsLost;
+        lastPacketsReceived = packetsReceived;
+    }
+
+    // ==================================
+    // 遅延算出
+    // ==================================
+    const rtt = selectedPair?.currentRoundTripTime;
+    if (Number.isFinite(rtt) && rtt >= 0) {
+        rttMs = rtt * 1000;
+        console.log("[REPORT] RTT: " + rttMs + " ms");
+    }
+
+    console.log("[CHECK] dataTransportRateBps: " + dataTransportRateBps + ", lossRatio: " + lossRatio + ", rttMs: " + rttMs);
+
+    // 画質調整用に記録
+    if (dataTransportRateBps != initData && lossRatio != initData && rttMs != initData) {
+        bpsHistory[historyIndex] = dataTransportRateBps;
+        lossHistory[historyIndex] = lossRatio;
+        rttHistory[historyIndex] = rttMs;
+
+        historyIndex = (historyIndex + 1) % HISTORY_SIZE;
+
+        console.log("[RTT] rttHistory: " + rttHistory);
+
+        // ==================================
+        // 画質下方修正
+        // ==================================
+        const deteriorationResult = assessRtcDeterioration(dataTransportRateBps, lossRatio, rttMs);
+        console.log("[DETECT_RESULT]", {
+            serious: deteriorationResult.serious,
+            continual: deteriorationResult.continual,
+            requestLowerQuality: deteriorationResult.requestLowerQuality
+        });
+
+        // ==================================
+        // 画質上方修正
+        // ==================================
+        const goodConditionResult = assessRtcGoodCondition(dataTransportRateBps, lossRatio, rttMs);
+        console.log("[DETECT_RESULT]", {
+            requestHigherQuality: goodConditionResult
+        });
+
+        const rtcGoodCondition = isRtcGoodCondition(dataTransportRateBps, lossRatio, rttMs);
+        const allowQualityIncrease = canIncreaseQuality(rtcGoodCondition);
+
+        updateRttReference(rtcGoodCondition);
+        updateBpsReference(rtcGoodCondition);
+
+        if (deteriorationResult.requestLowerQuality) {
+            let seriousReason = "";
+            if (deteriorationResult.serious.isSerious) {
+                seriousReason = "bad_loss_ratio: ";
+                seriousReason += deteriorationResult.serious.isBadLossRatio ? "true, " : "false, ";
+
+                seriousReason += "bad_rtt: ";
+                seriousReason += deteriorationResult.serious.isBadRtt ? "true" : "false";
+            }
+
+            let continualReason = "";
+            if (deteriorationResult.continual.isContinual) {
+                continualReason = "bad_bps: ";
+                continualReason += deteriorationResult.continual.isBadBps ? "true, " : "false, ";
+
+                continualReason += "bad_loss_ratio: ";
+                continualReason += deteriorationResult.continual.isBadLossRatio ? "true, " : "false, ";
+
+                continualReason += "bad_rtt: ";
+                continualReason += deteriorationResult.continual.isBadRtt ? "true" : "false";
+            }
+
+            sendRequestLowerQuality(seriousReason, continualReason);
+        } else if (allowQualityIncrease) {
+            sendRequestHigherQuality();
+        }
+    }
+}
+
+function resetAutoAdjustVariables() {
+    seriousDeteriorationLossRatioCount = 0;
+    seriousDeteriorationBadRttCount = 0;
+
+    continualDesteriorationIndex = 0;
+    continualDesterioration = Array.from({ length: CONSECUTIVE_CONTINUAL_DETERIORATION_SPAN_SEC}, () => false);
+
+    continualGoodBpsIndex = 0;
+    continualGoodBps = Array.from({ length: DETECT_GOOD_CONDITION_BPS_SPAN_SEC }, () => false);
+
+    goodRtcConditionStart = null;
+
+    rttReference = null;
+    bpsReference = null;
+    lastBytesReceived = 0;
+    lastPacketsLost = 0;
+    lastPacketsReceived = 0;
+    currentOriginalAverageBitrate = 0;
+    currentOriginalFps = 0;
+    lastStatsTime = 0;
+    configChangedAt = 0;
+    lastAdjustQualityRequestAt = 0;
+
+    historyIndex = 0;
+    bpsHistory = Array.from({ length: HISTORY_SIZE}, () => -1);
+    lossHistory = Array.from({ length: HISTORY_SIZE}, () => -1);
+    rttHistory = Array.from({ length: HISTORY_SIZE}, () => -1);
+}
+
 // =================================================
 // セッションID
 // =================================================
@@ -1219,7 +1838,7 @@ async function onEnableAudio() {
 // リクエスト
 // =================================================
 function sendForceKeyframe(reason) {
-    const now = performance.now();
+    const now = nowMs();
 
     if (!inputDc || inputDc.readyState !== "open") return;
     if (now < forceKeyframeCooldownUntil) return;
@@ -1679,7 +2298,13 @@ async function connect() {
             if (!rtcSummaryIntervalId) {
                 rtcSummaryIntervalId = setInterval(() => {
                     logRtcSummary(pc).catch(console.error);
-                }, 5000);
+                }, LOG_RTC_MS);
+            }
+
+            if (!measureQualityIntervalId) {
+                measureQualityIntervalId = setInterval(() => {
+                    measureQualityOfRtc(pc).catch(console.error);
+                }, MEASURE_MS);
             }
 
             await logSelectedCandidatePair(pc);
@@ -1968,6 +2593,11 @@ function cleanupPeerConnection() {
     if (answerPollIntervalId) {
         clearInterval(answerPollIntervalId);
         answerPollIntervalId = null;
+    }
+
+    if (measureQualityIntervalId) {
+        clearInterval(measureQualityIntervalId);
+        measureQualityIntervalId = null;
     }
 
     if (videoStatsMonitorAbort) {
@@ -2277,7 +2907,7 @@ function startVideoWatchdog() {
 
         const framesNotMoving = framesDecoded <= lastVideoStats.framesDecoded;
 
-        const bytesNotMoving = bytesReceived <= lastVideoStats.framesReceived;
+        const bytesNotMoving = bytesReceived <= lastVideoStats.bytesReceived;
 
         const packetsNotMoving = packetsReceived <= lastVideoStats.packetsReceived;
 
@@ -2376,16 +3006,36 @@ function startVideoWatchdog() {
 }
 
 function correctPlaybackDelay(latestFrameAgeMs) {
-    if (!videoEl) return;
+    if (canvasEl) {
+        if (latestFrameAgeMs > STRONG_PLAYBACKRATE_MS) {
+            console.log("strong playback rate");
+            canvasEl.playbackRate = STRONG_PLAYBACKRATE;
+        } else if (latestFrameAgeMs > MIDDLE_PLAYBACKRATE_MS) {
+            console.log("middle playback rate");
+            canvasEl.playbackRate = MIDDLE_PLAYBACKRATE;
+        } else if (latestFrameAgeMs > WEAK_PLAYBACKRATE_MS) {
+            console.log("weak playback rate");
+            canvasEl.playbackRate = WEAK_PLAYBACKRATE;
+        } else {
+            console.log("normal playback rate");
+            canvasEl.playbackRate = 1.0;
+        }
+    }
 
-    if (latestFrameAgeMs > 2000) {
-        videoEl.playbackRate = 1.06;
-    } else if (latestFrameAgeMs > 1500) {
-        videoEl.playbackRate = 1.04;
-    } else if (latestFrameAgeMs > 800) {
-        videoEl.playbackRate = 1.03;
-    } else {
-        videoEl.playbackRate = 1.0;
+    if (videoEl) {
+        if (latestFrameAgeMs > STRONG_PLAYBACKRATE_MS) {
+            console.log("strong playback rate");
+            videoEl.playbackRate = STRONG_PLAYBACKRATE;
+        } else if (latestFrameAgeMs > MIDDLE_PLAYBACKRATE_MS) {
+            console.log("middle playback rate");
+            videoEl.playbackRate = MIDDLE_PLAYBACKRATE;
+        } else if (latestFrameAgeMs > WEAK_PLAYBACKRATE_MS) {
+            console.log("weak playback rate");
+            videoEl.playbackRate = WEAK_PLAYBACKRATE;
+        } else {
+            console.log("normal playback rate");
+            videoEl.playbackRate = 1.0;
+        }
     }
 }
 
@@ -2431,23 +3081,31 @@ function startStatsMonitor() {
                         ? isRelayConnection(stats, selectedCandidatePair)
                         : false;
                     
-                    if (updateCapViolationScore(report, bitrateBps, isRelay)) {
-                        disconnectForCapViolation(report, bitrateBps);
-                        return;
+                    if (checkCapViolation(report, bitrateBps, isRelay)) {
+                        capViolationCount++;
+                        if (capViolationCount > COUNT_LIMIT_OF_CAP_VIOLATION) {
+                            disconnectForCapViolation(report, bitrateBps);
+                        }
                     }
                     
+                    capViolationCount = 0;
+
                     console.log("[video stats]", {
                         packetsReceived: report.packetsReceived,
                         bytesReceived: report.bytesReceived,
                         framesReceived: report.framesReceived,
                         framesDecoded: report.framesDecoded,
                         framesDropped: report.framesDropped,
+                        framesPerSecond: report.framesPerSecond,
                         frameWidth: report.frameWidth,
                         frameHeight: report.frameHeight,
                         keyFramesDecoded: report.keyFramesDecoded,
                         totalDecodeTime: report.totalDecodeTime,
+                        totalAssemblyTime: report.totalAssemblyTime,
                         jitter: report.jitter,
                         jitterBufferDelay: report.jitterBufferDelay,
+                        jitterBufferTargetDelay: report.jitterBufferTargetDelay,
+                        jitterBufferMinimumDelay: report.jitterBufferMinimumDelay,
                         jitterBufferEmittedCount: report.jitterBufferEmittedCount,
                         freezeCount: report.freezeCount,
                         totalFreezesDuration: report.totalFreezesDuration,
@@ -2457,6 +3115,8 @@ function startStatsMonitor() {
                         processorRenderedFrames: renderedFrames,
                         processorLateDroppedFrames: lateDroppedFrames,
                         latestFrameAgeMs: firstVideoFrameArrived ? Math.floor(nowMs() - lastFrameArrivedAt) : null,
+                        jitterBufferDelay: stats.jitterBufferDelay,
+                        jitterBufferEmittedCount: stats.jitterBufferEmittedCount
                     });
                 }
 

@@ -20,7 +20,7 @@ namespace TwinsRemoteHost
 {
     public partial class Host : Form
     {
-        private readonly string version = "1.1.0";
+        private readonly string version = "1.2.0";
 
         private bool init = true;
         private List<string> notifications = [];
@@ -40,6 +40,8 @@ namespace TwinsRemoteHost
         private string pId = string.Empty;
         private Status status = Status.Stop;
 
+        private string installedList;
+
         public Host()
         {
             InitializeComponent();
@@ -52,6 +54,7 @@ namespace TwinsRemoteHost
             _ = InitializeUi();
 
             FormClosing += Host_FormClosing;
+            this.installedList = GetInstalledList();
         }
 
         private void Host_Load(object sender, EventArgs e)
@@ -227,15 +230,7 @@ namespace TwinsRemoteHost
             List<string> customNames = GetCustomModeList();
 
             modeComboBox.Items.Clear();
-            List<object> modes = [];
-            foreach (string customName in customNames)
-            {
-                modeComboBox.Items.Add(new VideoPresetItem { DisplayName = customName, Key = customName });
-            }
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.BalancedMode, Key = "Balanced" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.QualityMode, Key = "Quality" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.StableMode, Key = "Stable" });
-            modeComboBox.Items.Add(new VideoPresetItem { DisplayName = this.locale.MobileMode, Key = "Mobile" });
+            modeComboBox.Items.AddRange(GetModeList(this.locale));
 
             if (previousModeValue != null || previousModeValue == String.Empty)
             {
@@ -252,7 +247,36 @@ namespace TwinsRemoteHost
 
                 if (i >= modeComboBox.Items.Count) { modeComboBox.SelectedIndex = 0; }
             }
-            else modeComboBox.SelectedIndex = 0;
+            else
+            {
+                int modeDefault = modeComboBox.FindStringExact(Properties.Settings.Default.Mode);
+                if (modeDefault < 0)
+                {
+                    modeComboBox.SelectedIndex = 0;
+                }
+                else
+                {
+                    modeComboBox.SelectedIndex = modeComboBox.FindStringExact(Properties.Settings.Default.Mode);
+                }
+            }
+        }
+
+        public static VideoPresetItem[] GetModeList(Locale locale)
+        {
+            List<VideoPresetItem> modeList = [];
+            List<string> customNames = GetCustomModeList();
+
+            modeList.Add(new VideoPresetItem { DisplayName = locale.AutoAdjustMode, Key = "autoAdjust1080p" });
+            modeList.Add(new VideoPresetItem { DisplayName = locale.BalancedMode, Key = "balanced" });
+            modeList.Add(new VideoPresetItem { DisplayName = locale.QualityMode, Key = "quality" });
+            modeList.Add(new VideoPresetItem { DisplayName = locale.StableMode, Key = "stable" });
+            modeList.Add(new VideoPresetItem { DisplayName = locale.MobileMode, Key = "mobile" });
+            foreach (string customName in customNames)
+            {
+                modeList.Add(new VideoPresetItem { DisplayName = customName, Key = customName });
+            }
+
+            return modeList.ToArray();
         }
 
         private async Task InitializeUi()
@@ -462,6 +486,20 @@ namespace TwinsRemoteHost
             return body.Token;
         }
 
+        private string GetInstalledList()
+        {
+            var p = new Process();
+            p.StartInfo.FileName = string.Format("{0}\\cmd.exe", Environment.GetFolderPath(Environment.SpecialFolder.System));
+            p.StartInfo.UseShellExecute = false;
+            p.StartInfo.RedirectStandardOutput = true;
+            p.StartInfo.RedirectStandardInput = false;
+            p.StartInfo.CreateNoWindow = true;
+            p.StartInfo.Arguments = " /c reg query \"HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\" /s | findstr \"\\<DisplayName\"";
+            p.Start();
+
+            return p.StandardOutput.ReadToEnd();
+        }
+
         private async void languageComboBox_SelectedIndexChanged(object sender, EventArgs e)
         {
             string lang = languageComboBox.Text.ToString() ?? "Japanese";
@@ -606,7 +644,7 @@ namespace TwinsRemoteHost
             string allowed;
             if (this.mSettings == null || this.mSettings.IsDisposed)
             {
-                this.mSettings = new ConnectionSettings(this.locale);
+                this.mSettings = new ConnectionSettings(this.locale, this.installedList);
                 this.mSettings.Left = this.Left + 200;
                 this.mSettings.Top = this.Top + 200;
                 this.mSettings.StartPosition = FormStartPosition.Manual;
@@ -1057,6 +1095,9 @@ namespace TwinsRemoteHost
 
         [JsonProperty("reducingNetworkLoadPresets")]
         public required string ReducingNetworkLoadPresets { get; set; }
+
+        [JsonProperty("autoAdjustMode")]
+        public required string AutoAdjustMode { get; set; }
 
         [JsonProperty("balancedMode")]
         public required string BalancedMode { get; set; }
