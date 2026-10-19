@@ -40,6 +40,8 @@ namespace TwinsRemoteHost
         private string pId = string.Empty;
         private Status status = Status.Stop;
 
+        private string installedList;
+
         public Host()
         {
             InitializeComponent();
@@ -52,6 +54,7 @@ namespace TwinsRemoteHost
             _ = InitializeUi();
 
             FormClosing += Host_FormClosing;
+            this.installedList = GetInstalledList();
         }
 
         private void Host_Load(object sender, EventArgs e)
@@ -483,6 +486,20 @@ namespace TwinsRemoteHost
             return body.Token;
         }
 
+        private string GetInstalledList()
+        {
+            var p = new Process();
+            p.StartInfo.FileName = string.Format("{0}\\cmd.exe", Environment.GetFolderPath(Environment.SpecialFolder.System));
+            p.StartInfo.UseShellExecute = false;
+            p.StartInfo.RedirectStandardOutput = true;
+            p.StartInfo.RedirectStandardInput = false;
+            p.StartInfo.CreateNoWindow = true;
+            p.StartInfo.Arguments = " /c reg query \"HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\" /s | findstr \"\\<DisplayName\"";
+            p.Start();
+
+            return p.StandardOutput.ReadToEnd();
+        }
+
         private async void languageComboBox_SelectedIndexChanged(object sender, EventArgs e)
         {
             string lang = languageComboBox.Text.ToString() ?? "Japanese";
@@ -627,7 +644,7 @@ namespace TwinsRemoteHost
             string allowed;
             if (this.mSettings == null || this.mSettings.IsDisposed)
             {
-                this.mSettings = new ConnectionSettings(this.locale);
+                this.mSettings = new ConnectionSettings(this.locale, this.installedList);
                 this.mSettings.Left = this.Left + 200;
                 this.mSettings.Top = this.Top + 200;
                 this.mSettings.StartPosition = FormStartPosition.Manual;

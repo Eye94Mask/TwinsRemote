@@ -116,5 +116,6 @@
   "logHasBeenSaved": "ログを保存しました",
   "screen": "画面",
   "selectScreen": "共有する画面を選択",
-  "changeStream": "配信変更"
+  "changeStream": "配信変更",
+  "controllerCaution": "ViGEmをインストールする必要があります"
 }

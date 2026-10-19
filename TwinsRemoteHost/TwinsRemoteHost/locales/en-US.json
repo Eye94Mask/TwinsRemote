@@ -116,5 +116,6 @@
   "logHasBeenSaved": "The log has been saved",
   "screen": "Screen",
   "selectScreen": "Select the screen to share",
-  "changeStream": "Change stream"
+  "changeStream": "Change stream",
+  "controllerCaution": "You need to install ViGEm"
 }

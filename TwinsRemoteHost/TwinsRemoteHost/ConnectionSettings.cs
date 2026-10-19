@@ -22,6 +22,11 @@ namespace TwinsRemoteHost
         private string primaryScreenName = "";
         private string screenName = "";
 
+        private string installedList;
+        private readonly string vigemLink = "https://vigembusdriver.com/download/#:~:text=11%20November%202023-,Download,-Changelog";
+        private bool isViGEmInstalled = false;
+        private string vigemName = "ViGEm Bus Driver";
+
         const int ENUM_CURRENT_SETTINGS = -1;
 
         [DllImport("user32.dll")]
@@ -66,9 +71,10 @@ namespace TwinsRemoteHost
             public int dmPanningHeight;
         }
 
-        public ConnectionSettings(Locale locale)
+        public ConnectionSettings(Locale locale, string installedList)
         {
             this.locale = locale;
+            this.installedList = installedList;
             InitializeComponent();
             InitializeUi();
             ApplyLanguage();
@@ -76,6 +82,7 @@ namespace TwinsRemoteHost
 
         private void InitializeUi()
         {
+            this.isViGEmInstalled = this.installedList.Contains(vigemName);
             MakeSelectionOfMonitors();
 
             this.allowed = "";
@@ -85,6 +92,15 @@ namespace TwinsRemoteHost
         private void ApplyLanguage()
         {
             selectScreenLabel.Text = this.locale.SelectScreen;
+
+            if (!this.isViGEmInstalled)
+            {
+                controllerCautionLabel.Text = this.locale.ControllerCaution;
+                controllerCautionLabel.Enabled = true;
+                controllerCautionLabel.Visible = true;
+                viGEmLinkLabel.Enabled = true;
+                viGEmLinkLabel.Visible = true;
+            }
         }
 
         private Bitmap CaptureScreen(Rectangle screenBounds, DEVMODE dm, int scale)
@@ -279,6 +295,14 @@ namespace TwinsRemoteHost
             isReady = true;
 
             this.Close();
+        }
+
+        private void viGEmLinkLabel_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
+        {
+            var ps = new Process();
+            ps.StartInfo.UseShellExecute = true;
+            ps.StartInfo.FileName = this.vigemLink;
+            ps.Start();
         }
     }
 }

@@ -33,6 +33,9 @@
             cancelButton1 = new Button();
             screenOptionFlowLayoutPanel = new FlowLayoutPanel();
             selectScreenLabel = new Label();
+            controllerCautionLabel = new Label();
+            fader1 = new NAudio.Gui.Fader();
+            viGEmLinkLabel = new LinkLabel();
             SuspendLayout();
             // 
             // okButton
@@ -64,7 +67,7 @@
             // screenOptionFlowLayoutPanel
             // 
             screenOptionFlowLayoutPanel.AutoScroll = true;
-            screenOptionFlowLayoutPanel.Location = new Point(12, 65);
+            screenOptionFlowLayoutPanel.Location = new Point(12, 64);
             screenOptionFlowLayoutPanel.Name = "screenOptionFlowLayoutPanel";
             screenOptionFlowLayoutPanel.Size = new Size(891, 724);
             screenOptionFlowLayoutPanel.TabIndex = 18;
@@ -74,7 +77,7 @@
             selectScreenLabel.AutoSize = true;
             selectScreenLabel.Font = new Font("メイリオ", 14F, FontStyle.Regular, GraphicsUnit.Point, 128);
             selectScreenLabel.ImageAlign = ContentAlignment.MiddleRight;
-            selectScreenLabel.Location = new Point(12, 20);
+            selectScreenLabel.Location = new Point(12, 19);
             selectScreenLabel.Name = "selectScreenLabel";
             selectScreenLabel.RightToLeft = RightToLeft.Yes;
             selectScreenLabel.Size = new Size(98, 42);
@@ -82,11 +85,52 @@
             selectScreenLabel.Text = "label1";
             selectScreenLabel.TextAlign = ContentAlignment.MiddleRight;
             // 
+            // controllerCautionLabel
+            // 
+            controllerCautionLabel.AutoSize = true;
+            controllerCautionLabel.Enabled = false;
+            controllerCautionLabel.Font = new Font("メイリオ", 14F);
+            controllerCautionLabel.ForeColor = Color.Orange;
+            controllerCautionLabel.Location = new Point(12, 1240);
+            controllerCautionLabel.Name = "controllerCautionLabel";
+            controllerCautionLabel.Size = new Size(98, 42);
+            controllerCautionLabel.TabIndex = 20;
+            controllerCautionLabel.Text = "label1";
+            controllerCautionLabel.Visible = false;
+            // 
+            // fader1
+            // 
+            fader1.Location = new Point(721, 1102);
+            fader1.Maximum = 0;
+            fader1.Minimum = 0;
+            fader1.Name = "fader1";
+            fader1.Orientation = Orientation.Horizontal;
+            fader1.Size = new Size(8, 8);
+            fader1.TabIndex = 21;
+            fader1.Text = "fader1";
+            fader1.Value = 0;
+            // 
+            // viGEmLinkLabel
+            // 
+            viGEmLinkLabel.AutoSize = true;
+            viGEmLinkLabel.Enabled = false;
+            viGEmLinkLabel.Location = new Point(12, 1282);
+            viGEmLinkLabel.Name = "viGEmLinkLabel";
+            viGEmLinkLabel.Size = new Size(64, 25);
+            viGEmLinkLabel.TabIndex = 22;
+            viGEmLinkLabel.TabStop = true;
+            viGEmLinkLabel.Text = "ViGEm";
+            viGEmLinkLabel.Visible = false;
+            viGEmLinkLabel.LinkClicked += viGEmLinkLabel_LinkClicked;
+            // 
             // ConnectionSettings
             // 
             AutoScaleDimensions = new SizeF(10F, 25F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(915, 1398);
+            Controls.Add(viGEmLinkLabel);
+            Controls.Add(fader1);
+            Controls.Add(controllerCautionLabel);
             Controls.Add(selectScreenLabel);
             Controls.Add(cancelButton1);
             Controls.Add(okButton);
@@ -106,5 +150,8 @@
         private FlowLayoutPanel screenOptionFlowLayoutPanel;
         private FlowLayoutPanel monitorsFlowLayoutPanel2;
         private Label selectScreenLabel;
+        private Label controllerCautionLabel;
+        private NAudio.Gui.Fader fader1;
+        private LinkLabel viGEmLinkLabel;
     }
 }
