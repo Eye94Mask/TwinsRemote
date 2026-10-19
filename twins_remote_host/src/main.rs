@@ -461,7 +461,7 @@ async fn main() -> Result<()> {
     let pc = webrtc.peer.clone();
     let last_gamepad_seq = Arc::new(AtomicU32::new(0));
 
-    let mut currentController = VirtualPadType::Xbox360;
+    let mut current_controller = VirtualPadType::Xbox360;
 
     let nvenc_err_rx = nvenc_err_rx.clone();
     webrtc.peer.on_data_channel(Box::new(move |dc| {
@@ -629,7 +629,7 @@ async fn main() -> Result<()> {
                     loop {
                         if dc_rumble.label() != "controller" { break; }
 
-                        if currentController == VirtualPadType::Xbox360 {
+                        if current_controller == VirtualPadType::Xbox360 {
                             let rumble = match xbox_rumble_rx.recv().await {
                                 Ok(v) => v,
                                 Err(broadcast::error::RecvError::Lagged(n)) => {
@@ -667,7 +667,7 @@ async fn main() -> Result<()> {
                                 eprintln!("[HOST] failed to send rumble: {:?}", e);
                                 break;
                             }
-                        } else if currentController == VirtualPadType::DualShock4 || currentController == VirtualPadType::DualSenseCompat {
+                        } else if current_controller == VirtualPadType::DualShock4 || current_controller == VirtualPadType::DualSenseCompat {
                             let rumble = match ps_rumble_rx.recv().await {
                                 Ok(v) => v,
                                 Err(broadcast::error::RecvError::Lagged(n)) => {
@@ -741,8 +741,8 @@ async fn main() -> Result<()> {
                             None
                         };
 
-                        if data.len() >= 17 && data[16] == 1 { currentController = VirtualPadType::Xbox360; }
-                        else { currentController = VirtualPadType::DualShock4; }
+                        if data.len() >= 17 && data[16] == 1 { current_controller = VirtualPadType::Xbox360; }
+                        else { current_controller = VirtualPadType::DualShock4; }
 
                         let report = GamepadState {
                             buttons,
@@ -754,11 +754,11 @@ async fn main() -> Result<()> {
                             ry
                         };
 
-                        if currentController == VirtualPadType::Xbox360 {
+                        if current_controller == VirtualPadType::Xbox360 {
                             if let Ok(mut ctrl) = xbox_controller.lock() {
                                 let result = ctrl.update(report);
                             }
-                        } else if currentController == VirtualPadType::DualShock4 || currentController == VirtualPadType::DualSenseCompat {
+                        } else if current_controller == VirtualPadType::DualShock4 || current_controller == VirtualPadType::DualSenseCompat {
                             if let Ok(mut ctrl) = ps_controller.lock() {
                                 let result = ctrl.update(report);
                             }
