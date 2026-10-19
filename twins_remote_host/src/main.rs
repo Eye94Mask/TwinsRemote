@@ -31,7 +31,7 @@ use webrtc::media::Sample;
 
 use crate::audio_encoder::AudioEncoder;
 use crate::consts::{VIDEO_FRAME_DURATION, CAP_THRESHOLD, AUTO_ADJUST_MODE};
-use crate::controller::{Controller, GamepadState, PsRumbleState, XboxRumbleState, VirtualPadType};
+use crate::controller::{Controller, GamepadState, PsRumbleState, XboxRumbleState, VirtualPadType, ControllerKind};
 use crate::env::IceConfig;
 use crate::webrtc_sender::{WebRtcSender, StreamPolicy};
 
@@ -195,17 +195,40 @@ async fn main() -> Result<()> {
     let (xbox_rumble_rx_tx, xbox_rumble_rx_std) = std::sync::mpsc::channel::<XboxRumbleState>();
     let (ps_rumble_rx_tx, ps_rumble_rx_std) = std::sync::mpsc::channel::<PsRumbleState>();
 
-    let xbox_controller_raw = Controller::new(
+    let result_xbox_controller_raw = Controller::new(
         VirtualPadType::Xbox360,
         Some(xbox_rumble_rx_tx),
         None
-    )?;
-    let ps_controller_raw = Controller::new(
+    );
+    let result_ps_controller_raw = Controller::new(
         VirtualPadType::DualShock4,
         None,
         Some(ps_rumble_rx_tx)
-    )?;
+    );
 
+    let mut xbox_controller_raw: Controller;
+    let mut ps_controller_raw: Controller;
+
+    match result_xbox_controller_raw {
+        Ok(c) => {
+            xbox_controller_raw = c;
+        }
+        Err(e) => {
+            eprintln!("[HOST] failed to initialize xbox controller: {:?}", e);
+            xbox_controller_raw = Controller{ client: None, pad_type:VirtualPadType::Xbox360, kind: ControllerKind::Failed };
+        }
+    }
+
+    match result_ps_controller_raw {
+        Ok(c) => {
+            ps_controller_raw = c;
+        }
+        Err(e) => {
+            eprintln!("[HOST] failed to initialize ps controller: {:?}", e);
+            ps_controller_raw = Controller{ client: None, pad_type:VirtualPadType::DualShock4, kind: ControllerKind::Failed };
+        }
+    }
+    
     let xbox_controller = Arc::new(Mutex::new(xbox_controller_raw));
     let ps_controller = Arc::new(Mutex::new(ps_controller_raw));
 

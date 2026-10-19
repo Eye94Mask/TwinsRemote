@@ -90,8 +90,8 @@
             controllerCautionLabel.AutoSize = true;
             controllerCautionLabel.Enabled = false;
             controllerCautionLabel.Font = new Font("メイリオ", 14F);
-            controllerCautionLabel.ForeColor = Color.Orange;
-            controllerCautionLabel.Location = new Point(12, 1240);
+            controllerCautionLabel.ForeColor = Color.DarkOrange;
+            controllerCautionLabel.Location = new Point(12, 1238);
             controllerCautionLabel.Name = "controllerCautionLabel";
             controllerCautionLabel.Size = new Size(98, 42);
             controllerCautionLabel.TabIndex = 20;
@@ -114,9 +114,10 @@
             // 
             viGEmLinkLabel.AutoSize = true;
             viGEmLinkLabel.Enabled = false;
-            viGEmLinkLabel.Location = new Point(12, 1282);
+            viGEmLinkLabel.Font = new Font("メイリオ", 9F);
+            viGEmLinkLabel.Location = new Point(12, 1280);
             viGEmLinkLabel.Name = "viGEmLinkLabel";
-            viGEmLinkLabel.Size = new Size(64, 25);
+            viGEmLinkLabel.Size = new Size(70, 27);
             viGEmLinkLabel.TabIndex = 22;
             viGEmLinkLabel.TabStop = true;
             viGEmLinkLabel.Text = "ViGEm";
