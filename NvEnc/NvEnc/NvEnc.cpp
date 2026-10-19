@@ -2027,11 +2027,11 @@ int main(int argc, char** argv) {
     std::thread commandThread([&]() {
         std::string line;
 
-        while (!stopCommandThread.load()) {
-            if (!std::getline(std::cin, line)) {
-                Sleep(10);
-                continue;
-            }
+		while (!stopCommandThread.load()) {
+			if (!std::getline(std::cin, line)) {
+				Sleep(10);
+				continue;
+			}
 
             if (line == "force_idr") {
                 forceIdrRequested.store(true);
@@ -2398,11 +2398,7 @@ int main(int argc, char** argv) {
 		IDXGIAdapter1* captureAdapter = pAdapter.first;
 		std::string adapterName = pAdapter.second;
 
-        if (!captureAdapter) {
-            throw std::runtime_error("No capture adapter with attached output found");
-        }
-
-        auto pEncoder = FindNvencAdapter();
+		auto pEncoder = FindNvencAdapter();
 		IDXGIAdapter1* nvAdapter = pEncoder.first;
 		std::string encoderName = pEncoder.second;
 
@@ -2514,7 +2510,16 @@ int main(int argc, char** argv) {
 		autoAdjustPresetIndex.store(InferAutoAdjustPresetIndex(cfg));
 
 		std::cerr << "[AUTO_ADJUST] Initial ladder position: "
-			<< AutoAdjustPresetToString(static_cast<AutoAdjustPreset>(autoAdjustPresetIndex.load())) << "\n";
+			<< AutoAdjustPresetToString(
+				static_cast<AutoAdjustPreset>(autoAdjustPresetIndex.load())
+			) << "\n";
+
+		if (selectedAutoMode) {
+			std::cerr << "[AUTO_ADJUST] Initial ladder position: "
+				<< AutoAdjustPresetToString(
+					static_cast<AutoAdjustPreset>(autoAdjustPresetIndex.load())
+				) << "\n";
+		}
 		
 		// Create the complete capture/encode session once.
 		// During a DXGI ACCESS_LOST recovery, only the resources that depend on
@@ -2599,6 +2604,9 @@ int main(int argc, char** argv) {
 
 						if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
 							++perfAcquireTimeouts;
+						}
+
+						if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
 							const uint64_t keepaliveNowUs = TickUs();
 
 							const uint64_t fps =
