@@ -225,7 +225,7 @@ let rttHistory = Array.from({ length: HISTORY_SIZE }, () => -1);
 // "relay-test" | "normal" | "stun-first"
 // !!!! リリース前には絶対に const ICE_MODE = "normal"; に変更すること !!!!
 // =======================================================================================
-const ICE_MODE = "normal";
+const ICE_MODE = "relay-test";
 
 let badRttCount = 0;
 let lastIceRestartAt = 0;
@@ -251,6 +251,8 @@ let lastVideoBytesAt = null;
 
 let relayMonitorIntervalId = null;
 let lastPostedNetworkMode = null;
+
+let lastTurnServer = "";
 
 function estimateVideoBitrateBps(report) {
     const now = nowMs();
@@ -979,6 +981,7 @@ async function sessionTimeout() {
     await releaseWakeLock();
 
     if (!sessionEnded) {
+        await fetchTurnEnd(lastTurnServer, false, true);
         await fetchSessionEnd();
         sessionEnded = true;
     }
@@ -1888,9 +1891,13 @@ window.addEventListener("pageshow", (event) => {
 
 addEventListener("beforeunload", async () => {
     if (!sessionEnded) {
-        await fetchSessionEnd();
-        sessionEnded = true;
+        try {
+            await fetchTurnEnd(lastTurnServer, false, true);
+            await fetchSessionEnd();
+        } catch(e) {}
     }
+
+    sessionEnded = true;
 });
 
 function setUserId() {
@@ -1954,6 +1961,7 @@ async function fetchSessionStart() {
         throw new Error("failed to fetch start twins remote: " + text);
     }
 }
+
 async function fetchSessionEnd() {
     const userId = localStorage.getItem("userId");
     const res = await fetch(buildSessionUrl("/end-twins-remote"), {
@@ -1962,6 +1970,51 @@ async function fetchSessionEnd() {
             "Content-Type": "application/json"
         },
         body: JSON.stringify({userId})
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error("failed to fetch end twins remote: " + text);
+    }
+}
+
+async function fetchTurnStart(turnName = "") {
+    const userId = localStorage.getItem("userId");
+    if (turnName === "") { return; }
+    
+    const res = await fetch(buildSessionUrl("/start-relay-communication"), {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            userId,
+            turnName,
+            violation: false,
+            sessionEnd: false
+        })
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error("failed to fetch start relay communication: " + text);
+    }
+}
+async function fetchTurnEnd(turnName = "", violation = false, sessionEnd = false) {
+    const userId = localStorage.getItem("userId");
+    if (turnName === "") { return; }
+
+    const res = await fetch(buildSessionUrl("/end-relay-communication"), {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            userId,
+            turnName,
+            violation,
+            sessionEnd
+        })
     });
 
     if (!res.ok) {
@@ -2315,6 +2368,7 @@ async function connect() {
             currentStatus = status.disconnected;
 
             if (!sessionEnded) {
+                await fetchTurnEnd(lastTurnServer, false, true);
                 await fetchSessionEnd();
                 sessionEnded = true;
             }
@@ -2325,6 +2379,7 @@ async function connect() {
             currentStatus = status.connectionFailure;
 
             if (!sessionEnded) {
+                await fetchTurnEnd(lastTurnServer, false, true);
                 await fetchSessionEnd();
                 sessionEnded = true;
             }
@@ -2420,7 +2475,7 @@ async function maybeRestartIceByRtt(selectedPair) {
 
     const stats = await pc.getStats();
 
-    if (isRelayConnection(stats, selectedPair)) {
+    if (await isRelayConnection(stats, selectedPair)) {
         return;
     }
 
@@ -2501,11 +2556,33 @@ function buildRtcConfig(config) {
     }
 }
 
-function isRelayConnection(stats, selectedPair) {
+async function isRelayConnection(stats, selectedPair) {
     const local = stats.get(selectedPair.localCandidateId);
     const remote = stats.get(selectedPair.remoteCandidateId);
 
-    return local?.candidateType === "relay" || remote?.candidateType == "relay";
+    const isRelay = local?.candidateType === "relay" || remote?.candidateType == "relay"
+
+    if (isRelay) {
+        const nextTurnServer = local.url.split(":")[1];
+        const lastTurn = lastTurnServer;
+        if (lastTurn !== "") {
+            if (nextTurnServer !== lastTurn) {
+                await fetchTurnEnd(false, false);
+            } else {
+                return isRelay;
+            }
+        }
+        lastTurnServer = nextTurnServer;
+        await fetchTurnStart(nextTurnServer);
+    } else {
+        const lastTurn = lastTurnServer;
+        if (lastTurn !== "") {
+            await fetchTurnEnd(lastTurn, false, false);
+        }
+        lastTurnServer = "";
+    }
+
+    return isRelay;
 }
 
 function startRelayMonitoring() {
@@ -2531,7 +2608,7 @@ function startRelayMonitoring() {
 
             if (!selectedPair) return;
 
-            const relay = isRelayConnection(stats, selectedPair);
+            const relay = await isRelayConnection(stats, selectedPair);
             const mode = relay ? "relay" : "direct";
 
             if (relay) {
@@ -3074,17 +3151,18 @@ function startStatsMonitor() {
             if (localCandidateId) localCandidate = stats.get(localCandidateId);
             if (remoteCandidateId) remoteCandidate = stats.get(remoteCandidateId);
 
-            stats.forEach((report) => {
+            stats.forEach(async (report) => {
                 if (report.type === "inbound-rtp" && report.kind === "video") {
                     const bitrateBps = estimateVideoBitrateBps(report);
                     const isRelay = selectedCandidatePair
-                        ? isRelayConnection(stats, selectedCandidatePair)
+                        ? await isRelayConnection(stats, selectedCandidatePair)
                         : false;
                     
                     if (checkCapViolation(report, bitrateBps, isRelay)) {
                         capViolationCount++;
                         if (capViolationCount > COUNT_LIMIT_OF_CAP_VIOLATION) {
                             disconnectForCapViolation(report, bitrateBps);
+                            await fetchTurnEnd(lastTurnServer, true, false);
                         }
                     }
                     
