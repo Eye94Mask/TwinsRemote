@@ -225,7 +225,7 @@ let rttHistory = Array.from({ length: HISTORY_SIZE }, () => -1);
 // "relay-test" | "normal" | "stun-first"
 // !!!! リリース前には絶対に const ICE_MODE = "normal"; に変更すること !!!!
 // =======================================================================================
-const ICE_MODE = "relay-test";
+const ICE_MODE = "normal";
 
 let badRttCount = 0;
 let lastIceRestartAt = 0;
