@@ -1,73 +1,66 @@
-# Twins Remote
+# TwinsRemote
+<img width="1617" height="506" alt="スクリーンショット 2026-10-21 223731" src="https://github.com/user-attachments/assets/76685a1f-5e6b-440a-b4fb-fce190e9d741" />
 
 日本語版ReadMeは[こちら](https://github.com/MeuShirokuma/TwinsRemote/blob/master/README.md)
 
-Low-latency peer-to-peer remote play system for Windows.
+TwinsRemote is a low-latency P2P remote play system for gamers.
 
-This is a version of a system I originally created to play games with my twin brother, customized for public use.
+In TwinsRemote, users are divided into
 
-There are two reasons behind the name:
+<b> “Hosts” — who stream contents —</b> and <b> “Clients” — who receive the contents —</b>.
 
-* It started as a system for me to play with my twin brother.
-* I wanted the two devices to operate with low latency, as if they were a single device.
+Please refer to [this page](#System-Requirements) for the system requirements for Host and Client.
 
-* Click [here](#host) to learn how to use the host
-* Click [here](#client) to learn how to use the client
+## How to Use TwinsRemote
+* [Host](#getting-started-as-a-host)
+* [Client](#getting-started-as-a-client)
+
 ---
 
-# For Those Who Want to Support Us
+# For Those Who Want to Support Me
 TwinsRemote incurs ongoing maintenance costs.
 
-Server fees (production + TURN + staging) + domain fees = 2,300 yen/month (14.38 USD/month)
+(as of November 2026)
 
-If you like TwinsRemote and want it to continue for a long time, or if you’d like us to keep working hard to develop new features, please consider supporting us.
+Server fees = (TwinsRemote + TURN + staging) + domain fees = 2,300 yen/month (14.38 USD/month).
 
-* [OFUSE](https://ofuse.me/eye94mask)
+If you like TwinsRemote and want it to continue for a long time, or if you’d like ms to keep working hard to develop new features, please consider supporting me.
 
+* [OFUSE](https://ofuse.me/eye94mask) 
+
+(Although the articles are written in Japanese, I also post articles about behind-the-scenes development stories, so please check them out if you're interested.)
 
 # Table of Contents
+
+# Table of Contents
+- [TwinsRemote](#twinsremote)
+- [How to Use TwinsRemote](#how-to-use-twinsremote)
+- [For Those Who Want to Support Me](#for-those-who-want-to-support-me)
 - [Features](#features)
-  - [Low Latency Streaming](#low-latency-streaming)
-  - [Browser-Based Client](#browser-based-client)
-- [Supported Features](#supported-features)
-  - [Video Streaming](#video-streaming)
-  - [Audio Sharing](#audio-sharing)
-  - [Controller Input](#controller-input)
-- [Architecture](#architecture)
-  - [Host Side](#host-side)
-    - [Rust](#rust)
-    - [C++](#c)
-    - [C#](#c-1)
-  - [Client Side](#client-side)
-    - [Vanilla JavaScript](#vanilla-javascript)
-- [How To Use](#how-to-use)
+  - [Low-Latency Streaming](#low-latency-streaming)
+  - [Client users need only a supported browser](#client-users-need-only-a-supported-browser)
+- [System Requirements](#system-requirements)
   - [Host](#host)
   - [Client](#client)
-- [Troubleshooting](#troubleshooting)
-- [Requirements](#requirements)
-  - [Host PC](#host-pc)
-  - [Client](#client-1)
-- [Current Limitation](#current-limitations)
-  - [Not Yet Implemented](#not-yet-implemented)
-  - [Current Restrictions](#current-restrictions)
-- [Networking](#networking)
-- [Development](#development)
-  - [Technologies Used](#technologies-used)
-    - [Host](#host-1)
-    - [Client](#client-2)
-- [Building](#building)
-- [Future Plans](#future-plans)
-- [Report](#report)
+    - [Controller Support](#controller-support)
+- [Getting Started with TwinsRemote](#getting-started-with-twinsremote)
+  - [Getting started as a Host](#getting-started-as-a-host)
+    - [Install the App](#install-the-app)
+    - [Connect to a Client](#connect-to-a-client)
+  - [Getting started as a Client](#getting-started-as-a-client)
+- [Report Issues](#report-issues)
   - [For Developers](#for-developers)
-  - [Feature Request](#feature-request)
-  - [Bug Report](#bug-report)
-  - [Other Questions or Reports](#other-questions-or-reports)
+  - [Feature Requests](#feature-requests)
+  - [Bug Reports](#bug-reports)
+  - [Other Reports or Questions](#other-reports-and-questions)
 - [FAQ](#faq)
-  - [Does this only work with Steam games?](#does-this-only-work-with-steam-games)
-  - [Does the client need to install anything?](#does-the-client-need-to-install-anything)
-  - [Why is ViGEm required?](#why-is-vigem-required)
+  - [Is there a dependency on Steam?](#is-there-a-dependency-on-steam?)
+  - [Do I need to install anything on the client side?](#do-i-need-to-install-anything-on-the-client-side?)
+  - [Why is ViGEm necessary?](#why-is-vigem-necessary?)
+  - [Controller input isn’t working on the client side](#controller-input-isn’t-working-on-the-client-side)
+  - [Video is choppy or lagging](#video-is-choppy-or-lagging)
 - [Project Background](#project-background)
-- [Status](#status)
+- [Development Status](#development-status)
 - [Disclaimer](#disclaimer)
 
 ---
@@ -76,281 +69,95 @@ If you like TwinsRemote and want it to continue for a long time, or if you’d l
 
 ## Low Latency Streaming
 
-* Peer-to-peer communication using WebRTC
-* Very low latency under stable network conditions
-* Designed for interactive gameplay, not just video playback
+* P2P communication using WebRTC.
+* Low latency of a few milliseconds to tens of milliseconds in a stable network environment.
+  * We offer the following features for users with limited internet connections.
+    * Automatic streaming settings adjustment (for beginners).
+    * Ability to finely adjust streaming settings manually (resolution, fps, data transmission bitrate, etc.) (for advanced users).
+* Designed with gameplay in mind.
 
-## Browser-Based Client
+## Client users need only a supported browser
 
-* No client installation required
-* Open the client page in a Chromium-based browser and connect
-* Confirmed working on:
-
-  * Google Chrome
-  * Brave
-
-Client URL:
-
-```text
-https://play.twins-remote.com
-```
+* Client users can join as long as they meet the requirements for [supported browsers](#client).
+  * No device restrictions—works on PCs, smartphones, tablets, and more.
+* No need to install apps or tools, or register for an account.
+  * All you need is a controller to play the game.
 
 ---
 
-# Supported Features
-
-## Video Streaming
-
-* Hardware encoding using NVIDIA NVENC
-* Multiple predefined streaming modes
-* User-created custom modes
-* Tunable for unstable network environments
-* IPv4 / IPv6 support
-* TURN relay support for NAT traversal
-
-## Audio Sharing
-
-Three audio sharing modes are available:
-
-1. Full PC system audio
-2. Application-specific audio sharing
-3. Audio disabled
-
-## Controller Input
-
-Supported and tested controllers:
-
-* Xbox Controllers
-* DualShock 4
-* DualSense
-
-Controller input is transmitted through WebRTC DataChannels with very low latency.
-
----
-
-# Architecture
-
-## Host Side
-
-### Rust
-
-Responsible for:
-
-* WebRTC communication
-* DataChannel processing
-* Controller input handling
-* TURN/STUN support
-* NAT traversal
-
-Uses:
-
-* WebRTC
-* ViGEm for virtual controller emulation
-
-> [ViGEm](https://vigembusdriver.com/download/) installation is required on the host PC to allow remote controller input.
-
-### C++
-
-Used for:
-
-* Video capture and NVENC encoding
-* Audio capture
-
-### C#
-
-Windows Forms application used for:
-
-* Host UI
-* Streaming configuration
-* Session connection management
-
-The host application supports:
-
-* Japanese
-* English
-
----
-
-## Client Side
-
-### Vanilla JavaScript
-
-* No frontend framework
-* Browser-based WebRTC client
-* Session ID generation and connection handling
-
----
-
-# How To Use
+# System Requirements
 
 ## Host
 
-1. Click [here](https://github.com/Eye94Mask/TwinsRemote/releases) to download `TwinsRemoteHost.zip`
-2. Unzip `TwinsRemoteHost.zip`
-3. Launch `TwinsRemoteHost.exe`
-4. Select a streaming mode
-5. Enter the session ID shared by the client
-6. Press the connect button
+* Windows OS (No need to be Windows 11).
+* NVIDIA GPU compatible with NVENC.
+  * Please refer to NVIDIA’s official compatibility list [here](https://developer.nvidia.com/video-encode-decode-support-matrix#:~:text=H.264%0A(AVC)%0AYUV%204%3A2%3A0).
+    * If <b>“H.264 (AVC) YUV 4:2:0”</b>, <b>“H.264 (AVC) YUV 4:4:4”</b> and <b>“H.264 (AVC) Lossless”</b> are set to “Yes”, then it is supported.
+    * <b>Some GPUs may work even if they aren’t listed in the official compatibility list</b>, so I recommend that you check to see if TwinsRemote is working.
 
-Streaming will start automatically after the connection is established.
+<b>Note: If you’re using a laptop, the built-in display may cause TwinsRemote to malfunction.</b>
 
----
-
-## Client
-
-1. Open:
-
-```text
-https://play.twins-remote.com
-```
-
-2. A session ID will be generated automatically
-3. Send the session ID to the host
-4. Wait for the host to connect
-
-After the host finishes processing, the stream will begin automatically.
-
-<mark>The audio is muted by default, so please unmute it as needed.</mark>
-
----
-
-## Troubleshooting
-If you try to run the host on a gaming laptop, it may not work properly.
-
-You may need to review your PC settings.
-Click [here](https://github.com/Eye94Mask/TwinsRemote/issues/31#issuecomment-4591706536) for more details
-
----
-
-# Requirements
-
-## Host PC
-
-* Windows
-* NVIDIA GPU with NVENC support
-* Chromium-based browser is NOT required on the host
+<b>For more details, see [here](#video-is-choppy-or-lagging).</b>
 
 ## Client
 
-* Chromium-based browser
+It generally works on any Chromium-based browser.
 
-  * Chrome
-  * Brave
+There are no specific hardware restrictions.
 
----
+No app or tool downloads are required.
 
-# Current Limitations
+It generally works on any device capable of running a supported browser, such as PCs, smartphones, and tablets.
 
-## Not Yet Implemented
-The following are examples.
+| Browser | Supported |
+| ---- | ---- |
+| Chrome | ✓ |
+| Microsoft Edge | ✓ |
+| Brave | ✓ |
+| Firefox | × |
 
-It is not yet determined whether these will be implemented in the future.
+### Controller Support
 
-* Dynamic resolution switching during streaming
-* Multi-monitor selection
-* CPU encoding
+| Browser | Compatibility | Vibration |
+| ---- | ---- | ---- |
+| Xbox Controller | ✓ | ✓ |
+| DualShock 4 | ✓ | ✓ |
+| DualSense | ✓ | × |
 
-## Current Restrictions
-
-* Windows host only
-* Main monitor capture only
-* NVIDIA NVENC required
-
----
-
-# Networking
-
-Twins Remote supports:
-
-* P2P WebRTC communication
-* IPv4
-* IPv6
-* TURN relay fallback
-* NAT traversal
-
-Currently, a TURN server is deployed in Tokyo.
+Latency is extremely low, and the system is designed with actual gameplay in mind.
 
 ---
 
-# Development
-
-## Technologies Used
-
-### Host
-
-* Rust
-* C++
-* C#
-* WebRTC
-* NVENC
-* [ViGEm](https://vigembusdriver.com/download/)
-
-### Client
-
-* Vanilla JavaScript
-* WebRTC
-
----
-
-# Building
-
-Visual Studio is required for development.
-
-The repository contains multiple projects including:
-
-* `NvEnc`
-* `ProcessAudioCapture`
-* `SystemMicCapture`
-* `TwinsRemoteHost`
-
-These projects are managed through a Visual Studio solution.
-
----
-
-# Future Plans
-Please feel free to submit any feature requests or bug reports.
-
-Please submit your reports via GitHub Issues or in the comments section of the X post below.
-
-We plan to actively incorporate any suggestions that do not stray too far from the core philosophy of Twins Remote.
-
-Here is some examples:
-* Keyboard and mouse input support
-* Host-side input permission settings
-* Dynamic resolution switching
-* Additional streaming optimizations
-* More flexible display selection
-
----
-
-# Report
+# Report Issues
 ## For Developers
 I also welcome GitHub issues
 
-## Feature Request
+## Feature Requests
 Please reply to [This Post](https://x.com/Eye94MaskTech/status/2061413873991946547) on X
 
-## Bug Report
+## Bug Reports
 Please reply to [This Post](https://x.com/Eye94MaskTech/status/2061414643021824433) on X
 
-## Other Questions or Reports
+## Other Reports or Questions
 Please reply to [This Post](https://x.com/Eye94MaskTech/status/2062145070296662024) on X
 
 # FAQ
 
-## Does this only work with Steam games?
+## Is there a dependency on Steam?
 
 No.
 
-Twins Remote is not tied to Steam and can be used with:
+TwinsRemote does not rely on Steam.
 
-* Non-Steam games
+It can also be used for the following purposes
+
+* Games other than Steam
 * Emulators
-* Desktop applications
+* Desktop apps
 
 ---
 
-## Does the client need to install anything?
+## Do I need to install anything on the client side?
 
 No.
 
@@ -358,28 +165,54 @@ The client only needs a supported browser.
 
 ---
 
-## Why is ViGEm required?
+## Why is ViGEm necessary?
 
-[ViGEm](https://vigembusdriver.com/download/) is used to emulate virtual game controllers on the host PC so that remote controller input can be recognized by games.
+This is because [ViGEm](https://vigembusdriver.com/download/#:~:text=11%20November%202023-,Download,-Changelog) is used to generate a virtual controller on the host side and pass client input to the game.
+
+### Controller input isn’t working on the client side
+
+If the client-side log shows “gamepad connected: ~”, the controller is recognized.
+
+If input still doesn’t work, please check the following
+* Is the client PC’s focus on the TwinsRemote Client tab?
+  * Did you just use a different window or application on the client PC?
+* Is the host PC’s focus on the running game?
+  * Did you just use a different window or application on the host PC?
+  * I (めくしめん) have repeatedly made the mistake of not clicking the game window after sharing “Audio Sharing - Share App -”.
+* Please check which controllers are supported by the game.
+  * Supported controllers may vary by game—for example, some games may only support Xbox controllers.
+* Please disconnect and reconnect the host and client.
+  * If the connection is still not recognized, please report it to me.
+
+---
+
+### The video is choppy or lagging
+
+* Is the streaming mode set to a high setting?
+  * For example, streaming in <b>“4K”</b> while using a <b>shared apartment internet connection</b> may mean your internet connection can’t keep up with the streaming mode settings.
+    * Try switching to a lower setting or switching to "Auto Adjust" mode.
+* Are you sharing the video from your laptop’s built-in display?
+  * Due to hardware limitations, it’s difficult for TwinsRemote to perform optimally on a laptop’s built-in display.
+  * Connecting to an external display and sharing the video from there will resolve this issue.
 
 ---
 
 # Project Background
 
-This project originally started as a system built for the developer and their twin brother to play games remotely together.
+This project began as a system the developer created to play games remotely with his twin brother.
 
-The name "Twins Remote" comes from:
+The name “TwinsRemote” embodies the following meanings.
 
-* The original use case between twins
-* The goal of making two distant PCs feel as synchronized as possible
+* That the project began so the developer could play with his twin brother.
+* The desire to make distant PCs feel as close as twins.
 
 ---
 
-# Status
+# Development Status
 
-This project is currently under active development.
+Development is currently ongoing.
 
-Features and behavior may change significantly over time.
+Specifications and features are subject to significant changes in the future.
 
 ---
 
@@ -387,4 +220,4 @@ Features and behavior may change significantly over time.
 
 This project is provided as-is without warranty.
 
-Use at your own risk.
+Please use it at your own risk.

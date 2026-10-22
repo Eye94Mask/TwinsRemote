@@ -38,6 +38,7 @@ TwinsRemote には維持費がかかっています
 - [必要環境](#必要環境)
   - [ホスト](#ホスト)
   - [クライアント](#クライアント)
+    - [コントローラー対応](#コントローラー対応)
 - [はじめてのTwinsRemote](#はじめてのTwinsRemote)
   - [はじめてのホスト](#はじめてのホスト)
     - [アプリインストール](#アプリインストール)
@@ -86,8 +87,10 @@ TwinsRemote には維持費がかかっています
 
 * Windows OS (Windows 11である必要はないです)
 * NVENC対応 NVIDIA GPU
-  * NVIDIA公式の対応表は[こちら](https://developer.nvidia.com/video-encode-decode-support-matrix)を参照ください
+  * NVIDIA公式の対応表は[こちら](https://developer.nvidia.com/video-encode-decode-support-matrix#:~:text=H.264%0A(AVC)%0AYUV%204%3A2%3A0)を参照ください
+    * 「H.264(AVC)YUV 4:2:0」「H.264(AVC)YUV 4:4:4」「H.264(AVC)Lossless」のあたりがYesなら対応しています
     * <b>公式の対応表に書かれていなくても動作するGPUがある</b>ので、まずは動作確認をすることをお勧めします
+* クライアントからのコントローラー入力を受け付けるには[ViGEm](https://vigembusdriver.com/download/#:~:text=11%20November%202023-,Download,-Changelog)をインストールする必要があります
 
 <b>注:ノートPCを使っている場合、内臓ディスプレイが原因でTwinsRemoteの動作に支障が出ることがあります</b>
 
@@ -112,7 +115,7 @@ PC・スマホ・タブレットなど対応ブラウザが使える端末であ
 | Brave | 〇 |
 | FireFox | × |
 
-### コントローラー入力共有
+### コントローラー対応
 
 | ブラウザ | 動作 | 振動機能 |
 | ---- | ---- | ---- |
@@ -165,7 +168,7 @@ TwinsRemote は Steam に依存していません
 
 ### なぜ ViGEm が必要なのですか？
 
-[ViGEm](https://vigembusdriver.com/download/) を利用してホスト側に仮想コントローラーを生成し、ゲーム側へクライアント入力を渡しているためです
+[ViGEm](https://vigembusdriver.com/download/#:~:text=11%20November%202023-,Download,-Changelog) を利用してホスト側に仮想コントローラーを生成し、ゲーム側へクライアント入力を渡しているためです
 
 ---
 
@@ -190,6 +193,7 @@ TwinsRemote は Steam に依存していません
 
 * 配信モードを高い設定にしていませんか？
   * <b>マンションの共有回線</b>を使いながら<b>「4K」</b>で配信するなどインターネット回線が配信モードの設定に追い付いていない可能性があります
+  * より低い設定のモードに切り替えるか映像モードを「自動」に変更してみてください
 * ノートPCの内蔵ディスプレイの映像を共有していませんか？
   * ノートPCの内蔵ディスプレイはハードウェア制約によりTwinsRemoteの性能を発揮するのが難しいです
   * 外部ディスプレイにつないでその映像を共有することで解消されます
