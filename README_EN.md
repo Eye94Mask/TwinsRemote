@@ -9,7 +9,7 @@ In TwinsRemote, users are divided into
 
 <b> “Hosts” — who stream contents —</b> and <b> “Clients” — who receive the contents —</b>.
 
-Please refer to [this page](#System-Requirements) for the system requirements for Host and Client.
+Please refer to [here](#System-Requirements) for the system requirements for Host and Client.
 
 ## How to Use TwinsRemote
 * [Host](#getting-started-as-a-host)
@@ -52,13 +52,13 @@ If you like TwinsRemote and want it to continue for a long time, or if you’d l
   - [For Developers](#for-developers)
   - [Feature Requests](#feature-requests)
   - [Bug Reports](#bug-reports)
-  - [Other Reports or Questions](#other-reports-and-questions)
+  - [Other Reports or Questions](#other-reports-or-questions)
 - [FAQ](#faq)
-  - [Is there a dependency on Steam?](#is-there-a-dependency-on-steam?)
-  - [Do I need to install anything on the client side?](#do-i-need-to-install-anything-on-the-client-side?)
-  - [Why is ViGEm necessary?](#why-is-vigem-necessary?)
-  - [Controller input isn’t working on the client side](#controller-input-isn’t-working-on-the-client-side)
-  - [Video is choppy or lagging](#video-is-choppy-or-lagging)
+  - [Is there a dependency on Steam?](#is-there-a-dependency-on-steam)
+  - [Do I need to install anything on the client side?](#do-i-need-to-install-anything-on-the-client-side)
+  - [Why is ViGEm necessary?](#why-is-vigem-necessary)
+  - [Controller input isn’t working on the client side](#controller-input-isnt-working-on-the-client-side)
+  - [Video is choppy or lagging](#the-video-is-choppy-or-lagging)
 - [Project Background](#project-background)
 - [Development Status](#development-status)
 - [Disclaimer](#disclaimer)
@@ -91,13 +91,13 @@ If you like TwinsRemote and want it to continue for a long time, or if you’d l
 
 * Windows OS (No need to be Windows 11).
 * NVIDIA GPU compatible with NVENC.
-  * Please refer to NVIDIA’s official compatibility list [here](https://developer.nvidia.com/video-encode-decode-support-matrix#:~:text=H.264%0A(AVC)%0AYUV%204%3A2%3A0).
+  * For NVIDIA's official compatibility chart, please refer to “NVENC - Encoding” [here](https://developer.nvidia.com/video-encode-decode-support-matrix).
     * If <b>“H.264 (AVC) YUV 4:2:0”</b>, <b>“H.264 (AVC) YUV 4:4:4”</b> and <b>“H.264 (AVC) Lossless”</b> are set to “Yes”, then it is supported.
     * <b>Some GPUs may work even if they aren’t listed in the official compatibility list</b>, so I recommend that you check to see if TwinsRemote is working.
 
 <b>Note: If you’re using a laptop, the built-in display may cause TwinsRemote to malfunction.</b>
 
-<b>For more details, see [here](#video-is-choppy-or-lagging).</b>
+<b>For more details, see [here](#the-video-is-choppy-or-lagging).</b>
 
 ## Client
 

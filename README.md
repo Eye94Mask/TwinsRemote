@@ -87,7 +87,7 @@ TwinsRemote には維持費がかかっています
 
 * Windows OS (Windows 11である必要はないです)
 * NVENC対応 NVIDIA GPU
-  * NVIDIA公式の対応表は[こちら](https://developer.nvidia.com/video-encode-decode-support-matrix#:~:text=H.264%0A(AVC)%0AYUV%204%3A2%3A0)を参照ください
+  * NVIDIA公式の対応表は[こちら](https://developer.nvidia.com/video-encode-decode-support-matrix)の「NVENC - Encoding」を参照ください
     * 「H.264(AVC)YUV 4:2:0」「H.264(AVC)YUV 4:4:4」「H.264(AVC)Lossless」のあたりがYesなら対応しています
     * <b>公式の対応表に書かれていなくても動作するGPUがある</b>ので、まずは動作確認をすることをお勧めします
 * クライアントからのコントローラー入力を受け付けるには[ViGEm](https://vigembusdriver.com/download/#:~:text=11%20November%202023-,Download,-Changelog)をインストールする必要があります
