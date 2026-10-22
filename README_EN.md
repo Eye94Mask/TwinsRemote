@@ -44,10 +44,10 @@ If you like TwinsRemote and want it to continue for a long time, or if you’d l
   - [Client](#client)
     - [Controller Support](#controller-support)
 - [Getting Started with TwinsRemote](#getting-started-with-twinsremote)
-  - [Getting started as a Host](#getting-started-as-a-host)
+  - [Getting Started as a Host](#getting-started-as-a-host)
     - [Install the App](#install-the-app)
     - [Connect to a Client](#connect-to-a-client)
-  - [Getting started as a Client](#getting-started-as-a-client)
+  - [Getting Started as a Client](#getting-started-as-a-client)
 - [Report Issues](#report-issues)
   - [For Developers](#for-developers)
   - [Feature Requests](#feature-requests)
@@ -125,6 +125,24 @@ It generally works on any device capable of running a supported browser, such as
 | DualSense | ✓ | × |
 
 Latency is extremely low, and the system is designed with actual gameplay in mind.
+
+---
+
+# Getting Started with TwinsRemote
+
+## Getting Started as a Host
+
+### Install the App
+
+TODO: Video Link
+
+### Connect to a Client
+
+TODO: Video Link
+
+## Getting Started as a Client
+
+TODO: Video Link
 
 ---
 
