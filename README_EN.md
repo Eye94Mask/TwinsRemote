@@ -134,15 +134,28 @@ Latency is extremely low, and the system is designed with actual gameplay in min
 
 ### Install the App
 
-TODO: Video Link
+Please follow the instructions in the [video](https://youtu.be/T8Qm4MANf10) to complete the installation.
+
+<div>
+  <iframe src="https://youtu.be/T8Qm4MANf10"></iframe>
+</div>
 
 ### Connect to a Client
 
-TODO: Video Link
+Please follow the instructions in the [video](https://youtu.be/FHvVxVqWshA) to connect to the client.
+
+
+<div>
+  <iframe src="https://youtu.be/FHvVxVqWshA"></iframe>
+</div>
 
 ## Getting Started as a Client
 
-TODO: Video Link
+Please follow the instructions in the [video](https://youtu.be/3Vvxg5Bhuf0) to connect to the host.
+
+<div>
+  <iframe src="https://youtu.be/3Vvxg5Bhuf0"></iframe>
+</div>
 
 ---
 

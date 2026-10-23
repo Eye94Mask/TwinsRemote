@@ -133,15 +133,24 @@ PC・スマホ・タブレットなど対応ブラウザが使える端末であ
 
 ### アプリインストール
 
-TODO: 動画リンク
+[動画](https://youtu.be/w-iYNt3IQgc)の手順に従ってインストールを行ってください
+<div>
+  <iframe src="https://youtu.be/w-iYNt3IQgc"></iframe>
+</div>
 
 ### クライアントとの接続
 
-TODO: 動画リンク
+[動画](https://youtu.be/ifkn4Wakpr8)の手順に従ってクライアントとの接続を行ってください
+<div>
+  <iframe src="https://youtu.be/ifkn4Wakpr8"></iframe>
+</div>
 
 ## はじめてのクライアント
 
-TODO: 動画リンク
+[動画](https://youtu.be/meB5dmYpge0)の手順に従ってホストとの接続を行ってください
+<div>
+  <iframe src="https://youtu.be/meB5dmYpge0"></iframe>
+</div>
 
 ---
 
