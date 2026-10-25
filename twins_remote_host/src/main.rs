@@ -1273,7 +1273,7 @@ fn spawn_stdin_router(
                         eprintln!("[HOST] invalid screen: {:?} ({})", e, line);
                     }
                 }
-            } else if let Some(rest) = line.strip_prefix("pid ") {
+            } else if let Some((_, rest)) = line.split_once("pid ") {
                 match rest.trim().parse::<u32>() {
                     Ok(pid) => {
                         let _ = audio_cmd_tx.send(AudioCommand::UsePid(pid));
