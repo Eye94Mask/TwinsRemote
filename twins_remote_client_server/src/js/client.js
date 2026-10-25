@@ -1805,7 +1805,7 @@ function buildSessionAndUserUrl(path) {
 // 音声
 // =================================================
 function setAudioUiState(state) {
-    const area = document.getElementById("makeImg");
+    const area = document.getElementById("audioCtrl");
     if (!area) return;
     area.dataset.audioState = state;
 }
@@ -2226,6 +2226,9 @@ async function connect() {
     pc = new RTCPeerConnection(buildRtcConfig(config));
 
     if (audioEl) {
+        audioOn.disabled = true;
+        audioOff.disabled = true;
+
         audioEl.srcObject = remoteAudioStream;
         audioEl.muted = true;
         audioEl.volume = 1.0;
@@ -2344,6 +2347,9 @@ async function connect() {
         }
 
         if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+            audioOn.disabled = false;
+            audioOff.disabled = false;
+
             setStatus("connected", locale.connected);
             currentStatus = status.connected;
             clearTimeout(sessionTimeoutMessage);
