@@ -132,6 +132,12 @@ Latency is extremely low, and the system is designed with actual gameplay in min
 
 ## Getting Started as a Host
 
+### Introduction
+
+I recommend installing the latest drivers from NVIDIA App.
+
+TwinsRemote may not work if your drivers are out of date.
+
 ### Install the App
 
 Please follow the instructions in the [video](https://youtu.be/T8Qm4MANf10) to complete the installation.
@@ -225,6 +231,8 @@ If input still doesn’t work, please check the following
 * Are you sharing the video from your laptop’s built-in display?
   * Due to hardware limitations, it’s difficult for TwinsRemote to perform optimally on a laptop’s built-in display.
   * Connecting to an external display and sharing the video from there will resolve this issue.
+
+Please also take a look at this [issue](https://github.com/Eye94Mask/TwinsRemote/issues/31).
 
 ---
 
