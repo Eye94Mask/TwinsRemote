@@ -232,7 +232,7 @@ If input still doesn’t work, please check the following
   * Due to hardware limitations, it’s difficult for TwinsRemote to perform optimally on a laptop’s built-in display.
   * Connecting to an external display and sharing the video from there will resolve this issue.
 
-Please also take a look at this [issue](https://github.com/Eye94Mask/TwinsRemote/issues/31).
+Please also take a look at this [issue](https://github.com/Eye94Mask/TwinsRemote/issues/31#issuecomment-4591706536).
 
 ---
 
