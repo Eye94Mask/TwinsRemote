@@ -1962,6 +1962,22 @@ async function fetchSessionStart() {
     }
 }
 
+async function fetchConnectionStart() {
+    const userId = localStorage.getItem("userId");
+    const res = await fetch(buildSessionUrl("/start-connection-twins-remote"), {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({userId})
+    });
+
+    if (!res.ok) {
+        const text = await res.text();
+        throw new Error("failed to fetch start twins remote: " + text);
+    }
+}
+
 async function fetchSessionEnd() {
     const userId = localStorage.getItem("userId");
     const res = await fetch(buildSessionUrl("/end-twins-remote"), {
@@ -2349,6 +2365,8 @@ async function connect() {
         if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
             audioOn.disabled = false;
             audioOff.disabled = false;
+
+            await fetchConnectionStart();
 
             setStatus("connected", locale.connected);
             currentStatus = status.connected;
