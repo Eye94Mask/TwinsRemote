@@ -71,7 +71,7 @@ If you like TwinsRemote and want it to continue for a long time, or if you’d l
 
 * P2P communication using WebRTC.
 * Low latency of a few milliseconds to tens of milliseconds in a stable network environment.
-  * We offer the following features for users with limited internet connections.
+  * TwinsRemote offer the following features for users with limited internet connections.
     * Automatic streaming settings adjustment (for beginners).
     * Ability to finely adjust streaming settings manually (resolution, fps, data transmission bitrate, etc.) (for advanced users).
 * Designed with gameplay in mind.
